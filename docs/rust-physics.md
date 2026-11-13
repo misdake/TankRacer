@@ -124,7 +124,65 @@ The expanded primary/auxiliary oracles also pass after the decoder change.
 cargo test -p tankracer-game --test geometry_reference -- --ignored --nocapture
 ```
 
-Next integration order: typed deformable geometry → primary sampling and its
-surface-noise/effect state → material/fallback/layout/lazy auxiliary/suspension
-pipeline → vehicle resource config and drive/pose/collision → browser proxy.
-Keep the exact dependency order, including previous-gap and stale-cache behavior.
+Secondary-grid checkpoint: `e8e5e71`.
+
+## Deformation and composed contact pipeline
+
+`deformation` separates local geometry/bounds from the object's changing pose,
+activation records and dirty state. A sample performs the original row-major
+inverse transform, sign/magnitude shift and sequential X/Z clamp. It selects the
+maximum positive vertex height within strict ±128 windows, activates state-0
+records unconditionally or state-1 records within strict ±750 raw-coordinate
+windows, writes their state/color and applies the signed edge attenuation.
+The 6,144 three-sample fixture records / 270,336 output words match C exactly,
+including wrapping arithmetic, reversed clamps, window boundaries, unchanged
+record positions and color/state mutations. No per-query allocation is made.
+
+`contact_pipeline` now composes primary terrain sampling, spatial noise, temporary
+surface effects, deformation, materials, fallback normals, contact layout and
+lazy auxiliary/suspension response. Dependencies remain explicit: immutable map
+and coefficients, track poses, contact config, mutable object state and a **shared
+game RNG seed**. There is no original-memory read/write interface in this runtime.
+Game-owned effect-slot clearing and device feedback are explicit notifications.
+
+Important ordering/output contracts:
+
+- A miss retains raw height/flags/previous gap and restores the saved gap; it
+  clears only that sample's material/node before possible fallback classification.
+- Surface disturbance uses truncation towards zero, unlike the arithmetic-shift
+  gains in suspension. Noise is a spatial lookup, not a fresh RNG draw.
+- Primary samples see the effect's old positive timer. The signed-16 timer and
+  shared RNG advance afterwards, so the expiration tick still disturbs height.
+- Load uses the four original travel values before suspension changes them.
+- Materials compare the same primary pair for both tracks. Fallback normal
+  writes and stale auxiliary caches keep their original timing.
+- Errors preserve earlier point updates, resets and already emitted notifications;
+  they do not advance later stages. Deformation state is shared across all four
+  samples and updated immediately, not collected and applied at frame end.
+
+The composed oracle starts the full native game for each real map. It receives
+explicit pre-state/config, performs its own C geometry queries and composed
+update, and returns all state fields plus effect/deformation writes. It does
+not supply post-state contact classifications to Rust. 6,144 records across
+eight maps match 917,504 state words, covering all contact kinds 0..4, four-tick
+sequences, mixed materials, cache reuse/refresh, deformation and effect expiration.
+118 injected vertical-plane errors verify partial state and RNG timing too.
+Ordinary unit tests also explain expiration, pre-response load and missing-resource
+errors without depending on the optional C executable.
+
+```sh
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_deformation.c build/native/libtankracer_core.a -o build/native/deformation_reference
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_pipeline.c build/native/libtankracer_host.a build/native/libtankracer_core.a -o build/native/pipeline_reference
+```
+
+```powershell
+$env:TANKRACER_DEFORMATION_REFERENCE=(Resolve-Path build/native/deformation_reference.exe).Path
+$env:TANKRACER_PIPELINE_REFERENCE=(Resolve-Path build/native/pipeline_reference.exe).Path
+cargo test -p tankracer-game --test deformation_reference --test pipeline_reference -- --ignored --nocapture
+```
+
+These are typed physics stages, not yet a loaded/running Rust vehicle. The
+resource loader still needs to populate their configs/poses/records and validate
+their resource bounds (including the original 65536-record deformation limit).
+Next: vehicle and surface resource config, drive/pose/motion/collision, then the
+browser proxy. No new map acceleration storage or whole-frame performance claim.

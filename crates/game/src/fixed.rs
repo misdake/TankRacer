@@ -20,6 +20,13 @@ impl Coefficient {
             .wrapping_mul(i32::from(self.multiplier))
             .wrapping_shr(u32::from(self.shift))
     }
+
+    pub fn apply_truncated(self, value: i32) -> i32 {
+        trunc_shift(
+            value.wrapping_mul(i32::from(self.multiplier)),
+            u32::from(self.shift),
+        )
+    }
 }
 
 /// Original sign/magnitude shift. Preserve its wrapping INT_MIN behavior too.
