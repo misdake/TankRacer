@@ -59,6 +59,24 @@ pub struct LoadConfig {
     pub gain: Coefficient,
 }
 
+impl From<&tankracer_assets::config::Suspension> for LoadConfig {
+    fn from(source: &tankracer_assets::config::Suspension) -> Self {
+        Self {
+            base: source.initial_weight,
+            floor: source.initial_pressure,
+            gain: source.pressure_fraction.into(),
+        }
+    }
+}
+
+/// Original route initialization consumes sixteen values of the shared game RNG.
+pub fn initialize_noise(seed: &mut u32) -> [u16; 16] {
+    std::array::from_fn(|_| {
+        *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+        (*seed >> 4) as u16
+    })
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Environment {
     pub tracks: [Transform; 2],

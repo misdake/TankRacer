@@ -184,5 +184,40 @@ cargo test -p tankracer-game --test deformation_reference --test pipeline_refere
 These are typed physics stages, not yet a loaded/running Rust vehicle. The
 resource loader still needs to populate their configs/poses/records and validate
 their resource bounds (including the original 65536-record deformation limit).
-Next: vehicle and surface resource config, drive/pose/motion/collision, then the
-browser proxy. No new map acceleration storage or whole-frame performance claim.
+Contact composition checkpoint: `53a558b`.
+
+## Authored surface and vehicle configuration
+
+`assets::config` loads SURFS.DAT and all 57 TANK*.DAT keys directly into named
+resource types: ten part nodes/offsets, drive parameters, suspension parameters
+and attachment offsets. The runtime has no object-offset field map. Gain WORDs
+and damping WORD/BYTE/BYTE descriptors are distinct; numeric stores preserve
+their original wrapping widths. Duplicate keys win last, names are ASCII casefolded,
+comments/quoted tokens are supported. Malformed/missing values are rejected at
+resource load; this is not an attempt to preserve unsafe malformed-file parsing.
+
+`Tank::resolve` applies explicit player/special, battle/ambient, mode-5 backup
+and CIRCUIT overrides in their original order. Derived suspension travel extents
+retain 32-bit multiplication/shift and validate the contact module's bound order.
+`contact::Config` and `contact_pipeline::LoadConfig` now consume these resources;
+half the composed oracle corpus uses the authored suspension and surface data.
+The spatial-noise initializer consumes sixteen shared RNG values as in C.
+
+The C oracle compares all 100 surface factors and 15 authored tanks plus a
+width/casefold/quoted-name fixture in 32 override contexts (512 tank cases).
+This includes node names/vectors, every stored coefficient, derived extents,
+sidegrip reset capture and mode-5 backups. All fields match. The 6,144 composed
+contact records still match after switching half to the real resources.
+
+```sh
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_config.c build/native/libtankracer_core.a -o build/native/config_reference
+```
+
+```powershell
+$env:TANKRACER_CONFIG_REFERENCE=(Resolve-Path build/native/config_reference.exe).Path
+cargo test -p tankracer-assets --test config_reference -- --ignored --nocapture
+```
+
+Next: typed drive state and exact damping/gear/traction/steering, pose/motion and
+collision, then browser proxy. Authored physics parameters are now available;
+model loading/vehicle construction still remain. No new per-map acceleration.

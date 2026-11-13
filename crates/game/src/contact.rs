@@ -17,6 +17,26 @@ pub struct Config {
     pub travel_dead_step: i16,
 }
 
+impl TryFrom<&tankracer_assets::config::Suspension> for Config {
+    type Error = tankracer_assets::config::Error;
+    fn try_from(source: &tankracer_assets::config::Suspension) -> Result<Self, Self::Error> {
+        let [lower, upper] = source.travel_bounds()?;
+        Ok(Self {
+            lower,
+            upper,
+            force_positive: source.force_to_susp.into(),
+            force_negative: source.down_force_to_susp.into(),
+            output_gain: source.susp_to_force.into(),
+            tilt_gain: source.susp_to_rot.into(),
+            shape_shift: source.spring_pre_shift as u32,
+            restore_positive: source.spring.into(),
+            restore_negative: source.easy_spring.into(),
+            damping_shift: source.susp_speed_drag.shift,
+            travel_dead_step: source.susp_drag.step,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct State {
     pub travel: i32,

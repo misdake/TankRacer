@@ -2,6 +2,7 @@
 
 pub mod archive;
 pub mod budget;
+pub mod config;
 pub mod surface;
 pub mod terrain;
 pub mod world;

@@ -198,7 +198,7 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
     let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../build/tests/pipeline");
     fs::create_dir_all(&folder).unwrap();
-    let contact = contact::Config {
+    let branch_contact = contact::Config {
         lower: -12000,
         upper: 12000,
         force_positive: coefficient(7, 16),
@@ -211,8 +211,21 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
         damping_shift: 8,
         travel_dead_step: 2,
     };
-    let gains: Vec<_> = (0..10).map(|i| coefficient(i * 3, 4)).collect();
-    let noise: [u16; 16] = std::array::from_fn(|i| ((i * 71 + 37) & 255) as u16);
+    let branch_gains: Vec<_> = (0..10).map(|i| coefficient(i * 3, 4)).collect();
+    let config_bytes = fs::read(assets.join("DATA/FASTFILE.DAT")).unwrap();
+    let config_archive = Archive::parse(&config_bytes).unwrap();
+    let surfaces =
+        tankracer_assets::config::Surfaces::decode(config_archive.get("SURFS.DAT").unwrap())
+            .unwrap();
+    let tanks: Vec<_> = (1..=15)
+        .map(|i| {
+            tankracer_assets::config::Tank::decode(
+                config_archive.get(&format!("TANK{i}.DAT")).unwrap(),
+            )
+            .unwrap()
+        })
+        .collect();
+    let noise = pipeline::initialize_noise(&mut 0x12345678);
     let layout = [101, 202, 303, 404, 505];
     let mut total = 0;
     let mut errors = 0;
@@ -269,6 +282,18 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
         let mut expected = Vec::new();
         let mut ranges = Vec::new();
         for case in 0..192 {
+            let resource = &tanks[case % 15].suspension;
+            let authored = case >= 96;
+            let contact = if authored {
+                contact::Config::try_from(resource).unwrap()
+            } else {
+                branch_contact
+            };
+            let gains: Vec<Coefficient> = if authored {
+                surfaces.entries.map(|s| s.bump.into()).to_vec()
+            } else {
+                branch_gains.clone()
+            };
             let mut origins = [
                 centers[case * 37 % centers.len()],
                 centers[(case * 37 + if case % 3 == 0 { 13 } else { 0 }) % centers.len()],
@@ -358,11 +383,19 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                     }),
                     auxiliary_local: [[0, 0, 0], [33, 75, -33]],
                     force_surface: case % 5 == 0,
-                    effect_gain: coefficient(17, 2),
-                    load: pipeline::LoadConfig {
-                        base: 1024,
-                        floor: 31,
-                        gain: coefficient(7, 3),
+                    effect_gain: if authored {
+                        coefficient(3, 9)
+                    } else {
+                        coefficient(17, 2)
+                    },
+                    load: if authored {
+                        resource.into()
+                    } else {
+                        pipeline::LoadConfig {
+                            base: 1024,
+                            floor: 31,
+                            gain: coefficient(7, 3),
+                        }
                     },
                     dt: [0, 1, 16, 17, 33][case % 5],
                     frame: tick as u32,
@@ -384,7 +417,11 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                     player_shift: 2,
                     other_multiplier: 5,
                     other_shift: 3,
-                    penetration_shift: 3,
+                    penetration_shift: if authored {
+                        u32::from(resource.susp_to_shape.shift as u8)
+                    } else {
+                        3
+                    },
                     auxiliary_query_type: [91, 92],
                 };
                 let patch = if case % 11 == 0 && tick == 3 {

@@ -29,6 +29,15 @@ impl Coefficient {
     }
 }
 
+impl From<tankracer_assets::config::Gain> for Coefficient {
+    fn from(gain: tankracer_assets::config::Gain) -> Self {
+        Self {
+            multiplier: gain.multiplier,
+            shift: gain.shift as u8,
+        }
+    }
+}
+
 /// Original sign/magnitude shift. Preserve its wrapping INT_MIN behavior too.
 pub fn trunc_shift(value: i32, shift: u32) -> i32 {
     if value < 0 {
