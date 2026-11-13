@@ -1,4 +1,5 @@
 //! Authored model assembly and geometry-derived vehicle metadata (4350A0).
+pub use crate::geometry::Bounds;
 use crate::math;
 use std::{collections::HashMap, sync::Arc};
 use tankracer_assets::{
@@ -87,19 +88,6 @@ impl Mesh {
     }
     pub fn geometry(&self) -> &Geometry {
         self.owned.as_ref().unwrap_or(&self.source.geometry)
-    }
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Bounds {
-    pub min: [i32; 3],
-    pub max: [i32; 3],
-}
-impl Bounds {
-    fn expanded(self, padding: [i32; 3]) -> Self {
-        Self {
-            min: std::array::from_fn(|i| self.min[i].wrapping_sub(padding[i])),
-            max: std::array::from_fn(|i| self.max[i].wrapping_add(padding[i])),
-        }
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -476,3 +476,62 @@ only on a newly damaged quadrant; no adjacency cache or per-map acceleration is
 added. These checks establish module semantics, not a complete collision world or
 running vehicle. Next: object/tank queries and overlap, obstacle/deformable game
 dispatch, then position integration and full per-tick vehicle orchestration.
+
+Damage/ground response checkpoint: `d6b93bd`.
+
+## Ordered object queries
+
+`object_query` ports segment/box intersection, the 8x8 obstacle grid, ordered
+deformable candidates, strict tank contact overlap and nine-slot tank selection.
+Colliders, entity IDs and candidate handles are typed; no original linked-list
+addresses are used at runtime. Bounds are shared with vehicle construction.
+Queries borrow the world's candidate arrays and allocate nothing. Creating and
+maintaining those arrays from placed resources is still part of world startup.
+
+The first valid candidate wins, not the nearest. Grid selection uses the start
+point, wrapping arithmetic, x86-masked shifts and clamping to the nearest cell.
+Broadphase retains the source's approximate metric, strict radius checks and
+inside-box backtracking. Segment intersection preserves its two-unit tolerance,
+axis tie order and partially written point on a later miss. Only a crossing
+writes normal. A 65,536-candidate work limit remains; malformed handles are
+explicit typed errors, while linked-list cycles are structurally absent.
+
+Obstacle hits return world point/normal and require a strictly facing crossing;
+deformable hits deliberately return local coordinates and accept inside starts.
+Tank overlap ignores Y bounds but transforms all three contact coordinates.
+The querying tank's active flag gates the search; peer active flags do not.
+Peers require their ready flag and must not be collision-disabled. Tank inside
+hits update metadata only, preserving caller point/normal. Tank misses clear
+metadata; obstacle/deformable misses preserve the entire supplied hit.
+
+**12,288 synthetic C comparisons / 89,088 words** pass: 8,192 segment cases
+(including seven arithmetic errors), 1,024 obstacle queries, 1,024 deformable
+queries, 1,024 tank queries and 1,024 overlaps. Coverage includes overflow/shift
+boundaries, stationary/short/inside segments, changing candidate and slot orders,
+rotated/absent external bases, self exclusion and partial output preservation.
+Ordinary tests also cover the exact work limit, invalid handles, inactive peers
+and the different miss contracts.
+
+Additionally, **15,480 real-world queries across 664 colliders** match all eight
+CUP maps with opponents enabled. The oracle starts the actual C game and runs
+one real frame before exporting typed collider/list inputs and C query results:
+peers only become query-ready after their first actual update. It does not force
+flags or use a substitute collision implementation. Samples include stationary
+origins, both directions along each world axis and all grid boundaries. Successful
+crossings: 3,406 obstacles, 266 deformables and 38 tanks; 18 tank inside hits also
+match. This qualifies querying real initialized state, not Rust world construction
+or a complete frame update. C memory extraction is confined to this test oracle.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_object_query.c build/native/libtankracer_core.a -o build/native/object_query_reference.exe
+$env:TANKRACER_OBJECT_QUERY_REFERENCE=(Resolve-Path build/native/object_query_reference.exe).Path
+cargo test -p tankracer-game --test object_query_reference ordered_queries -- --ignored --nocapture
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_object_world.c build/native/libtankracer_host.a build/native/libtankracer_core.a -o build/native/object_world_reference.exe
+$env:TANKRACER_OBJECT_WORLD_REFERENCE=(Resolve-Path build/native/object_world_reference.exe).Path
+cargo test -p tankracer-game --test object_query_reference all_eight -- --ignored --nocapture
+```
+
+Next: tank overlap response and collision dispatch, obstacle/deformable game
+operations, then complete motion/update orchestration and the browser proxy.
+Existing map-budget measurements are unchanged: this stage adds no spatial cache
+and does not yet attach these candidate arrays to the live Rust scene.

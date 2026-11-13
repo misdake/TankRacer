@@ -12,6 +12,7 @@ mod fixed;
 pub mod geometry;
 pub mod ground_collision;
 pub mod math;
+pub mod object_query;
 pub mod pose;
 pub mod sampling;
 pub mod suspension;

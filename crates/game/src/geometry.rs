@@ -1,6 +1,21 @@
 //! Alternate collision grid (501A50), preserving its non-Euclidean center metric.
 use tankracer_assets::terrain::TerrainData;
 
+/// Axis-aligned bounds in the simulation's fixed-point coordinate space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bounds {
+    pub min: [i32; 3],
+    pub max: [i32; 3],
+}
+impl Bounds {
+    pub fn expanded(self, padding: [i32; 3]) -> Self {
+        Self {
+            min: std::array::from_fn(|i| self.min[i].wrapping_sub(padding[i])),
+            max: std::array::from_fn(|i| self.max[i].wrapping_add(padding[i])),
+        }
+    }
+}
+
 /// Unsigned magnitudes: largest + one quarter of each remaining component.
 /// The signed result can wrap; replacing this with a length changes selection.
 pub fn approximate_distance(delta: [i32; 3]) -> i32 {
