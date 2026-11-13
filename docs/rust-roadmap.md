@@ -9,13 +9,14 @@
   pixel cases pass. Detailed evidence: [assets](rust-assets.md),
   [renderer](rust-renderer.md).
 - M3 terrain: typed primary graph, 97–195 KB/map native; 166,740 real-map points
-  match C's three query interfaces, plus arithmetic fixtures. Contracts, test
+  match C's three query interfaces, plus arithmetic fixtures (`7e4594b`). Contracts, test
   commands and limitations: [physics](rust-physics.md).
+- M3 contact/suspension and auxiliary sampling ported: 26,153 arithmetic/short
+  sequence records and 11,172 geometry samples match C. No vehicle integration yet.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Terrain and
   later physics acceleration share the same per-map limit; not yet integrated
   into the live Wasm counter. GPU resource bytes are accounted separately.
-- Next: contact/suspension arithmetic and auxiliary queries; then fallback
-  geometry → typed vehicle state/config
+- Next: fallback geometry and deformation/contact integration → typed vehicle state/config
   → drive/pose/collision → browser proxy. M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.

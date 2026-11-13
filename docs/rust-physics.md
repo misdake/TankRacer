@@ -43,6 +43,52 @@ preservation, conditional extra outputs and vertical-plane distinctions without 
 The oracle logs callback counts/timing for diagnostics; these are not a claim
 of a whole-frame speedup. No extra spatial table or result cache has been added.
 
-This is a terrain-query checkpoint, **not a working vehicle**. Next: fallback
-geometry, exact contact sampling, spring/track response and vehicle drive/pose,
-then the proxy vehicle in the browser. Gameplay still uses the existing C reference.
+Primary terrain commit: `7e4594b`.
+
+## Auxiliary sampling and four-point suspension
+
+The next layer is pure Rust state, separate from immutable map data:
+
+- `sampling::Transform` converts a local contact to raw world coordinates with
+  the original column-major Q12 products, sums and wrapping before shifting.
+- `AuxiliaryContact::sample` classifies its gap: below -75 is penetrating,
+  [-75,75) is touching, >=75 is airborne; a missing plane is kind 3. A failed
+  query updates world coordinates but preserves classification/cache fields.
+- `contact::State::step` applies the input force, squared-travel restoring term,
+  damping, travel dead step and bounds, then output/tilt. Gains are typed
+  multiplier/shift pairs rather than packed words. Units remain the game's
+  fixed-point units; these names do not claim SI spring constants.
+- `suspension::State::step_resolved` updates points in original order. Geometry
+  is queried lazily only for an uncached side with nonpositive input. A positive
+  force can therefore intentionally use the previous auxiliary classification.
+  Resolver errors preserve exactly the state already committed by earlier points.
+- Aggregation applies tilt to angular state and combines same-sign point loads.
+  Maximum penetration gates body correction, but the **last** overflow supplies
+  the lift amount. Downward velocity halves towards zero; a positive timer can
+  become negative after subtracting dt. Neither behavior is "cleaned up."
+- Contact layout/load and the shared primary-material comparison are explicit
+  functions. Load must be sampled before suspension changes travel.
+
+The independent C oracle compares 26,153 records / 738,765 output words,
+including all corner/auxiliary gates, force signs, travel bounds, shift masking,
+overflow, 625 contact-kind combinations, lazy resolver errors/partial writes and
+four-tick sequences. Auxiliary sampling adds 11,172 exact C comparisons across
+all eight maps and a vertical-plane error fixture: ±75 boundaries, misses,
+rotations (including wrapping products), forced material and preserved outputs.
+Small ordinary Rust tests document damping, tilt, lift, timer and lazy-query rules.
+
+```sh
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_suspension.c src/physics_contact.c src/physics_suspension.c -o build/native/suspension_reference
+```
+
+```powershell
+$env:TANKRACER_SUSPENSION_REFERENCE=(Resolve-Path build/native/suspension_reference.exe).Path
+cargo test -p tankracer-game --test suspension_reference -- --ignored --nocapture
+# Rebuild terrain_reference using the command above before the auxiliary test.
+cargo test -p tankracer-game --test terrain_reference auxiliary -- --ignored --nocapture
+```
+
+These modules add fixed per-vehicle state, no map cache/index. This is **not a
+working vehicle** yet: fallback geometry, deformation/contact integration,
+configuration, drive/pose and collision remain, then the browser proxy. Gameplay
+still uses the existing C reference; no whole-frame performance claim is made.

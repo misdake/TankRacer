@@ -49,8 +49,8 @@ static int no_material(void *ctx,uint32_t name,uint32_t mode,uint32_t *out)
 int main(int argc,char **argv)
 {
     context ctx={0};unsigned char *owned=0;uint32_t root,words[20],n,i,map,cup;int32_t x,z;
-    uint64_t queries=0;double seconds=0;char line[128];int status;
-    if (argc!=3) return 2;
+    uint64_t queries=0;double seconds=0;char line[1024];int status,auxiliary=argc==4 && !strcmp(argv[3],"--aux");
+    if (argc!=3 && !auxiliary) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout),_O_BINARY);
 #endif
@@ -77,8 +77,22 @@ int main(int argc,char **argv)
         status=tank_start();if (status) return 4;ctx.ram=tank_data();
     }
     root=get32(ctx.ram+0x55ae60u);ctx.reads=0;
-    words[0]=0x31305154u;words[1]=0x5dab54u;if (write_words(words,2)) return 5;
+    words[0]=auxiliary ? 0x31305141u : 0x31305154u;words[1]=0x5dab54u;if (write_words(words,2)) return 5;
     while (fgets(line,sizeof(line),stdin)) {
+        if (auxiliary) {
+            int32_t values[16];char *next=line,*end;
+            physics_auxiliary_contact out={.world={-1,-2,-3},.kind=17,.cached=23,.surface=19};
+            for (i=0;i<16;i++) {
+                long value=strtol(next,&end,10);
+                if (next==end || value<INT32_MIN || value>INT32_MAX) return 6;
+                values[i]=(int32_t)value;next=end;
+            }
+            words[0]=(uint32_t)physics_auxiliary_query(read_data,&ctx,root,values,values+3,values+12,values[15],&out);
+            for (i=0;i<3;i++) words[1+i]=(uint32_t)out.world[i];
+            words[4]=(uint32_t)out.kind;words[5]=(uint32_t)out.surface;words[6]=(uint32_t)out.cached;
+            if (write_words(words,7)) return 5;
+            queries++;continue;
+        }
         physics_terrain_hit hit={-55,0x11223344u,{-12,-13,-14},0x8899aabbu,-77,{19,23,-29,31},0xabcd1234u};
         int32_t height=0x12345678,normal_height=0x12345678,normal[3]={0x11111111,0x22222222,0x33333333};clock_t begin;
         if (sscanf(line,"%d %d",&x,&z)!=2) return 6;

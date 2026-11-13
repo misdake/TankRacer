@@ -6,6 +6,7 @@ use std::{
     process::{Command, Stdio},
 };
 use tankracer_assets::{archive::Archive, terrain::TerrainData};
+use tankracer_game::sampling::{AuxiliaryContact, Transform};
 use tankracer_game::terrain::{self, Error, Hit};
 
 fn word(bytes: &[u8], at: usize) -> u32 {
@@ -171,6 +172,136 @@ fn points(data: &TerrainData) -> Vec<[i32; 2]> {
         }
     }
     points.into_iter().collect()
+}
+
+fn compare_auxiliary(data: &TerrainData, samples: &[[i32; 2]], args: &[&str], name: &str) {
+    let mut input = String::new();
+    let mut expected = Vec::new();
+    let mut kinds = [0; 4];
+    let mut errors = 0;
+    for &[x, z] in samples {
+        let mut ground = Hit::default();
+        let _ = terrain::query(data, x, z, &mut ground);
+        for gap in [-76_i32, -75, -74, 0, 74, 75, 76] {
+            for basis in [
+                [4096, 0, 0, 0, 4096, 0, 0, 0, 4096],
+                [2896, 0, -2896, 0, 4096, 0, 2896, 0, 2896],
+                [i32::MIN, 32767, -1, 4, i32::MAX, 4096, -32768, 513, -99],
+            ] {
+                for force in [false, true] {
+                    let local = [1537, -6001, 2943];
+                    let mut transform = Transform {
+                        basis,
+                        origin: [0; 3],
+                    };
+                    let rotated = transform.point(local);
+                    transform.origin = [x, ground.height.wrapping_add(gap), z];
+                    for (origin, value) in transform.origin.iter_mut().zip(rotated) {
+                        *origin = origin.wrapping_sub(value);
+                    }
+                    let mut values = local.to_vec();
+                    values.extend(basis);
+                    values.extend(transform.origin);
+                    values.push(i32::from(force));
+                    input.push_str(
+                        &values
+                            .iter()
+                            .map(i32::to_string)
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    );
+                    input.push('\n');
+                    let mut out = AuxiliaryContact {
+                        world: [-1, -2, -3],
+                        kind: 17,
+                        surface: 19,
+                        cached: 23,
+                    };
+                    let result = out.sample(data, local, &transform, force);
+                    if result.is_ok() {
+                        kinds[out.kind as usize] += 1;
+                    } else {
+                        errors += 1;
+                    }
+                    expected.push([
+                        status(result),
+                        out.world[0] as u32,
+                        out.world[1] as u32,
+                        out.world[2] as u32,
+                        out.kind as u32,
+                        out.surface as u32,
+                        out.cached as u32,
+                    ]);
+                }
+            }
+        }
+    }
+    let executable = std::env::var_os("TANKRACER_TERRAIN_REFERENCE").unwrap();
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../build/tests/terrain");
+    std::fs::create_dir_all(&folder).unwrap();
+    let file = folder.join(format!("{name}.aux.input"));
+    std::fs::write(&file, input).unwrap();
+    let output = Command::new(executable)
+        .args(args)
+        .arg("--aux")
+        .stdin(Stdio::from(File::open(file).unwrap()))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(&output.stdout[..4], b"AQ01");
+    assert_eq!(output.stdout.len(), 8 + expected.len() * 28);
+    for (index, values) in expected.iter().enumerate() {
+        let actual: Vec<_> = (0..7)
+            .map(|i| word(&output.stdout, 8 + index * 28 + i * 4))
+            .collect();
+        assert_eq!(actual, values, "{name} auxiliary record{index}");
+    }
+    eprintln!(
+        "{name}: {} exact auxiliary samples; kinds={kinds:?}, errors={errors}",
+        expected.len()
+    );
+}
+
+#[test]
+#[ignore = "requires the native terrain oracle"]
+fn auxiliary_rotation_gap_boundaries_cache_and_error_outputs_match_c() {
+    let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
+    for map in [
+        "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
+    ] {
+        let bytes = std::fs::read(assets.join("LEVELS").join(map).join("FASTFILE.DAT")).unwrap();
+        let archive = Archive::parse(&bytes).unwrap();
+        let name = archive
+            .entries()
+            .iter()
+            .find(|e| e.name.ends_with(".BSM"))
+            .unwrap()
+            .name;
+        let data = TerrainData::decode_bsm(archive.get(name).unwrap()).unwrap();
+        let all = points(&data);
+        let samples: Vec<_> = all
+            .iter()
+            .step_by((all.len() / 32).max(1))
+            .copied()
+            .collect();
+        compare_auxiliary(&data, &samples, &[assets.to_str().unwrap(), map], map);
+    }
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../build/tests/terrain");
+    std::fs::create_dir_all(&folder).unwrap();
+    let bytes = fixture([4096, 0, 0], false);
+    let file = folder.join("aux-vertical.bsm");
+    std::fs::write(&file, &bytes).unwrap();
+    let data = TerrainData::decode_bsm(&bytes).unwrap();
+    compare_auxiliary(
+        &data,
+        &[[8, 8], [-8, -8]],
+        &["--bsm", file.to_str().unwrap()],
+        "vertical",
+    );
 }
 
 #[test]
