@@ -11,18 +11,21 @@
   attitude/velocity, poses/articulation/lean/hull, real model assembly and damage;
   object queries, wall/pair/ground response and tank query/overlap dispatch.
   Queries include all eight actual native worlds / 664 colliders.
-- Latest **`d836ea7`**: obstacle/deformable response, logical method slots and
+- Scene response (`d836ea7`): obstacle/deformable response, logical method slots and
   real deformable mesh compression/material/timer/RNG. 6,144 flow + 4,096 actual
   method records match C; composed Rust binding and native/Wasm checks pass.
-- Remaining collision gaps: breakable-obstacle method/lifecycle and real impact
-  particles. Their service ordering/errors are tested, not their missing bodies.
+- Latest **`22ad404`**: real breakable hit/attachment chains, spatial insert/remove
+  and tick membership. 8,192 membership + 4,096 real hit/flow records match C;
+  native/Wasm checks pass. Entity dispatch keeps its distinct failure contract.
+- Remaining scene gaps include real impact particles, auxiliary/destruction
+  effects, object motion ticks and the full scheduler; probes do not complete them.
   Rust world construction and the complete moving vehicle are still unfinished.
 - Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
   [physics](rust-physics.md) and [renderer](rust-renderer.md); keep them out of this summary.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: breakable-object method/lifecycle → real impact particles → motion and
+- Next: real impact particles/shared line resources → vehicle motion and
   complete per-tick vehicle orchestration → browser proxy.
   No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
