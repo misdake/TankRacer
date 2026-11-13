@@ -17,18 +17,18 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`d436d8f`**. Ordinary Obstacle allocation, authored reader
-  and constructor now use the shared factory/lifecycle. 24 fresh scripts / 144
-  objects / 96 checkpoints and all 56 authored ordinary objects match C; the live
-  comparison caught/fixed a missing deferred-stop call. Lifecycle, authored parent,
-  Crush and connected-vehicle regressions, workspace tests, native/Wasm lint,
-  unchanged-C checks and browser build pass. Details: [physics](rust-physics.md).
-- Still missing: Crush/Fall-family and other subclass allocation/readers,
+- Last verified code: **`73b29fd`**. Ordinary Obstacle and Crush now use the shared
+  factory/readers/lifecycle. All 154 authored Crush, 302 bound runtime ticks and
+  their live memberships match C; 154 objects retire with private/shared geometry
+  ownership preserved. Fresh ordinary scripts, 56 ordinary factories, parent,
+  lifecycle and connected-vehicle regressions, workspace/native/Wasm checks and
+  browser build pass. Details and scope boundaries: [physics](rust-physics.md).
+- Still missing: Fall-family and other subclass allocation/readers,
   attachments, auxiliary face/backup motion and complete startup/shared RNG replay.
   Breakable collision callbacks must share the entity scheduler/symbol context;
   vehicle prefix/after-pose and world startup remain incomplete. Class-slot tests
   are scoped; complete bootstrap and fragment/animation GPU rendering are pending.
-- **Next runnable increment:** extend the fresh reader to Crush/Fall-family
+- **Next runnable increment:** extend the fresh reader to Fall-family
   and attachments on this same owner, then connect vehicle prefix/after-pose and
   scheduler -> independent moving proxy. Do not leave tested modules disconnected.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
