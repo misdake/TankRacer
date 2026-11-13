@@ -9,23 +9,25 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`909722e`**. Authored level input is decoded from all
-  50 shipped object files / 4,392 records; names, poses and parameters match the
-  actual C common reader. Class-specific construction remains pending.
-- Physics checkpoint **`f7ce7a2`** uses the same live
-  deformable mesh for contact and real class hit methods; 1,254 records /
-  8,716,157 output words match C across 15 cars/eight maps, including 37 mesh
-  changes and 33 later sampling borrows. Workspace tests, native/Wasm Clippy,
-  deformation/contact regressions and unchanged-C verification pass.
-- The phase starts after the timer/ability prefix; ordinary obstacle hit chains,
-  full world construction and complete after-pose effects remain outside this
-  connected qualification. It is not a full autonomous Rust replay.
-- **Next runnable increment:** decode class parameters and instantiate real
-  scene objects from those authored records (not test snapshots); finish method
-  bindings and Rust world construction. Connect pre-contact timers/abilities,
-  after-pose effects and
-  object ticks/scheduler, then run an independent moving proxy. M3 stays open
-  until that proxy runs without C or an original-memory arena.
+- Last verified code: **`9185db4`**. Original authored input (50 files / 4,392
+  records) and real Crush construction are implemented. Across 22 nonempty
+  map/CUP configurations, 154 constructions / 28 glow records / 10 shared-mesh
+  pairs match real C startup. Components install into the collision world/class
+  table with correct initial lap visibility; other class construction is pending.
+- Shared geometry now uses stable scene handles: ordinary source aliases share
+  deformation; `:multi_crush` detaches a private copy. Contact/hit code borrows
+  that same store. No per-frame vertex copy or original-memory arena.
+- Connected physics still matches 1,254 records / 8,716,157 words across 15 cars
+  and eight maps (37 real mesh changes, 33 later sampling borrows). Workspace,
+  native/Wasm Clippy, deformation/contact regressions and unchanged-C checks pass.
+- Qualification limits: per-constructor RNG inputs still come from C; other
+  classes, named entity resolution, complete startup/RNG replay, timer/ability
+  prefix, ordinary obstacle hit integration and full after-pose effects remain
+  pending. Construction tests do not prove a complete independent game.
+- **Next runnable increment:** common Obstacle parameters/construction and named
+  entity bindings, then world membership/object ticks, vehicle prefix/after-pose
+  operations and scheduler -> independent moving proxy. M3 stays open until it
+  runs without C or test snapshots. Preserve the shared/private mesh contract.
 - Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
   graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
   claiming budget compliance. Original resources/GPU/dynamic memory are separate.
