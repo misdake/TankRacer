@@ -17,19 +17,19 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`73b29fd`**. Ordinary Obstacle and Crush now use the shared
-  factory/readers/lifecycle. All 154 authored Crush, 302 bound runtime ticks and
-  their live memberships match C; 154 objects retire with private/shared geometry
-  ownership preserved. Fresh ordinary scripts, 56 ordinary factories, parent,
-  lifecycle and connected-vehicle regressions, workspace/native/Wasm checks and
-  browser build pass. Details and scope boundaries: [physics](rust-physics.md).
-- Still missing: Fall-family and other subclass allocation/readers,
-  attachments, auxiliary face/backup motion and complete startup/shared RNG replay.
-  Breakable collision callbacks must share the entity scheduler/symbol context;
+- Last verified code: **`4c37301`**. Fall joins ordinary Obstacle/Crush readers:
+  1,252 authored Fall factories / 11 attachments, 148 motion scenarios / 392
+  updates and 22 real scene-bound updates match C. Fresh mixed scripts, parent,
+  Crush, lifecycle and connected-vehicle regressions, workspace/native/Wasm
+  checks and browser build pass. Details/scope: [physics](rust-physics.md).
+- Still missing: shared breakable-hit activation, active auxiliary/debris updates,
+  Bounce/Spin and remaining readers, complete startup/shared RNG replay.
+  Collision callbacks must borrow the same Fall components/scheduler/symbols;
   vehicle prefix/after-pose and world startup remain incomplete. Class-slot tests
   are scoped; complete bootstrap and fragment/animation GPU rendering are pending.
-- **Next runnable increment:** extend the fresh reader to Fall-family
-  and attachments on this same owner, then connect vehicle prefix/after-pose and
+- **Next runnable increment:** connect the breakable collision adapter to this
+  owner without copied queues/flags; finish active effects/remaining readers,
+  then connect vehicle prefix/after-pose and
   scheduler -> independent moving proxy. Do not leave tested modules disconnected.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
   ownership, RNG consumption and the distinction between activation/impact limits.
