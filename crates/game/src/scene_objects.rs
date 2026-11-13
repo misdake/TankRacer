@@ -1,9 +1,11 @@
 //! Ordered scene-object lifecycle on the same components used by collision.
 //! Class tables stay immutable; parent calls and nested activation are immediate.
+mod falling;
 use crate::{
     crush,
     dispatch::{ClassId, MethodId},
     entity_factory::{self as factory, BaseMethod, Environment, Invocation, Methods, Payload},
+    fall,
     math::Matrix,
     object_query::ObstacleId,
     obstacle_collision::World,
@@ -13,6 +15,8 @@ use crate::{
     scene_startup::{self, Crush},
     spatial::{self, Cell},
 };
+use std::sync::Arc;
+use tankracer_assets::terrain::TerrainData;
 
 pub const ZERO: MethodId = MethodId(32);
 pub const ONE: MethodId = MethodId(33);
@@ -40,6 +44,10 @@ pub const CRUSH_DESTROY: MethodId = MethodId(54);
 pub const CRUSH_HIGHLIGHT: MethodId = MethodId(55);
 pub const CRUSH_INITIALIZE: MethodId = MethodId(56);
 pub const DESTROY_REQUEST: MethodId = MethodId(57);
+pub const FALL_TICK: MethodId = MethodId(65);
+pub const FALL_DESTROY: MethodId = MethodId(66);
+pub const AUXILIARY_TICK: MethodId = MethodId(68);
+pub const DEBRIS_TICK: MethodId = MethodId(69);
 
 #[derive(Clone, Copy)]
 pub struct Parents {
@@ -51,12 +59,16 @@ pub struct Parents {
 pub struct Interfaces {
     pub activate: u32,
     pub deactivate: u32,
+    pub auxiliary_tick: u32,
+    pub debris_tick: u32,
 }
 pub struct Object {
     pub data: PlacedObstacle,
     /// Owned replacement geometry created by mesh break. Its activation/motion
     /// methods are still pending; destruction already respects ownership.
     pub auxiliary_mesh: Option<MeshId>,
+    /// Live auxiliary mode word; mesh ownership alone does not mean it ticks.
+    pub auxiliary_active: i16,
     pub ground_height: Option<i32>,
 }
 pub struct Scene {
@@ -66,6 +78,11 @@ pub struct Scene {
     pub ordinary: Vec<ObstacleId>,
     pub special: Vec<ObstacleId>,
     pub lap_objects: Vec<ObstacleId>,
+    pub signs: Vec<ObstacleId>,
+    pub sign_meshes: [Option<MeshId>; 2],
+    pub falls: Vec<Option<fall::State>>,
+    pub fall_tuning: fall::Tuning,
+    pub terrain: Option<Arc<TerrainData>>,
     pub(crate) pending_crush: Vec<(ObstacleId, crush::Initial)>,
     pub parents: Parents,
     pub interfaces: Interfaces,
@@ -80,6 +97,11 @@ impl Scene {
             ordinary: Vec::new(),
             special: Vec::new(),
             lap_objects: Vec::new(),
+            signs: Vec::new(),
+            sign_meshes: [None; 2],
+            falls: Vec::new(),
+            fall_tuning: fall::Tuning::default(),
+            terrain: None,
             pending_crush: Vec::new(),
             parents,
             interfaces,
@@ -106,6 +128,7 @@ impl Scene {
         self.adopt(Object {
             data,
             auxiliary_mesh: None,
+            auxiliary_active: 0,
             ground_height: None,
         })
     }
@@ -134,6 +157,7 @@ impl Scene {
                 debris: None,
             },
             auxiliary_mesh: None,
+            auxiliary_active: 0,
             ground_height: Some(placed.ground_height),
         })
     }
@@ -187,6 +211,7 @@ impl Scene {
         }
         let object = self.object_mut(id)?;
         object.auxiliary_mesh = None;
+        object.auxiliary_active = 0;
         object.data.auxiliary = None;
         object.data.debris = None;
         Ok(())
@@ -259,6 +284,9 @@ impl Methods<ObstacleId> for Scene {
                 if let Some(surface) = self.surfaces.entries.get_mut(id.0) {
                     *surface = None;
                 }
+                if let Some(state) = self.falls.get_mut(id.0) {
+                    *state = None;
+                }
             }
             return Ok(());
         }
@@ -281,6 +309,8 @@ impl Methods<ObstacleId> for Scene {
         }
         let id = target.ok_or(-1)?;
         match method {
+            FALL_DESTROY => return self.destroy_fall(id, call, env),
+            FALL_TICK => return self.tick_fall(id, call, env),
             RESET_POSE => {
                 let pose = &mut self.world.colliders.get_mut(id.0).ok_or(-1)?.pose;
                 pose.matrix = Matrix::IDENTITY;

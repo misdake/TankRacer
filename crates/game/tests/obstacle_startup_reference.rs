@@ -78,7 +78,15 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
         .expect("Obstacle constructor oracle");
     let (mut objects, mut auxiliaries, mut debris, mut pieces, mut sprites, mut animations) =
         (0, 0, 0, 0, 0, 0);
-    let (mut absent_pieces, mut terry_pieces, mut grid_placed, mut live_loaded) = (0, 0, 0, 0);
+    let mut bound_fall_ticks = 0;
+    let (
+        mut absent_pieces,
+        mut terry_pieces,
+        mut grid_placed,
+        mut live_loaded,
+        mut live_falls,
+        mut attachments,
+    ) = (0, 0, 0, 0, 0, 0);
     for (map, name) in [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ]
@@ -87,8 +95,9 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
     {
         let bytes = fs::read(root.join("LEVELS").join(name).join("FASTFILE.DAT")).unwrap();
         let archive = Archive::parse(&bytes).unwrap();
-        let terrain =
-            TerrainData::decode_bsm(archive.get(&format!("{name}.BSM")).unwrap()).unwrap();
+        let terrain = std::sync::Arc::new(
+            TerrainData::decode_bsm(archive.get(&format!("{name}.BSM")).unwrap()).unwrap(),
+        );
         let source = Bundles {
             vehicle: vec![],
             shared: ingame_archive
@@ -122,7 +131,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"OS03");
+            assert_eq!(&output.stdout[..4], b"OS05");
             let mut r = Reader(&output.stdout[4..]);
             let mut models = ModelBank::default();
             for name in [
@@ -149,6 +158,28 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                 cells: std::array::from_fn(|_| vec![]),
             });
             let mut live_state = entity_factory::State::new(4).unwrap();
+            {
+                let mut prepare_random = 0;
+                let mut prepare_materials = Requests {
+                    expected: vec![],
+                    cursor: 0,
+                };
+                scene_loading::Loader::new(
+                    &mut live_scene,
+                    scene_loading::Resources {
+                        source: &source,
+                        models: &mut models,
+                        terrain: &terrain,
+                        random: &mut prepare_random,
+                        catalog: &catalog,
+                        materials: &mut prepare_materials,
+                        matrix_tail: None,
+                    },
+                    &registry,
+                )
+                .prepare_sign(map as u32)
+                .unwrap();
+            }
             let mut placements = Vec::new();
             let mut collision_world = World {
                 colliders: vec![],
@@ -348,11 +379,16 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     debris += 1;
                 }
                 r.check([random as i32], &format!("{label} random"));
-                if r.word() != 0 {
+                let live_kind = r.word();
+                if live_kind != 0 {
                     // IDs and the surrounding world's entry seed are boundary
                     // inputs. Allocation/defaults, name binding, pose, resources,
                     // RNG consumption and ordered memberships run in Rust.
-                    assert!(class.eq_ignore_ascii_case("Obstacle"));
+                    assert!(class.eq_ignore_ascii_case(if live_kind == 1 {
+                        "Obstacle"
+                    } else {
+                        "Fall"
+                    }));
                     assert_eq!(
                         [
                             initial.weight,
@@ -440,6 +476,31 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                         (None, None) => true,
                         _ => false,
                     });
+                    if live_kind == 2 {
+                        r.check([properties.flags as i32], "Fall motion flags");
+                        let fall = live_scene.falls[id.0].as_ref().unwrap();
+                        r.present(fall.basis_backup.is_some(), "Fall backup basis");
+                        if let Some(matrix) = fall.basis_backup {
+                            r.check(matrix.0, "Fall backup basis values");
+                        }
+                        r.present(fall.attached.is_some(), "Fall attachment list");
+                        if let Some(attached) = &fall.attached {
+                            assert_eq!(r.word() as usize, attached.len());
+                            for binding in attached.iter() {
+                                let tankracer_game::symbols::Binding::Named(symbol) = binding
+                                else {
+                                    panic!("authored attachment must stay named");
+                                };
+                                let name = live_state.symbols.name(*symbol).unwrap();
+                                assert!(
+                                    r.text().eq_ignore_ascii_case(name),
+                                    "{label} attachment order"
+                                );
+                            }
+                            attachments += attached.len();
+                        }
+                        live_falls += 1;
+                    }
                     r.check(
                         [live_state.ticks.flags[entity.0 as usize] as i32],
                         "live flags",
@@ -465,6 +526,14 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                         live_state.queues.destruction.iter().map(|v| v.0),
                         &label,
                     );
+                    check_list(
+                        &mut r,
+                        live_scene
+                            .signs
+                            .iter()
+                            .map(|id| live_scene.world.colliders[id.0].entity.0),
+                        &label,
+                    );
                     for cell in &live_scene.world.grid.cells {
                         check_list(
                             &mut r,
@@ -472,6 +541,68 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                                 .map(|id| live_scene.world.colliders[id.0].entity.0),
                             &label,
                         );
+                    }
+                    if r.word() != 0 {
+                        bound_fall_ticks += 1;
+                        let old_state = live_scene.falls[id.0].clone();
+                        let old_collider = live_scene.world.colliders[id.0];
+                        let old_properties = live_scene.world.objects[id.0];
+                        let old_grid = live_scene.world.grid.cells.clone();
+                        let old_ticks = live_state.ticks.clone();
+                        let old_queues = live_state.queues.clone();
+                        live_scene.world.objects[id.0].activity = 1;
+                        live_scene.world.objects[id.0].flags &= 32;
+                        let fall = live_scene.falls[id.0].as_mut().unwrap();
+                        fall.angular_velocity = live_scene.fall_tuning.gravity.wrapping_mul(16);
+                        fall.rotation = 1000000;
+                        fall.slope_limit = 0;
+                        live_scene.dt = 16;
+                        live_state
+                            .context()
+                            .dispatch(
+                                entity,
+                                scene_loading::TICK,
+                                None,
+                                registry.environment(100000),
+                                &mut live_scene,
+                            )
+                            .unwrap();
+                        r.check([0], "bound Fall tick status");
+                        r.check(
+                            live_scene.world.colliders[id.0].pose.matrix.0,
+                            "bound Fall rotated matrix",
+                        );
+                        let fall = live_scene.falls[id.0].as_ref().unwrap();
+                        r.check(
+                            [
+                                fall.angular_velocity,
+                                fall.rotation,
+                                fall.slope_limit,
+                                live_scene.world.objects[id.0].activity,
+                                live_scene.world.objects[id.0].flags as i32,
+                                live_state.ticks.flags[entity.0 as usize] as i32,
+                            ],
+                            "bound Fall motion/lifecycle",
+                        );
+                        check_list(
+                            &mut r,
+                            live_state.queues.notifications.iter().map(|v| v.0),
+                            &label,
+                        );
+                        for cell in &live_scene.world.grid.cells {
+                            check_list(
+                                &mut r,
+                                cell.iter()
+                                    .map(|id| live_scene.world.colliders[id.0].entity.0),
+                                &label,
+                            );
+                        }
+                        live_scene.falls[id.0] = old_state;
+                        live_scene.world.colliders[id.0] = old_collider;
+                        live_scene.world.objects[id.0] = old_properties;
+                        live_scene.world.grid.cells = old_grid;
+                        live_state.ticks = old_ticks;
+                        live_state.queues = old_queues;
                     }
                     live_loaded += 1;
                 }
@@ -504,7 +635,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
         sprites > 0 && animations > 0 && absent_pieces > 0 && terry_pieces > 0 && grid_placed > 0
     );
     eprintln!(
-        "{objects} common Obstacle constructions; auxiliary={auxiliaries}, debris={debris}, pieces={pieces}, sprites={sprites}, animations={animations}, absent pieces={absent_pieces}, terry pieces={terry_pieces}, installed={grid_placed}, fresh live ordinary={live_loaded}; exact C outputs/RNG"
+        "{objects} common Obstacle constructions; auxiliary={auxiliaries}, debris={debris}, pieces={pieces}, sprites={sprites}, animations={animations}, absent pieces={absent_pieces}, terry pieces={terry_pieces}, installed={grid_placed}, fresh live objects={live_loaded}, Fall={live_falls}, attachments={attachments}, bound Fall ticks={bound_fall_ticks}; exact C outputs/RNG"
     );
 }
 fn check_list(r: &mut Reader<'_>, values: impl Iterator<Item = u32>, label: &str) {

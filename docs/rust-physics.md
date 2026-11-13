@@ -1582,3 +1582,79 @@ is outside the typed resource boundary; no such new claim is made.
 $env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
 cargo test -p tankracer-game --test scene_startup_reference --locked -- --ignored --nocapture
 ```
+
+## Fall construction, motion and named attachments
+
+The fresh class registry now accepts single-player Fall. Its initializer inherits
+ordinary Obstacle; its actual constructor runs that parent, clears activity,
+identifies canonical sign meshes by handle, saves sign restoration matrices and
+interns ordered attachment names. Interning a forward name does not allocate an
+entity: bindings resolve against the shared symbol table later. The parameter
+lexer now exposes the produced final token separately from the native `more`
+flag, because attachment-name reads ignore that flag. This preserves names at
+the very end of a group. Destruction releases attachments before the actual
+Obstacle parent and ID detachment retires the typed Fall component.
+
+`assets::object_catalog` also decodes six Fall class settings from OBPARAMS,
+including wrapping degrees * 182 for the squash angle. OC02 compares those
+settings and all 19 object presets with real C startup. Runtime scenes retain an
+`Arc<TerrainData>` shared with the loader/contact owner; the terrain graph is not
+cloned. Canonical sign preparation is an explicit level-bootstrap operation.
+
+The pure `fall` module implements impact-following yaw, direction/flip choices,
+slope lookup, gravity, pitch, rebound, settling and stop timing. Stop removes
+grid memberships and enqueues its notification **before** the final matrix
+rotation. Wrapping products, signed shifts, INT_MIN behavior and the source's
+16380/16384 distinction are retained. `scene_objects/falling` binds that motion
+to the authoritative collider, Fall state, memberships and shared entity queues;
+it does not introduce another scheduler. Auxiliary activation is an explicit
+live mode word, independent of private-mesh ownership.
+
+**148 branch/short-sequence scenarios / 392 updates / 33,545 semantic words**
+match unchanged C motion, including 16 error prefixes, 36 terrain requests and
+150 stopped observations. The kernel oracle injects only the height result/error
+boundary; actual C matrices, grid removal and notification methods still run.
+It covers cardinal/threshold directions, reverse/flip flags, wrapping arithmetic,
+small budgets and error timing. It does not claim to run shatter methods.
+
+OS05 additionally qualifies **1,252 authored Fall factories**, their **11 named
+attachments**, sign backups and filtered live memberships across all 22 nonempty
+map/CUP files. Along with the existing 56 ordinary objects, 1,308 objects now use
+the real Rust reader/factory. Existing 2,937 parent/1,949 placement checks remain.
+**22 actual scene-bound rebound/stop updates** compare matrices, activity, motion,
+base flags, filtered grid and notification state with C on real authored objects.
+C alone uses a copied arena for that short update, leaving startup unchanged;
+Rust uses its own typed components and only test-local state saves/restores.
+Per-object IDs/entering seeds remain surrounding-world boundaries in this suite.
+
+The fresh World script suite now mixes ordinary and Fall classes: **24 scripts /
+144 objects / 96 lifecycle checkpoints / 22,740 words** match from a fresh table
+and one shared RNG seed per script. It checks forward attachment resolution,
+anonymous objects, sign membership and complete stop/deactivation/destruction.
+Tagged nil/class union payloads are compared as logical entity bindings, not
+guest addresses. A normal native unit test checks forward references and final
+tokens without a C toolchain.
+
+Regression: Crush construction/302 bound ticks, common lifecycle, entity factory
+and connected vehicle oracles pass; workspace tests, native/Wasm Clippy,
+unchanged-C verification and browser build pass. No renderer, new acceleration
+data or whole-frame performance claim. Wasm remains the static 183,221 B build.
+
+**Still incomplete:** the old breakable-hit path must borrow these same Fall
+components, symbols and entity scheduler rather than its isolated Store. Active
+auxiliary/debris virtual updates are explicit unimplemented methods and fail
+instead of silently dropping effects. Bounce/Spin and remaining readers are not
+accepted yet. Network-only Fall gates are outside the single-player scope. World/
+plugin teardown must retire owned sign/lap references as well as entities.
+Next connect the shared collision owner, then auxiliary/debris and remaining
+class bindings before whole-world/vehicle integration. M3 remains open.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_fall.c build/native/libtankracer_core.a -lm -o build/native/fall_reference.exe
+$env:TANKRACER_FALL_REFERENCE=(Resolve-Path build/native/fall_reference.exe).Path
+cargo test -p tankracer-game --test fall_reference --locked -- --ignored --nocapture
+```
+
+Rebuild `reference_object_catalog.c`, `reference_obstacle_startup.c` and
+`reference_scene_loading.c` with their documented link libraries for the updated
+OC02/OS05/SL02 protocols before rerunning those integration tests.

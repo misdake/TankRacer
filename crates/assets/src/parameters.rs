@@ -77,6 +77,11 @@ impl<'a> Values<'a> {
         let (word, more) = self.token()?;
         more.then_some(word)
     }
+    /// Consume a produced token even at EOF, for native callers that ignore
+    /// the separate `more` result (for example attached-object names).
+    pub fn token_word(&mut self) -> Option<&'a str> {
+        self.token().map(|(word, _)| word)
+    }
     pub fn integer(&mut self) -> Option<i32> {
         let word = self.word()?;
         match word.as_bytes().first() {

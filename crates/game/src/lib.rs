@@ -16,6 +16,7 @@ pub mod drive;
 pub mod effect_pool;
 pub mod entities;
 pub mod entity_factory;
+pub mod fall;
 mod fixed;
 pub mod geometry;
 pub mod ground_collision;

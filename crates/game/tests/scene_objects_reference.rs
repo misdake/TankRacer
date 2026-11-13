@@ -210,6 +210,8 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
         Interfaces {
             activate: 4,
             deactivate: DEACTIVATE,
+            auxiliary_tick: 16,
+            debris_tick: 17,
         },
     );
     let gain = Gain {
@@ -289,6 +291,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
                 }),
             },
             auxiliary_mesh: if first { auxiliary_mesh } else { None },
+            auxiliary_active: 0,
             ground_height: None,
         }));
     }

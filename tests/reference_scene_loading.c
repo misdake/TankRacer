@@ -24,7 +24,7 @@ static void emit_list(uint32_t head)
 }
 static void emit(int status,uint32_t result,uint32_t highest)
 {
-    uint32_t i,j,r,o;static const uint32_t lists[]={0x54b48c,0x54b488,0x53e4b4,0x55b6a8,0x55b6bc,0x55b6b8};
+    uint32_t i,j,r,o,head,node,n;static const uint32_t lists[]={0x54b48c,0x54b488,0x53e4b4,0x55b6a8,0x55b6bc,0x55b6b8,0x53d148};
     oracle_put((uint32_t)status);oracle_put(result);oracle_put(word(0x55c68c));oracle_put(word(0x55b6ac));
     for(i=1;i<=highest;i++){
         r=word(word(0x55c694)+i*8);oracle_put(r!=0);if(!r)continue;o=word(r+4);
@@ -34,15 +34,24 @@ static void emit(int status,uint32_t result,uint32_t highest)
         oracle_put(oracle_get(ram+o+0x78,2));oracle_put(oracle_get(ram+o+0x7a,2));
         oracle_put(word(o+0x5c));oracle_put(word(o+0x94));oracle_put(oracle_get(ram+o+0xa8,2));
         oracle_put(word(o+72)!=0);oracle_put(word(o+0x88)!=0);oracle_put(word(o+0x8c)!=0);
+        oracle_put(word(r)==word(0x53d13c));
+        if(word(r)==word(0x53d13c)){
+            oracle_put(word(o+0xea));oracle_put((word(o+0xea)&32u)!=0);
+            if(word(o+0xea)&32u)for(j=0;j<9;j++)oracle_put(word(o+0xaa+j*4));
+            head=word(o+0xfa);oracle_put(head!=0);
+            if(head){n=0;node=word(head);while(node!=head){if(n++==65536)exit(5);node=word(node);}
+                /* Tagged nil/class values are not logical entity bindings. */
+                oracle_put(n);node=word(head);while(node!=head){uint32_t symbol=word(node+8);oracle_put(word(symbol)==128u?word(symbol+4):0);node=word(node);}}
+        }
     }
-    for(i=0;i<6;i++)emit_list(word(lists[i]));
+    for(i=0;i<7;i++)emit_list(word(lists[i]));
     for(i=0;i<64;i++)emit_list(word(0x544e70+i*4));
 }
 static void check(int status){if(status){fprintf(stderr,"bootstrap status %d\n",status);exit(6);}}
 int main(void)
 {
     uint32_t n,seed,is_static,distance,result,consumed,i,highest;unsigned char script[39000];int status;
-    oracle_binary();fwrite("SL01",1,4,stdout);
+    oracle_binary();fwrite("SL02",1,4,stdout);
     while(oracle_word(&n)){
         frame_native_context native={0};frame_entity_native_context *e=&native.base.base.base.base;
         if(n>=sizeof(script))return 2;

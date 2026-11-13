@@ -1,5 +1,4 @@
-//! Object type presets from OBPARAMS.DAT. Class settings are separate consumers
-//! of the same file; this catalogue retains every field of each object preset.
+//! Object presets and qualified class settings from OBPARAMS.DAT.
 use crate::config::Gain;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -33,6 +32,16 @@ pub enum Error {
 #[derive(Debug, Default)]
 pub struct Catalog {
     pub entries: Vec<ObjectType>,
+    pub fall: Fall,
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Fall {
+    pub minimum_turn_rate: i32,
+    pub maximum_turn_rate: i32,
+    pub squash_angle: i32,
+    pub gravity: i32,
+    pub elasticity_multiplier: i32,
+    pub elasticity_shift: u32,
 }
 impl Catalog {
     pub fn get(&self, name: &str) -> Option<&ObjectType> {
@@ -59,7 +68,29 @@ impl Catalog {
                 return Err(Error::MissingGroup);
             }
             if kind.eq_ignore_ascii_case("class") {
-                while tokens.required()? != ")" {}
+                loop {
+                    let key = tokens.required()?;
+                    if key == ")" {
+                        break;
+                    }
+                    if name.eq_ignore_ascii_case("fall") {
+                        match key.to_ascii_lowercase().as_str() {
+                            ":min_rot_speed" => result.fall.minimum_turn_rate = tokens.integer()?,
+                            ":max_rot_speed" => result.fall.maximum_turn_rate = tokens.integer()?,
+                            ":squash_angle" => {
+                                result.fall.squash_angle = tokens.integer()?.wrapping_mul(182)
+                            }
+                            ":fall_gravity" => result.fall.gravity = tokens.integer()?,
+                            ":fall_elas_mul" => {
+                                result.fall.elasticity_multiplier = tokens.integer()?
+                            }
+                            ":fall_elas_shf" => {
+                                result.fall.elasticity_shift = tokens.integer()? as u32
+                            }
+                            _ => (),
+                        }
+                    }
+                }
                 continue;
             }
             let mut object = ObjectType {

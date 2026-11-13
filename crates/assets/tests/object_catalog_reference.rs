@@ -20,7 +20,7 @@ fn all_object_presets_match_native_widths_names_flags_and_defaults() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(&output.stdout[..4], b"OC01");
+    assert_eq!(&output.stdout[..4], b"OC02");
     assert_eq!(
         u32::from_le_bytes(output.stdout[4..8].try_into().unwrap()) as usize,
         catalog.entries.len()
@@ -56,9 +56,19 @@ fn all_object_presets_match_native_widths_names_flags_and_defaults() {
         row[64..73].copy_from_slice(&o.bash_sound);
         expected.extend(row);
     }
+    for value in [
+        catalog.fall.minimum_turn_rate as u32,
+        catalog.fall.maximum_turn_rate as u32,
+        catalog.fall.squash_angle as u32,
+        catalog.fall.gravity as u32,
+        catalog.fall.elasticity_multiplier as u32,
+        catalog.fall.elasticity_shift,
+    ] {
+        expected.extend(value.to_le_bytes());
+    }
     assert_eq!(&output.stdout[8..], expected);
     eprintln!(
-        "{} typed object presets / {} native bytes exact",
+        "{} typed object presets + 6 Fall settings / {} native bytes exact",
         catalog.entries.len(),
         expected.len()
     );

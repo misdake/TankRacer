@@ -70,6 +70,23 @@ fn snapshot(
             u32::from(data.auxiliary.is_some()),
             u32::from(data.debris.is_some()),
         ]);
+        let fall = scene.falls.get(id.0).and_then(Option::as_ref);
+        out.push(u32::from(fall.is_some()));
+        if let Some(fall) = fall {
+            out.extend([properties.flags, u32::from(fall.basis_backup.is_some())]);
+            if let Some(matrix) = fall.basis_backup {
+                out.extend(matrix.0.map(|v| v as u32));
+            }
+            out.push(u32::from(fall.attached.is_some()));
+            if let Some(attached) = &fall.attached {
+                list(
+                    out,
+                    attached
+                        .iter()
+                        .map(|v| v.resolve(&state.symbols).map_or(0, |id| id.0)),
+                );
+            }
+        }
     }
     for values in [&scene.ordinary, &scene.special, &scene.lap_objects] {
         list(
@@ -80,6 +97,13 @@ fn snapshot(
     list(out, state.ticks.order.iter().map(|v| v.0));
     list(out, state.queues.notifications.iter().map(|v| v.0));
     list(out, state.queues.destruction.iter().map(|v| v.0));
+    list(
+        out,
+        scene
+            .signs
+            .iter()
+            .map(|id| scene.world.colliders[id.0].entity.0),
+    );
     for cell in &scene.world.grid.cells {
         list(
             out,
@@ -92,19 +116,19 @@ fn script(lap: i32, remove: bool) -> String {
     format!(
         "FSTPC 5\n\
         Obstacle First 1.125 -2.25 3.5 17 -31 45 nil (:lap_to_add {lap} {remove} :sortpos 65530 :solidity -200 :min_act_speed -2 :vis_dist 65000 :expand_coll_radius -9 )\n\
-        Obstacle nil -12 0 17 0 90 0 nil (:lap_to_add 2 :lap_to_remove 0 )\n\
+        Fall nil -12 0 17 0 90 0 nil (:lap_to_add 2 :lap_to_remove 0 :attached_object 2 Last nil)\n\
         Obstacle nil 8 0 -10 0 0 0 nil ()\n\
-        Obstacle Last -4000 8 9000 -360 91 5 nil (:lap_to_add 3 :sortpos -32769 )\n\
+        Fall Last -4000 8 9000 -360 91 5 nil (:lap_to_add 3 :sortpos -32769 :attached_object 1 First)\n\
         Obstacle Plain 4000 0 2 0 0 0 nil (:Solidity 17 )\n\
         Obstacle Random 0 0 0 0 0 0 nil (:lap_to_add -99 )\nPaths ()"
     )
 }
-fn terrain() -> TerrainData {
+fn terrain() -> std::sync::Arc<TerrainData> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../assets/game/LEVELS/ENGLAND/FASTFILE.DAT");
     let bytes = fs::read(root).unwrap();
     let archive = Archive::parse(&bytes).unwrap();
-    TerrainData::decode_bsm(archive.get("ENGLAND.BSM").unwrap()).unwrap()
+    std::sync::Arc::new(TerrainData::decode_bsm(archive.get("ENGLAND.BSM").unwrap()).unwrap())
 }
 #[test]
 fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_binding() {
@@ -146,7 +170,7 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
             loader.load(
                 &mut state,
                 tankracer_assets::level::Object {
-                    class: "Fall",
+                    class: "Spin",
                     ..record
                 }
             ),
@@ -224,6 +248,91 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
         .unwrap();
     assert_eq!(state.entities.record_count(), 0);
     assert!(scene.objects.iter().all(Option::is_none));
+}
+#[test]
+fn named_fall_attachments_bind_later_without_reserving_an_entity() {
+    let level = Level::decode(b"FSTPC 5 Fall First 0 0 0 0 0 0 nil (:attached_object 1 Later) Fall Later 0 0 0 0 0 0 nil () Paths ()").unwrap();
+    let terrain = terrain();
+    let registry = Registry::default();
+    let mut scene = registry.scene(Grid {
+        origin: [0; 2],
+        shifts: [12; 2],
+        cells: std::array::from_fn(|_| vec![]),
+    });
+    let (mut state, mut models, mut random, mut materials, catalog) = (
+        entity_factory::State::new(4).unwrap(),
+        ModelBank::default(),
+        123,
+        NoResources,
+        Catalog::default(),
+    );
+    {
+        let mut loader = scene_loading::Loader::new(
+            &mut scene,
+            scene_loading::Resources {
+                source: &NoResources,
+                models: &mut models,
+                terrain: &terrain,
+                random: &mut random,
+                catalog: &catalog,
+                materials: &mut materials,
+                matrix_tail: None,
+            },
+            &registry,
+        );
+        assert_eq!(
+            loader.load(&mut state, level.objects[0]).unwrap(),
+            EntityId(1)
+        );
+        assert_eq!(state.entities.record_count(), 1);
+        let binding = loader.scene.falls[0]
+            .as_ref()
+            .unwrap()
+            .attached
+            .as_ref()
+            .unwrap()[0];
+        assert_eq!(binding.resolve(&state.symbols), None);
+        assert_eq!(
+            loader.load(&mut state, level.objects[1]).unwrap(),
+            EntityId(2)
+        );
+        assert_eq!(binding.resolve(&state.symbols), Some(EntityId(2)));
+    }
+    assert_eq!(random, 123);
+    let env = registry.environment(100000);
+    state
+        .context()
+        .drain(scene_loading::STOP, env, &mut scene)
+        .unwrap();
+    for id in 1..=2 {
+        assert_eq!(state.ticks.flags[id], 8);
+        state
+            .context()
+            .dispatch(
+                EntityId(id as u32),
+                scene_loading::TICK,
+                None,
+                env,
+                &mut scene,
+            )
+            .unwrap();
+        state
+            .context()
+            .dispatch(
+                EntityId(id as u32),
+                scene_loading::DEACTIVATE,
+                None,
+                env,
+                &mut scene,
+            )
+            .unwrap();
+    }
+    state
+        .context()
+        .drain(scene_loading::STOP, env, &mut scene)
+        .unwrap();
+    assert_eq!(state.entities.record_count(), 0);
+    assert!(scene.falls.iter().all(Option::is_none));
 }
 #[test]
 #[ignore = "requires fresh C World loader; set TANKRACER_SCENE_LOADING_REFERENCE"]
@@ -344,7 +453,7 @@ fn fresh_ids_shared_rng_lap_membership_and_complete_retirement_match_c() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(&output.stdout[..4], b"SL01");
+    assert_eq!(&output.stdout[..4], b"SL02");
     let words: Vec<_> = output.stdout[4..]
         .chunks_exact(4)
         .map(|v| u32::from_le_bytes(v.try_into().unwrap()))

@@ -4,6 +4,7 @@ use crate::{
     breakable, crush,
     dispatch::{Class, ClassId, MethodId},
     entity_factory::{self as factory, Environment, Invocation, Methods, Slots},
+    fall,
     geometry::Bounds,
     math::Matrix,
     object_query::{Collider, EntityId, ObstacleId},
@@ -41,6 +42,9 @@ pub const BEFORE_READ: u32 = 18;
 pub const AFTER_READ: u32 = 19;
 pub const AFTER_CONSTRUCT: u32 = 20;
 pub const DEFORMABLE_CONTACT: u32 = 21;
+pub const AUXILIARY_UPDATE: u32 = 22;
+pub const DEBRIS_UPDATE: u32 = 23;
+pub const OBSTACLE_CONTACT: u32 = 24;
 
 const ALLOCATE_OBJECT: MethodId = MethodId(58);
 const READ_OBJECT: MethodId = MethodId(59);
@@ -49,6 +53,7 @@ const CONSTRUCT_WORLD: MethodId = MethodId(61);
 const CONSTRUCT_GENERIC: MethodId = MethodId(62);
 const CONSTRUCT_OBSTACLE: MethodId = MethodId(63);
 const CONSTRUCT_CRUSH: MethodId = MethodId(64);
+const CONSTRUCT_FALL: MethodId = MethodId(67);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -57,12 +62,13 @@ pub struct Registry {
     pub generic: ClassId,
     pub obstacle: ClassId,
     pub crush: ClassId,
+    pub fall: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
         let mut world = Class {
-            maximum_slot: DEFORMABLE_CONTACT as i32,
-            methods: vec![None; DEFORMABLE_CONTACT as usize + 1],
+            maximum_slot: OBSTACLE_CONTACT as i32,
+            methods: vec![None; OBSTACLE_CONTACT as usize + 1],
         };
         for (slot, method) in [
             (ALLOCATE, ALLOCATE_OBJECT),
@@ -97,6 +103,8 @@ impl Default for Registry {
             (13, methods::DESTROY_REQUEST),
             (CONSTRUCT, CONSTRUCT_OBSTACLE),
             (AFTER_CONSTRUCT, methods::NOTIFY),
+            (AUXILIARY_UPDATE, methods::AUXILIARY_TICK),
+            (DEBRIS_UPDATE, methods::DEBRIS_TICK),
         ] {
             obstacle.methods[slot as usize] = Some(method);
         }
@@ -113,6 +121,15 @@ impl Default for Registry {
         ] {
             crush.methods[slot as usize] = Some(method);
         }
+        let mut fall = obstacle.clone();
+        for (slot, method) in [
+            (CONSTRUCT, CONSTRUCT_FALL),
+            (DESTROY, methods::FALL_DESTROY),
+            (TICK, methods::FALL_TICK),
+            (OBSTACLE_CONTACT, breakable::BREAKABLE_HIT),
+        ] {
+            fall.methods[slot as usize] = Some(method);
+        }
         Self {
             classes: vec![
                 Arc::new(world),
@@ -120,12 +137,14 @@ impl Default for Registry {
                 Arc::new(generic),
                 Arc::new(obstacle),
                 Arc::new(crush),
+                Arc::new(fall),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
             generic: ClassId(2),
             obstacle: ClassId(3),
             crush: ClassId(4),
+            fall: ClassId(5),
         }
     }
 }
@@ -160,6 +179,8 @@ impl Registry {
             Interfaces {
                 activate: ACTIVATE,
                 deactivate: DEACTIVATE,
+                auxiliary_tick: AUXILIARY_UPDATE,
+                debris_tick: DEBRIS_UPDATE,
             },
         )
     }
@@ -168,7 +189,7 @@ impl Registry {
 pub struct Resources<'a, S> {
     pub source: &'a S,
     pub models: &'a mut ModelBank,
-    pub terrain: &'a TerrainData,
+    pub terrain: &'a Arc<TerrainData>,
     pub random: &'a mut u32,
     pub catalog: &'a Catalog,
     pub materials: &'a mut dyn Materials,
@@ -192,6 +213,8 @@ pub struct Loader<'a, S> {
 }
 impl<'a, S: ShapeSource> Loader<'a, S> {
     pub fn new(scene: &'a mut Scene, resources: Resources<'a, S>, registry: &'a Registry) -> Self {
+        scene.terrain = Some(Arc::clone(resources.terrain));
+        scene.fall_tuning = resources.catalog.fall;
         Self {
             scene,
             resources,
@@ -214,6 +237,8 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             self.registry.obstacle
         } else if record.class.eq_ignore_ascii_case("Crush") {
             self.registry.crush
+        } else if record.class.eq_ignore_ascii_case("Fall") {
+            self.registry.fall
         } else {
             return Err(Error::UnsupportedClass(record.class.into()));
         };
@@ -292,6 +317,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
                 debris: None,
             },
             auxiliary_mesh: None,
+            auxiliary_active: 0,
             ground_height: None,
         }));
         call.context
@@ -305,6 +331,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .resize(call.context.entities.capacity() as usize, 0);
         call.context.ticks.flags[call.entity.0 as usize] =
             if self.static_allocation { 8 } else { 0 };
+        if class == self.registry.fall {
+            self.scene.falls.resize_with(id.0 + 1, || None);
+            self.scene.falls[id.0] = Some(fall::State::default());
+        }
         *call.result = 1;
         Ok(())
     }
@@ -527,6 +557,70 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         *call.result = call.entity.0;
         Ok(())
     }
+    /// Bind the canonical level sign before object loading. The other slot stays
+    /// null, matching the map-specific bootstrap's original identity comparison.
+    pub fn prepare_sign(&mut self, map: u32) -> Result<(), Error> {
+        let (slot, name) = if map == 4 {
+            (1, "handsign.sm")
+        } else {
+            (0, "chevron.sm")
+        };
+        let model = self
+            .resources
+            .models
+            .load_optional(self.resources.source, Space::Level, name)
+            .map_err(|e| Error::Resource(scene_startup::Error::Shape(e)))?;
+        self.scene.sign_meshes[slot] = model
+            .as_ref()
+            .map(|m| self.scene.surfaces.meshes.bind(name, m));
+        Ok(())
+    }
+    fn construct_fall(
+        &mut self,
+        mut call: Invocation<'_, ObstacleId>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.obstacle, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .ok_or(-1)?;
+        self.scene.world.objects[id.0].activity = 0;
+        let special = self
+            .scene
+            .sign_meshes
+            .contains(&self.scene.object(id)?.data.mesh);
+        if special {
+            let matrix = self.scene.world.colliders[id.0].pose.matrix;
+            self.scene.falls[id.0].as_mut().ok_or(-1)?.basis_backup = Some(matrix);
+            self.scene.world.objects[id.0].flags |= 32;
+            self.scene.signs.push(id);
+        }
+        let record = self.record.ok_or(-1)?;
+        let p = Parameters::new(record.parameters).map_err(|_| -1)?;
+        if let Some(mut values) = p.find(":attached_object") {
+            let count = values.integer().ok_or(-4)?;
+            let mut attached = vec![];
+            for index in 0..count.max(0) as u32 {
+                if index >= env.work_limit {
+                    return Err(-3);
+                }
+                let name = values.token_word().ok_or(-4)?;
+                if name.len() >= 1024 {
+                    return Err(-3);
+                }
+                let symbol = call.context.symbols.intern(name).map_err(|_| -1)?;
+                attached.push(crate::symbols::Binding::Named(symbol));
+            }
+            self.scene.falls[id.0].as_mut().ok_or(-1)?.attached = Some(attached.into());
+        }
+        *call.result = 0;
+        Ok(())
+    }
 }
 impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
     fn invoke(
@@ -575,6 +669,7 @@ impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
             CONSTRUCT_GENERIC => self.construct_generic(call, env),
             CONSTRUCT_OBSTACLE => self.construct_obstacle(call, env),
             CONSTRUCT_CRUSH => self.construct_crush(call, env),
+            CONSTRUCT_FALL => self.construct_fall(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

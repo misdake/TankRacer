@@ -137,8 +137,9 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
             if level.objects.is_empty() {
                 continue;
             }
-            let terrain =
-                TerrainData::decode_bsm(archive.get(&format!("{name}.BSM")).unwrap()).unwrap();
+            let terrain = std::sync::Arc::new(
+                TerrainData::decode_bsm(archive.get(&format!("{name}.BSM")).unwrap()).unwrap(),
+            );
             let source = Bundles {
                 vehicle: vec![],
                 shared: vec![],
