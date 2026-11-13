@@ -1868,3 +1868,63 @@ prefix/after-pose and scheduler wiring into the independent moving proxy.
 Remaining readers are brought forward when that slice requires them; other
 actors/Pickup capture stay explicit later-stage work. This changes delivery
 order, not the final single-player CUP scope or physics/RNG requirements.
+
+## Active vehicle timer and ability prefix (2026-11-14)
+
+`vehicle_prefix` implements the active 430A30 work before the first contact
+read: player scenery-view update, alternating sign, countdown throttle/RPM,
+auxiliary cache invalidation, boost decay, weapon spin, speed-pickup camera and
+application, then temporary sidegrip expiry. This is a qualified part of M3;
+the browser still has no independently constructed/moving Rust vehicle.
+
+`spin` implements 4298E0/429A00, including original packed approach narrowing,
+phase priority, strict angle limits, byte counters, masked color arithmetic,
+three-draw color targets and hold/fade/restart behavior. `boost` implements
+43F6A0/437BF0/43F720 and both camera variants. The application callback is
+synchronous class dispatch: its known binding calls the real typed boost
+method; null methods, another vehicle target, failed methods and changed
+dispatch-slot lifetime are observable. There is no default successful callback.
+The scene owner must still bind that callback to the runtime method table.
+
+Application commit order differs by branch: nonplayer/preset paths mark applied
+before dispatch, while the ordinary player camera marks it after success.
+Shared boost UV state advances the authoritative RNG at most once per frame,
+even when several effects use it. The player-view rotation consumes no RNG and
+uses the original strict X/Z camera window and 32-frame normalization cadence.
+Temporary expiry releases nine line handles in row/column order, preserving
+duplicates and the already-qualified exhausted/overflow pool aliases.
+
+`State::from_model` initializes live/restore grip from the resolved model.
+`prepare_vehicle` derives dt/frame/player/active from the existing vehicle tick
+and publishes boost charge, extra speed/power, pose timer and restored grip
+directly into the qualified physics inputs. Committed prefixes remain published
+on failure. It does not construct the vehicle, run the scheduler, or replace
+the still-required full after-pose scene updates.
+
+Verification:
+
+- **VP01: 232 scenarios / 1,448 operations / 304,312 semantic words / 79 error
+  prefixes** match production C. The oracle calls the actual helper entries or
+  430A30 and stops at the first contact read, before any contact writes. It does
+  not duplicate the C prefix. Comparisons include all owned prefix fields,
+  auxiliary caches, view/camera state, UVs, feedback, shared RNG/dispatch slot,
+  temporary slots and all line-release markers. Includes 8 self-target and 1
+  peer-target successful applications, 16 rejected methods, null/out-of-range
+  dispatch, invalid dt, wrapping arithmetic and bounded spin failures.
+- The same cases run through `prepare_vehicle` and check the physics-input
+  handoff, including failed prefixes. This is not a complete 430A30/after-pose
+  or fresh vehicle-startup parity claim.
+- Connected-physics regression remains exact: **1,254 records / 8,716,157 words**,
+  with 603 peer writes. Workspace tests, native/Wasm Clippy, browser build and
+  C preservation checks pass. Browser Wasm remains **183,235 B**; no rendering
+  changes or extra map precomputation were introduced.
+
+Next: construct the authoritative vehicle from resources/spawn data, bind this
+prefix and the full after-pose operations into one scheduler, then run the
+independent moving proxy. M3 remains open; a qualified prefix is not a car.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_prefix.c build/native/libtankracer_core.a -lm -o build/native/vehicle_prefix_reference.exe
+$env:TANKRACER_VEHICLE_PREFIX_REFERENCE=(Resolve-Path build/native/vehicle_prefix_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_prefix_reference --locked -- --ignored --nocapture
+```
