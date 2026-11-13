@@ -310,3 +310,60 @@ vehicle orchestrator must also preserve the original adapter's separate commit
 boundary: its copied attitude result is written to the vehicle only on success.
 Next: part poses and model resources, articulation/hull and motion/collision,
 then compose the complete vehicle and browser proxy. The Rust vehicle is not yet running.
+
+Math/attitude checkpoint: `50bb0fe`.
+
+## Part poses, articulation, lean and contact hull
+
+`pose::State` updates body/reference, both tracks, turret, gun, under/end
+attachments, bottom point, base and physical position. `pose::Config::from_tank`
+normalizes authored offsets by body/turret in the original order; the bottom
+offset is deliberately left unadjusted. Track length still needs model bounds.
+External orientation is explicit (`None`, current body or a custom basis), so the
+original alias to the newly copied body basis does not become a stale snapshot.
+
+Track travel/angle lookup, turret recoil-mode scaling, signed-16 yaw, external
+recoil transform and gun pivot rotation preserve their separate intermediate
+bases. Two wobble sources add to body Y, but only the last wobble value is removed
+from track Y. Base position is saved before the final body-to-physical copy; this
+order persists across ticks. A second-track angle error preserves the first track
+and early body updates, without committing physical position or later parts.
+Pose refresh intentionally replaces the body-position temporary from physical
+position; the eventual vehicle orchestrator must not merge the preceding attitude
+pivot's temporary position into physical position on its own.
+
+The runtime keeps nine basis words. Legacy three-word matrix padding copied by
+the C pose routine is omitted: neither physics transforms nor the existing mesh
+sinks consume it (`frame_present.c` consumes only the first nine matrix words).
+The oracle compares semantic pose state, not this dead memory padding.
+
+`body` separates articulation/lean state from mutable mesh views. Missing gun
+geometry skips articulation; duplicate selected vertex IDs retain last-write
+order. Recoil/pitch restoring terms, sign-dependent shifts, damping, clamps and
+four vertex-Z writes match C. Lean clamps before integration and can overshoot
+afterwards. The contact hull retains original [1,3,2,0] point order, saved gap,
+short-coordinate narrowing and radius wrap. Its position expression cancels
+current position algebraically in the 32-bit wrapping ring, eliminating repeated
+work while preserving results; no cache or approximation is introduced.
+
+26,624 C comparisons / 1,191,936 words pass: 8,192 four-tick pose records,
+8,192 articulation records (including actual vertex writes), 8,192 lean records
+and 2,048 hull records. 716 intentional pose errors validate partial updates.
+Coverage includes timer/ambient wobble combinations, all recoil-mode branches,
+external-basis aliases, signed/overflow boundaries and repeated/absent mesh cases.
+Ordinary tests explain wobble accumulation, error commits, duplicate vertices,
+lean overshoot and hull cancellation. Native and Wasm target checks pass.
+
+```sh
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_pose_body.c build/native/libtankracer_core.a -o build/native/pose_body_reference
+```
+
+```powershell
+$env:TANKRACER_POSE_BODY_REFERENCE=(Resolve-Path build/native/pose_body_reference.exe).Path
+cargo test -p tankracer-game --test pose_body_reference -- --ignored --nocapture
+```
+
+Next: SS/SM resource decoding and model-derived contacts/bounds, mutable damage
+geometry, motion/collision, then complete vehicle construction/integration and
+browser proxy. Poses are verified in isolation; no full running vehicle is claimed.
+These changes add per-vehicle state and mesh views, no map acceleration data.
