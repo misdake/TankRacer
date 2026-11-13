@@ -17,12 +17,14 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`5af2ac2`**. Active timer/ability prefix and its physics
-  input handoff now match C: 232 scenarios / 1,448 operations / 79 error prefixes.
-  Connected physics remains exact on 1,254 records; workspace/native/Wasm/build
-  checks pass. These are qualified parts, not a complete running vehicle.
-- **Next runnable increment:** vehicle construction -> bind the qualified prefix
-  -> full after-pose updates -> scheduler -> independently moving browser proxy.
+- Last verified code: **`ac5d6d7`**. Fresh player dynamics/model/prefix ownership
+  now matches C on 122 constructions across eight maps and fifteen vehicles,
+  including nonzero wobble and rotated spawn inputs. Prefix and connected physics
+  regressions, workspace/native/Wasm/build checks pass. These are qualified parts,
+  not a complete running vehicle.
+- **Next runnable increment:** full after-pose updates (shared quad pool,
+  spray/marks/smoke/debris/lights/temporary effects/shield) -> bind the fresh player
+  and prefix into scene identity/scheduler -> independently moving browser proxy.
   M3 stays open until this runs without C or test snapshots. Bring additional
   readers forward only when required by that slice.
 - Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
