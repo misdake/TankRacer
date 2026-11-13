@@ -2177,3 +2177,45 @@ work; this does not claim a working pickup or a complete after-pose coordinator.
 $env:TANKRACER_VEHICLE_PICKUP_FADE_REFERENCE=(Resolve-Path build/native/vehicle_pickup_fade_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_pickup_fade_reference --locked -- --ignored --nocapture
 ```
+
+## Complete single-view after-pose chain (2026-11-14)
+
+`vehicle_scene::chain::{active,inactive}` now execute all after-pose kernels in
+the production order. Active: spray/marks (special-player gate), pickup fade,
+impact animation, smoke/real severe-slip impacts, shared debris, lights,
+temporary lines, shield. Inactive: count-gated spray clear, fade, lights,
+temporary lines, debris clear, impact animation, count-gated smoke clear, shield.
+Errors stop the chain with prior updates intact. No notification replaces a
+game operation. The contract is single-player/single-view; network/split-view
+scheduling is outside scope. Collision views must already reference the new pose,
+as `vehicle::step_physics` refreshes them before its required service call.
+
+`Local` borrows vehicle-owned components and prefix timer/slot. `World` borrows
+shared owners/banks and the same effect pool/RNG used for collisions; there is no
+second authoritative scene, pose or RNG. The debris accumulator writes directly
+through `AfterPose`. Both paths receive live physics data before display scaling.
+
+**VA01: 40 scenarios / 320 complete chains / 2,804,840 fields** match the actual
+C active/inactive entry points, with independently counted per-call RNG writes.
+There are 210 active successes, 70 inactive successes, 40 error prefixes and
+16,052 draws. Every component changes: spray 184, marks 40, pickup 212, impact
+rings 63, smoke 236, debris 72, lights 72, temporary rows 192, shield strips 280.
+Two owners alternate across eight-operation sequences. Shared-pool contention,
+special-player suppression, count-gated cleanup and later-stage failures retain
+the correct earlier mutations. Snapshots compare both vehicles, every shared
+bank, all line/quads and their bounded aliases. Input is generated typed field
+data at the native test boundary, not a saved memory image; production Rust has
+no data addresses or C calls. Per-kernel edge cases remain in their focused tests.
+
+Workspace tests, native/Wasm lint, browser build and preservation pass. Browser
+Wasm remains 183,235 B; renderer and extra map metadata are unchanged. This
+qualifies **the full after-pose chain separately from connected physics**. The
+older connected-vehicle fixture's service still only runs impact animation;
+wire this real chain into it next, then bind fresh-player scene identity and
+scheduling. No complete fresh scene, moving-browser or whole-game claim.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_scene.c build/native/libtankracer_core.a -lm -o build/native/vehicle_scene_reference.exe
+$env:TANKRACER_VEHICLE_SCENE_REFERENCE=(Resolve-Path build/native/vehicle_scene_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_scene_reference --locked -- --ignored --nocapture
+```

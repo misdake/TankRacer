@@ -1,5 +1,5 @@
-//! Vehicle after-pose components. The full active-scene scheduler is separate
-//! work; individual kernels never stand in for an incomplete successful tick.
+//! Vehicle after-pose components and the single-view update chain.
+pub mod chain;
 pub mod debris;
 pub mod lights;
 pub mod marks;
