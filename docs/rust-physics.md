@@ -1928,3 +1928,51 @@ independent moving proxy. M3 remains open; a qualified prefix is not a car.
 $env:TANKRACER_VEHICLE_PREFIX_REFERENCE=(Resolve-Path build/native/vehicle_prefix_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_prefix_reference --locked -- --ignored --nocapture
 ```
+
+## Fresh player dynamics construction (2026-11-14)
+
+`vehicle_startup::Player::construct` owns the assembled `VehicleModel`, qualified
+vehicle dynamics and timer/ability prefix. It initializes contact locals/corner
+indices from the model, the original private shadow hull, drive/collision state,
+body/reference basis and live/restore grip without importing a C frame snapshot.
+The scene supplies logical entity/class identity, spawn and world settings.
+Motion and startup share the same pose-environment conversion.
+
+There are two real startup paths. An authored Player takes the world-file
+transform through Tank construction; when no Player is declared,
+`frame_game_load` creates one at zero with the identity basis. The shipped CUP
+files tested here use that latter path. Both load the model (one pose update)
+and explicitly update pose again. Two calls are necessary: ambient wobble can
+advance physical Y twice, while the active-session flag suppresses it.
+
+**VS01: 122 fresh constructions / 38,796 semantic words** match C. Coverage is
+86 unmodified game startups across all eight maps, all three CUPs' valid track
+variants, all fifteen vehicles and both supported modes, plus 36 controlled
+world-input branches. Those branches include 24 nonzero-wobble cases, 12
+active-session suppression cases and rotated/nonzero spawn inputs. The oracle
+wraps the unchanged production pose implementation at the second player pose
+call, after resource loading and before session ticks. It asserts that the hook
+actually ran; an empty record stream cannot pass. Initial positions/matrices
+are checked against authored input or the source's explicit zero-spawn path.
+Snapshots compare motion/part poses, shadow vertices/radius, contacts, drive,
+collision/prefix state and private gun geometry; they do not initialize Rust.
+
+Qualification boundary: this builds fresh dynamics/resources, not the complete
+Player lifecycle or a moving game. Entity allocation/names, memberships/ticks,
+camera creation, route assignment, complete world startup/RNG and full after-
+pose effects still need runtime bindings. Factory failure-prefix equivalence
+and the full authored Player reader are not claimed by VS01. The controlled
+branches alter inputs at the first pose boundary; they are not observations of
+ordinary map spawn positions.
+
+Prefix and connected-physics regressions remain exact (1,448 operations and
+1,254 vehicle records respectively). Workspace tests, native/Wasm Clippy,
+browser build and C preservation checks pass. Browser Wasm is still 183,235 B;
+the Rust browser still renders the static scene/free camera. No renderer or
+per-map acceleration data changed. M3 remains open.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_startup_reference.exe
+$env:TANKRACER_VEHICLE_STARTUP_REFERENCE=(Resolve-Path build/native/vehicle_startup_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_startup_reference --locked -- --ignored --nocapture
+```

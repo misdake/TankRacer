@@ -57,7 +57,7 @@ pub struct PoseInput {
     pub external: pose::ExternalBasis,
 }
 impl PoseInput {
-    fn environment(&self, articulation: &body::Articulation) -> pose::Environment {
+    pub(crate) fn environment(&self, articulation: &body::Articulation) -> pose::Environment {
         pose::Environment {
             timer: self.timer,
             ambient_wobble: self.ambient_wobble,
