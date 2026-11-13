@@ -9,25 +9,27 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`9185db4`**. Original authored input (50 files / 4,392
-  records) and real Crush construction are implemented. Across 22 nonempty
-  map/CUP configurations, 154 constructions / 28 glow records / 10 shared-mesh
-  pairs match real C startup. Components install into the collision world/class
-  table with correct initial lap visibility; other class construction is pending.
-- Shared geometry now uses stable scene handles: ordinary source aliases share
-  deformation; `:multi_crush` detaches a private copy. Contact/hit code borrows
-  that same store. No per-frame vertex copy or original-memory arena.
-- Connected physics still matches 1,254 records / 8,716,157 words across 15 cars
-  and eight maps (37 real mesh changes, 33 later sampling borrows). Workspace,
-  native/Wasm Clippy, deformation/contact regressions and unchanged-C checks pass.
-- Qualification limits: per-constructor RNG inputs still come from C; other
-  classes, named entity resolution, complete startup/RNG replay, timer/ability
-  prefix, ordinary obstacle hit integration and full after-pose effects remain
-  pending. Construction tests do not prove a complete independent game.
-- **Next runnable increment:** common Obstacle parameters/construction and named
-  entity bindings, then world membership/object ticks, vehicle prefix/after-pose
-  operations and scheduler -> independent moving proxy. M3 stays open until it
-  runs without C or test snapshots. Preserve the shared/private mesh contract.
+- Last verified code: **`13fcd5d`**. Real OBPARAMS presets and common Obstacle
+  parent components are implemented: 19 presets match C; 2,937 parent outputs
+  across 22 nonempty map/CUP files match, including 837 parts, 58 animations and
+  1,949 grid placements. Workspace/native/Wasm lint, record/Crush regressions
+  and unchanged-C checks pass. Parent callbacks/subclass methods are still open.
+- Previous: all authored input (50 files / 4,392 records), 154 Crush constructions
+  and shared/private mesh ownership qualify. Connected physics matches 1,254
+  records / 8,716,157 words (37 mesh changes, 33 later sampling borrows). Detailed
+  contracts and test commands are in the linked docs; no original-memory arena.
+- Original NONE/SUB/ADD constants were missing in the C bootstrap. Rust uses
+  verified EXE definitions; only the constructor oracle supplies those constants
+  to C. New animation data is qualified; Rust GPU rendering of it is pending.
+- Qualification limits: constructor RNG/subclass defaults and material results
+  are boundary inputs from C. Named entity resolution, concrete subclass methods,
+  complete startup/RNG replay, timer/ability prefix and full after-pose effects
+  remain pending. Data construction/placement is not a running independent game.
+- **Next runnable increment:** concrete subclass initialization and lifecycle/
+  method bindings, named entity resolution and complete world membership/ticks;
+  connect vehicle prefix/after-pose and scheduler -> independent moving proxy.
+  M3 stays open until it runs without C or test snapshots. Preserve shared mesh
+  ownership, RNG consumption and the distinction between activation/impact limits.
 - Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
   graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
   claiming budget compliance. Original resources/GPU/dynamic memory are separate.
