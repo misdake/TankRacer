@@ -66,6 +66,7 @@ pub struct Scene {
     pub ordinary: Vec<ObstacleId>,
     pub special: Vec<ObstacleId>,
     pub lap_objects: Vec<ObstacleId>,
+    pub(crate) pending_crush: Vec<(ObstacleId, crush::Initial)>,
     pub parents: Parents,
     pub interfaces: Interfaces,
     pub dt: i32,
@@ -79,6 +80,7 @@ impl Scene {
             ordinary: Vec::new(),
             special: Vec::new(),
             lap_objects: Vec::new(),
+            pending_crush: Vec::new(),
             parents,
             interfaces,
             dt: 0,
@@ -143,6 +145,23 @@ impl Scene {
             .get_mut(id.0)
             .and_then(Option::as_mut)
             .ok_or(-1)
+    }
+    pub(crate) fn crush_initial(&self, id: ObstacleId) -> Result<crush::Initial, i32> {
+        self.pending_crush
+            .iter()
+            .find(|(target, _)| *target == id)
+            .map(|(_, initial)| *initial)
+            .ok_or(-1)
+    }
+    fn crush_records_attached(&self, id: ObstacleId) -> Result<bool, i32> {
+        if let Some(surface) = self.surfaces.entries.get(id.0).and_then(Option::as_ref) {
+            Ok(surface.sampling.state.records_attached)
+        } else {
+            self.crush_initial(id).map(|_| false)
+        }
+    }
+    pub(crate) fn finish_crush_initial(&mut self, id: ObstacleId) {
+        self.pending_crush.retain(|(target, _)| *target != id);
     }
     fn insert_grid(&mut self, id: ObstacleId) -> Result<(), i32> {
         let mesh = self.object(id)?.data.mesh;
@@ -233,6 +252,7 @@ impl Methods<ObstacleId> for Scene {
             let retiring = matches!(method, DETACH | RELEASE_ID);
             base.invoke(call, env)?;
             if retiring && let Some(id) = target {
+                self.finish_crush_initial(id);
                 if let Some(object) = self.objects.get_mut(id.0) {
                     *object = None;
                 }
@@ -284,16 +304,24 @@ impl Methods<ObstacleId> for Scene {
             }
             CRUSH_INITIALIZE => {
                 self.world.objects.get_mut(id.0).ok_or(-1)?.weight = 8;
-                let surface = self
-                    .surfaces
-                    .entries
-                    .get_mut(id.0)
-                    .and_then(Option::as_mut)
-                    .ok_or(-1)?;
-                surface.config.floor = 50;
-                surface.config.compression = 1;
-                surface.sampling.edge_cap = 45000;
-                surface.config.drift_shift = 1;
+                if let Some(surface) = self.surfaces.entries.get_mut(id.0).and_then(Option::as_mut)
+                {
+                    surface.config.floor = 50;
+                    surface.config.compression = 1;
+                    surface.sampling.edge_cap = 45000;
+                    surface.config.drift_shift = 1;
+                } else if let Some((_, initial)) = self
+                    .pending_crush
+                    .iter_mut()
+                    .find(|(target, _)| *target == id)
+                {
+                    *initial = crush::Initial {
+                        highlighted: initial.highlighted,
+                        ..Default::default()
+                    };
+                } else {
+                    self.pending_crush.push((id, crush::Initial::default()));
+                }
                 *call.result = entity.0;
             }
             ENTER => {
@@ -377,19 +405,12 @@ impl Methods<ObstacleId> for Scene {
                     .map_err(dispatch_code)?;
             }
             CRUSH_ENTER => {
-                let records = &self
-                    .surfaces
-                    .entries
-                    .get(id.0)
-                    .and_then(Option::as_ref)
-                    .ok_or(-1)?
-                    .sampling
-                    .state;
+                let records_attached = self.crush_records_attached(id)?;
                 let activate = crush::enter(
                     id,
                     &mut self.world.deformables,
                     &mut self.special,
-                    records,
+                    records_attached,
                     env.work_limit,
                 )
                 .map_err(crush::code)?;
@@ -401,14 +422,7 @@ impl Methods<ObstacleId> for Scene {
                 *call.result = u32::from(activate);
             }
             CRUSH_LEAVE => {
-                let records = &self
-                    .surfaces
-                    .entries
-                    .get(id.0)
-                    .and_then(Option::as_ref)
-                    .ok_or(-1)?
-                    .sampling
-                    .state;
+                let records_attached = self.crush_records_attached(id)?;
                 *call.result = u32::from(
                     crush::leave(
                         id,
@@ -417,7 +431,7 @@ impl Methods<ObstacleId> for Scene {
                             collision: &mut self.world.deformables,
                             drawing: &mut self.special,
                         },
-                        records,
+                        records_attached,
                         call.context.ticks,
                         call.context.queues,
                         env.work_limit,
@@ -427,41 +441,36 @@ impl Methods<ObstacleId> for Scene {
             }
             CRUSH_DESTROY => {
                 valid_limit(env.work_limit)?;
-                let private = self
-                    .surfaces
-                    .entries
-                    .get(id.0)
-                    .and_then(Option::as_ref)
-                    .ok_or(-1)?
-                    .runtime
-                    .private_mesh;
-                crush::destroy_owned(
-                    self.surfaces
-                        .entries
-                        .get_mut(id.0)
-                        .and_then(Option::as_mut)
-                        .ok_or(-1)?,
-                    &mut self.surfaces.meshes,
-                    env.work_limit,
-                )
-                .map_err(crush::code)?;
-                if private {
-                    self.object_mut(id)?.data.mesh = None;
+                if let Some(surface) = self.surfaces.entries.get_mut(id.0).and_then(Option::as_mut)
+                {
+                    let private = surface.runtime.private_mesh;
+                    crush::destroy_owned(surface, &mut self.surfaces.meshes, env.work_limit)
+                        .map_err(crush::code)?;
+                    if private {
+                        self.object_mut(id)?.data.mesh = None;
+                    }
+                } else {
+                    self.crush_initial(id)?;
                 }
+                self.finish_crush_initial(id);
                 call.context
                     .class_dispatch(self.parents.obstacle, entity, None, env, self)
                     .map_err(dispatch_code)?;
                 *call.result = entity.0;
             }
             CRUSH_HIGHLIGHT => {
-                crush::set_highlight(
-                    self.surfaces
-                        .entries
-                        .get_mut(id.0)
-                        .and_then(Option::as_mut)
-                        .ok_or(-1)?,
-                    value(call.payload)?,
-                );
+                let mode = value(call.payload)?;
+                if let Some(surface) = self.surfaces.entries.get_mut(id.0).and_then(Option::as_mut)
+                {
+                    crush::set_highlight(surface, mode);
+                } else {
+                    self.pending_crush
+                        .iter_mut()
+                        .find(|(target, _)| *target == id)
+                        .ok_or(-1)?
+                        .1
+                        .highlighted = mode == 1;
+                }
                 *call.result = id.0 as u32 + 1;
             }
             crush::TICK => crush::invoke_tick(

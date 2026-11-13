@@ -61,6 +61,16 @@ pub struct Crush {
     pub visibility: Visibility,
     pub ground_height: i32,
 }
+/// Completed parent components, before Crush replaces geometry and allocates
+/// deformation records. Memberships and parent-owned effects stay in the scene.
+pub(crate) struct CrushParent {
+    pub collider: Collider,
+    pub source: Option<Arc<Model>>,
+    pub mesh: Option<MeshId>,
+    pub visibility: Visibility,
+    pub weight: i32,
+    pub sort_position: i16,
+}
 /// Noncollision components retained after installing the authoritative collider
 /// and deformable state. The scheduler/render scene owns these handles too.
 pub struct PlacedCrush {
@@ -111,27 +121,13 @@ pub(crate) fn visibility(p: Parameters<'_>, random: &mut u32) -> Result<Visibili
     Ok(visibility)
 }
 fn crush_mesh<S: ShapeSource>(
-    record: &level::Object<'_>,
     p: Parameters<'_>,
     r: &mut Resources<'_, S>,
-    visibility: &mut Visibility,
+    parent: &mut CrushParent,
 ) -> Result<(Arc<Model>, MeshId, Bounds), Error> {
-    let margin = p.integer(":expand_coll_radius").unwrap_or(1536);
-    let mut loaded = if record.shape.eq_ignore_ascii_case("nil") {
-        None
-    } else {
-        Some(shape(r, record.shape)?)
-    };
-    let mut mesh = loaded.as_ref().map(|m| r.meshes.bind(record.shape, m));
-    let mut collider_bounds = loaded.as_ref().map(|m| bounds(m, margin));
-    if let Some(distance) = p.integer(":vis_dist") {
-        visibility.distance = distance as u16;
-        if let Some(mesh) = mesh {
-            r.meshes
-                .set_hint(mesh, distance as u16)
-                .ok_or(Error::MissingShape)?;
-        }
-    }
+    let mut loaded = parent.source.take();
+    let mut mesh = parent.mesh;
+    let mut collider_bounds = parent.collider.bounds;
     if let Some(mut values) = p.find(":multi_crush") {
         let name = values.word().ok_or(Error::MissingValue)?;
         if name.len() >= 32 {
@@ -140,18 +136,19 @@ fn crush_mesh<S: ShapeSource>(
         let model = shape(r, name)?;
         let source = r.meshes.bind(name, &model);
         mesh = Some(r.meshes.private_copy(source).ok_or(Error::MissingShape)?);
-        collider_bounds = Some(bounds(&model, 1536));
+        collider_bounds = bounds(&model, 1536);
         loaded = Some(model);
     }
     let source = loaded.ok_or(Error::MissingShape)?;
     let mesh = mesh.ok_or(Error::MissingShape)?;
     // The subclass applies this again after replacing the model.
     if let Some(distance) = p.integer(":vis_dist") {
+        parent.visibility.distance = distance as u16;
         r.meshes
             .set_hint(mesh, distance as u16)
             .ok_or(Error::MissingShape)?;
     }
-    Ok((source, mesh, collider_bounds.ok_or(Error::MissingShape)?))
+    Ok((source, mesh, collider_bounds))
 }
 fn glows(
     p: Parameters<'_>,
@@ -293,7 +290,60 @@ impl Crush {
             .or_else(|| p.integer(":Solidity"))
             .unwrap_or(8);
         let material = p.integer(":sortpos").unwrap_or(0) as i16;
-        let (source, mesh, mut collider_bounds) = crush_mesh(record, p, r, &mut visibility)?;
+        let source = if record.shape.eq_ignore_ascii_case("nil") {
+            None
+        } else {
+            Some(shape(r, record.shape)?)
+        };
+        let mesh = source
+            .as_ref()
+            .map(|model| r.meshes.bind(record.shape, model));
+        let collider_bounds = source.as_ref().map_or(
+            Bounds {
+                min: [0; 3],
+                max: [0; 3],
+            },
+            |model| bounds(model, p.integer(":expand_coll_radius").unwrap_or(1536)),
+        );
+        if let Some(distance) = p.integer(":vis_dist") {
+            visibility.distance = distance as u16;
+            if let Some(mesh) = mesh {
+                r.meshes
+                    .set_hint(mesh, distance as u16)
+                    .ok_or(Error::MissingShape)?;
+            }
+        }
+        Self::finish(
+            record,
+            CrushParent {
+                collider: Collider {
+                    entity,
+                    pose,
+                    external_basis: Some(pose.matrix),
+                    radius: source.as_ref().map_or(0, |model| model.radius),
+                    bounds: collider_bounds,
+                },
+                source,
+                mesh,
+                visibility,
+                weight,
+                sort_position: material,
+            },
+            crush::Initial::default(),
+            r,
+        )
+    }
+    /// Complete only the subclass. The live reader has already run real parent
+    /// activation, lap entry/exit and resource construction in source order.
+    pub(crate) fn finish<S: ShapeSource>(
+        record: &level::Object<'_>,
+        mut parent: CrushParent,
+        initial: crush::Initial,
+        r: &mut Resources<'_, S>,
+    ) -> Result<Self, Error> {
+        let p = Parameters::new(record.parameters).map_err(|_| Error::Parameters)?;
+        let pose = parent.collider.pose;
+        let (source, mesh, mut collider_bounds) = crush_mesh(p, r, &mut parent)?;
         let (records, siren_timer) = glows(p, pose, r.random)?;
         let sampling_bounds = [
             [collider_bounds.min[0], collider_bounds.max[0]],
@@ -322,27 +372,28 @@ impl Crush {
         let vertex_flags = vertex_flags(vertex_count, r.random);
         Ok(Self {
             collider: Collider {
-                entity,
-                pose,
-                external_basis: Some(pose.matrix),
                 radius: source.radius,
                 bounds: collider_bounds,
+                ..parent.collider
             },
-            weight,
+            weight: parent.weight,
             source,
-            visibility,
+            visibility: parent.visibility,
             ground_height,
             surface: Deformable {
                 runtime: crush::State {
                     siren_timer,
                     private_mesh: p.find(":multi_crush").is_some(),
+                    highlighted: initial.highlighted,
                     ..crush::State::default()
                 },
                 config: deformable_hit::Config {
-                    floor: p.integer(":crush_limit").map_or(50, |v| v >> 3),
-                    compression: p.integer(":crush_amount").unwrap_or(1),
-                    drift_shift: p.integer(":horiz_amount").unwrap_or(1) as u32,
-                    material,
+                    floor: p.integer(":crush_limit").map_or(initial.floor, |v| v >> 3),
+                    compression: p.integer(":crush_amount").unwrap_or(initial.compression),
+                    drift_shift: p
+                        .integer(":horiz_amount")
+                        .map_or(initial.drift_shift, |v| v as u32),
+                    material: parent.sort_position,
                     has_sound: false,
                 },
                 state: deformable_hit::State::default(),
@@ -350,7 +401,10 @@ impl Crush {
                 vertex_flags,
                 sampling: Sampling {
                     bounds: sampling_bounds,
-                    edge_cap: p.integer(":max_height").unwrap_or(45000).clamp(0, 65535),
+                    edge_cap: p
+                        .integer(":max_height")
+                        .unwrap_or(initial.edge_cap)
+                        .clamp(0, 65535),
                     state: deformation::State {
                         records_attached: p.find(":police_glow").is_some(),
                         pose: deformation::Pose {

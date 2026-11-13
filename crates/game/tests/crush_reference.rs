@@ -232,7 +232,7 @@ fn operation(
                 ObstacleId(0),
                 &mut scene.collision,
                 &mut scene.drawing,
-                &scene.surface.sampling.state,
+                scene.surface.sampling.state.records_attached,
                 limit,
             )
             .map_err(crush::code)?;
@@ -251,7 +251,7 @@ fn operation(
                 collision: &mut scene.collision,
                 drawing: &mut scene.drawing,
             },
-            &scene.surface.sampling.state,
+            scene.surface.sampling.state.records_attached,
             &mut state.ticks,
             &mut state.queues,
             limit,

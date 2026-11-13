@@ -1,7 +1,6 @@
 //! Concrete Crush lifecycle (407F70/407790/4077E0/407F00). Contact sampling,
 //! record updates and drawing share the same buffer and mutable mesh handles.
 use crate::{
-    deformation,
     dispatch::MethodId,
     entity_factory::{Environment, Invocation},
     lifecycle::{self, Queues, Ticks},
@@ -12,6 +11,27 @@ use crate::{
 };
 
 pub const TICK: MethodId = MethodId(16);
+/// Scalar initialization exists before a shape or record buffer is allocated.
+/// Keep that phase explicit instead of inventing an empty mesh handle.
+#[derive(Debug, Clone, Copy)]
+pub struct Initial {
+    pub floor: i32,
+    pub compression: i32,
+    pub edge_cap: i32,
+    pub drift_shift: u32,
+    pub highlighted: bool,
+}
+impl Default for Initial {
+    fn default() -> Self {
+        Self {
+            floor: 50,
+            compression: 1,
+            edge_cap: 45000,
+            drift_shift: 1,
+            highlighted: false,
+        }
+    }
+}
 #[derive(Debug, Clone, Default)]
 pub struct State {
     pub siren_timer: i32,
@@ -116,7 +136,7 @@ pub fn enter(
     id: ObstacleId,
     collision: &mut Vec<ObstacleId>,
     drawing: &mut Vec<ObstacleId>,
-    records: &deformation::State,
+    records_attached: bool,
     limit: u32,
 ) -> Result<bool, Error> {
     if limit == 0 {
@@ -124,7 +144,7 @@ pub fn enter(
     }
     collision.push(id);
     drawing.push(id);
-    Ok(records.records_attached)
+    Ok(records_attached)
 }
 pub struct Membership<'a> {
     pub collision: &'a mut Vec<ObstacleId>,
@@ -136,7 +156,7 @@ pub fn leave(
     id: ObstacleId,
     entity: EntityId,
     membership: Membership<'_>,
-    records: &deformation::State,
+    records_attached: bool,
     ticks: &mut Ticks<EntityId>,
     queues: &mut Queues<EntityId>,
     limit: u32,
@@ -146,7 +166,7 @@ pub fn leave(
     }
     spatial::remove_first(membership.collision, &id, limit).map_err(Error::Spatial)?;
     spatial::remove_first(membership.drawing, &id, limit).map_err(Error::Spatial)?;
-    if records.records_attached {
+    if records_attached {
         queues
             .queue(ticks, entity, false, limit)
             .map_err(Error::Lifecycle)?;
@@ -186,7 +206,7 @@ pub fn code(error: Error) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{deformable_hit, scene_collision::Sampling};
+    use crate::{deformable_hit, deformation, scene_collision::Sampling};
     use tankracer_assets::{mesh::Geometry, model::Model};
 
     fn model() -> Model {

@@ -8,6 +8,8 @@ use tankracer_assets::{
 };
 use tankracer_game::{
     entity_factory,
+    entity_factory::Payload,
+    math::Matrix,
     object_query::{EntityId, ObstacleId},
     obstacle_collision::Grid,
     obstacle_startup::{MaterialId, Materials},
@@ -174,6 +176,54 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
         .unwrap();
     assert_eq!(state.entities.record_count(), 0);
     assert!(scene.objects[id.0].is_none());
+    // Crush overrides initialization without the ordinary transform/cell
+    // initializer. A failed reader must remain destructible before mesh loading.
+    let mut record = record;
+    record.class = "Crush";
+    record.name = "BrokenCrush";
+    {
+        let mut loader = scene_loading::Loader::new(
+            &mut scene,
+            scene_loading::Resources {
+                source: &InvalidShape,
+                models: &mut models,
+                terrain: &terrain,
+                random: &mut random,
+                catalog: &catalog,
+                materials: &mut materials,
+                matrix_tail: None,
+            },
+            &registry,
+        );
+        assert!(matches!(
+            loader.load(&mut state, record),
+            Err(scene_loading::Error::Resource(_))
+        ));
+    }
+    let entity = EntityId(2);
+    let id = state.entities.record(entity).unwrap().object.unwrap();
+    let object = scene.objects[id.0].as_ref().unwrap();
+    assert_eq!(scene.world.objects[id.0].weight, 8);
+    assert_eq!(scene.world.colliders[id.0].pose.matrix, Matrix([0; 9]));
+    assert_eq!(object.data.sort_position, 0);
+    assert_eq!(object.data.cell.unwrap().packed(), 0);
+    assert!(scene.surfaces.entries.is_empty());
+    state
+        .context()
+        .dispatch(
+            entity,
+            scene_loading::MODE,
+            Some(Payload::Value(1)),
+            registry.environment(100000),
+            &mut scene,
+        )
+        .unwrap();
+    state
+        .context()
+        .destroy(entity, registry.environment(100000), &mut scene)
+        .unwrap();
+    assert_eq!(state.entities.record_count(), 0);
+    assert!(scene.objects.iter().all(Option::is_none));
 }
 #[test]
 #[ignore = "requires fresh C World loader; set TANKRACER_SCENE_LOADING_REFERENCE"]

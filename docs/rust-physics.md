@@ -1522,3 +1522,63 @@ $env:TANKRACER_SCENE_LOADING_REFERENCE=(Resolve-Path build/native/scene_loading_
 $env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_startup_reference.exe).Path
 cargo test -p tankracer-game --test scene_loading_reference --test obstacle_startup_reference --locked -- --ignored --nocapture
 ```
+
+## Fresh Crush reader on the shared scene owner
+
+The registry now binds Crush allocation/initialize/read/enter/leave/highlight/
+tick/destruction to the same factory and scene components as ordinary Obstacle.
+Crush initialization has an explicit scalar-only phase: it sets its defaults
+without calling the ordinary parent, and has neither geometry nor a record
+buffer yet. A small transient pending list holds that state until construction
+finishes; no fake/empty mesh is inserted. Early reader failure remains
+destructible, including a highlight call before a model has loaded.
+
+The inherited constructor actually activates the object and applies lap rules
+before its buffers exist. Early Crush entry therefore appends its collision/
+special-draw memberships but does not request a second activation. The parent
+also requests deferred stop. A live glow buffer cancels that notification only
+for immediate-entry objects; delayed objects retain it. The subclass then owns
+its current mutable mesh, records, random vertex flags and surface-query state.
+Initialized defaults and optional private-mesh replacement remain separate from
+parent-owned effects and the original cell value.
+
+The specialized builder was split into parent input and subclass completion.
+The live reader reuses the already-constructed parent pose, geometry, bounds,
+weight, sort and lap decisions, consuming neither lap RNG nor parent effects a
+second time. The data-only constructor convenience path uses the same subclass
+completion and retains its previous qualification.
+
+The SC03 oracle additionally captures real constructor flags/cells and filtered
+draw/deformable/lap/tick/queue/grid memberships. **All 154 authored Crush records
+across 22 nonempty map/CUP files** now pass through fresh Rust factory/reader
+bindings and match those outputs, as well as geometry sharing, initialization
+scalars, terrain heights, records, vertex flags and RNG consumption. Their IDs
+and entering RNG seeds remain explicit boundaries from the surrounding
+unported constructors; this does not prove complete-world startup/RNG replay.
+
+Existing short sampler/retirement sequences also run through the live owner:
+**302 bound tick calls / 154 detached buffers**, reusing the same 28 authored glow
+records. After each C-qualified checkpoint the live component/flags/filtered
+notifications agree. Small component/scheduler clones restore constructor state
+only inside the test so subsequent startup-membership comparisons stay valid.
+The complete live leave -> stop -> deactivate -> destroy path retires all 154
+objects; private meshes disappear and shared/named meshes remain accessible.
+The older 178-scenario Crush and 664-scenario common-lifecycle error-prefix suites
+also pass after the pending-state/record-presence API changes.
+
+Other regression: 24 fresh ordinary scripts, 56 authored ordinary factories,
+2,937 parent constructions, entity factory and connected vehicle oracles,
+workspace tests, native/Wasm Clippy, unchanged-C verification and browser build
+pass. No renderer state or map acceleration data changed. The browser remains
+the static 183,221 B Wasm build; the live game crate is not connected there yet.
+
+Next: Fall-family/subclass readers and attachments, shared breakable scheduling,
+then whole-world startup and vehicle prefix/after-pose. M3 remains open. Full
+native allocator/read-fault prefix fidelity during partial resource construction
+is outside the typed resource boundary; no such new claim is made.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
+$env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
+cargo test -p tankracer-game --test scene_startup_reference --locked -- --ignored --nocapture
+```

@@ -1,17 +1,29 @@
 use std::{fs, path::PathBuf, process::Command};
-use tankracer_assets::{archive::Archive, level::Level, model::ShapeArchive, terrain::TerrainData};
+use tankracer_assets::{
+    archive::Archive, level::Level, model::ShapeArchive, object_catalog::Catalog,
+    terrain::TerrainData,
+};
 use tankracer_game::{
     crush,
     dispatch::{Class, ClassId},
+    entity_factory,
     lifecycle::{Queues, Ticks},
     object_query::EntityId,
     obstacle_collision::{Grid, World},
+    obstacle_startup::{MaterialId, Materials},
     scene_collision::{DEFORMABLE_HIT, Deformable, Surfaces},
+    scene_loading,
     scene_meshes::Meshes,
     scene_startup::{Crush, Resources},
     vehicle_model::{Bundles, ModelBank},
 };
 struct Reader<'a>(&'a [u8]);
+struct NoMaterials;
+impl Materials for NoMaterials {
+    fn resolve(&mut self, name: &str, _: u32) -> Result<Option<MaterialId>, i32> {
+        panic!("unexpected Crush material {name}")
+    }
+}
 impl<'a> Reader<'a> {
     fn word(&mut self) -> u32 {
         let (head, tail) = self.0.split_at(4);
@@ -103,9 +115,13 @@ impl<'a> Reader<'a> {
 #[ignore = "requires real map startup with C constructor capture; set TANKRACER_SCENE_STARTUP_REFERENCE"]
 fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_construction() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
+    let data_bytes = fs::read(root.join("DATA/FASTFILE.DAT")).unwrap();
+    let data = Archive::parse(&data_bytes).unwrap();
+    let catalog = Catalog::decode(data.get("OBPARAMS.DAT").unwrap()).unwrap();
     let executable =
         std::env::var_os("TANKRACER_SCENE_STARTUP_REFERENCE").expect("scene constructor oracle");
-    let (mut count, mut glows, mut shared, mut runtime_updates, mut detached) = (0, 0, 0, 0, 0);
+    let (mut count, mut glows, mut shared, mut runtime_updates, mut detached, mut live_retired) =
+        (0, 0, 0, 0, 0, 0);
     for (map, name) in [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ]
@@ -135,6 +151,13 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
             };
             let mut models = ModelBank::default();
             let mut meshes = Meshes::default();
+            let registry = scene_loading::Registry::default();
+            let mut live_scene = registry.scene(Grid {
+                origin: terrain.origin.map(|v| v.wrapping_mul(8)),
+                shifts: terrain.shifts.map(|v| u32::from(v) + 3),
+                cells: std::array::from_fn(|_| vec![]),
+            });
+            let mut live_state = entity_factory::State::new(4).unwrap();
             let mut objects = level
                 .objects
                 .iter()
@@ -151,13 +174,15 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SC02");
+            assert_eq!(&output.stdout[..4], b"SC03");
             let mut r = Reader(&output.stdout[4..]);
             let mut aliases = Vec::new();
+            let mut live_aliases = Vec::new();
             let mut constructed = Vec::new();
             while r.word() != 0 {
                 let entity = EntityId(r.word());
                 let mut random = r.word();
+                let initial_random = random;
                 let parameters = r.text();
                 let record = objects
                     .next()
@@ -280,8 +305,142 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     r.check(u32::from(flags), &format!("{label} vertex flags"));
                 }
                 r.check(random, &format!("{label} RNG"));
+                live_state.entities.sequential = true;
+                live_state.entities.next_requested = entity;
+                let mut live_random = initial_random;
+                let loaded = scene_loading::Loader::new(
+                    &mut live_scene,
+                    scene_loading::Resources {
+                        source: &source,
+                        models: &mut models,
+                        terrain: &terrain,
+                        random: &mut live_random,
+                        catalog: &catalog,
+                        materials: &mut NoMaterials,
+                        matrix_tail: None,
+                    },
+                    &registry,
+                )
+                .load(&mut live_state, *record)
+                .unwrap_or_else(|e| panic!("{label} live loader: {e:?}"));
+                assert_eq!(loaded, entity);
+                assert_eq!(live_random, random, "{label} live RNG");
+                let id = live_state.entities.record(entity).unwrap().object.unwrap();
+                let object = live_scene.objects[id.0].as_ref().unwrap();
+                let collider = &live_scene.world.colliders[id.0];
+                let surface = live_scene.surfaces.entries[id.0].as_ref().unwrap();
+                for &(old_pointer, old_mesh) in &live_aliases {
+                    assert_eq!(
+                        pointer == old_pointer,
+                        surface.mesh == old_mesh,
+                        "{label} live mesh sharing"
+                    );
+                }
+                live_aliases.push((pointer, surface.mesh));
+                assert_eq!(collider.pose, built.collider.pose, "{label} live pose");
+                assert_eq!(
+                    collider.bounds, built.collider.bounds,
+                    "{label} live bounds"
+                );
+                assert_eq!(
+                    collider.radius, built.collider.radius,
+                    "{label} live radius"
+                );
+                assert_eq!(live_scene.world.objects[id.0].weight, built.weight);
+                assert_eq!(object.ground_height, Some(built.ground_height));
+                assert_eq!(
+                    [
+                        object.data.visibility.distance as i32,
+                        object.data.visibility.add_lap as i32,
+                        object.data.visibility.remove_lap as i32,
+                        object.data.visibility.entered as i32
+                    ],
+                    [
+                        built.visibility.distance as i32,
+                        built.visibility.add_lap as i32,
+                        built.visibility.remove_lap as i32,
+                        built.visibility.entered as i32
+                    ]
+                );
+                assert_eq!(surface.vertex_flags, built.surface.vertex_flags);
+                assert_eq!(surface.sampling.state, built.surface.sampling.state);
+                assert_eq!(surface.sampling.bounds, built.surface.sampling.bounds);
+                assert_eq!(surface.sampling.edge_cap, built.surface.sampling.edge_cap);
+                assert_eq!(
+                    [
+                        surface.config.floor,
+                        surface.config.compression,
+                        surface.config.drift_shift as i32,
+                        surface.config.material as i32
+                    ],
+                    [
+                        built.surface.config.floor,
+                        built.surface.config.compression,
+                        built.surface.config.drift_shift as i32,
+                        built.surface.config.material as i32
+                    ]
+                );
+                assert_eq!(
+                    format!("{:?}", surface.runtime),
+                    format!("{:?}", built.surface.runtime)
+                );
+                assert_eq!(
+                    live_scene
+                        .surfaces
+                        .meshes
+                        .get(surface.mesh)
+                        .unwrap()
+                        .vertices,
+                    meshes.get(built.surface.mesh).unwrap().vertices
+                );
+                assert_eq!(
+                    live_scene.surfaces.meshes.hint(surface.mesh),
+                    meshes.hint(built.surface.mesh)
+                );
+                r.check(
+                    live_state.ticks.flags[entity.0 as usize],
+                    "live factory flags",
+                );
+                r.check(
+                    object.data.cell.map_or(u32::MAX, |v| v.packed()),
+                    "live factory cell",
+                );
+                for list in [
+                    &live_scene.ordinary,
+                    &live_scene.special,
+                    &live_scene.world.deformables,
+                    &live_scene.lap_objects,
+                ] {
+                    check_list(
+                        &mut r,
+                        list.iter()
+                            .map(|id| live_scene.world.colliders[id.0].entity.0),
+                        &label,
+                    );
+                }
+                check_list(&mut r, live_state.ticks.order.iter().map(|v| v.0), &label);
+                check_list(
+                    &mut r,
+                    live_state.queues.notifications.iter().map(|v| v.0),
+                    &label,
+                );
+                check_list(
+                    &mut r,
+                    live_state.queues.destruction.iter().map(|v| v.0),
+                    &label,
+                );
+                for cell in &live_scene.world.grid.cells {
+                    check_list(
+                        &mut r,
+                        cell.iter()
+                            .map(|id| live_scene.world.colliders[id.0].entity.0),
+                        &label,
+                    );
+                }
                 let saved_sampling = built.surface.sampling.state.clone();
                 let saved_runtime = built.surface.runtime.clone();
+                let saved_ticks = live_state.ticks.clone();
+                let saved_queues = live_state.queues.clone();
                 let mut ticks = Ticks::<EntityId> {
                     flags: vec![0; entity.0 as usize + 1],
                     ..Default::default()
@@ -302,13 +461,33 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 for i in 0..built.surface.sampling.state.records.len() {
                     let world = built.surface.sampling.state.records[i].world_position;
                     built.surface.sampling.state.sample(&geometry, world);
+                    sample_live(&mut live_scene, entity, world);
                 }
                 r.runtime(&built.surface, entity, &mut ticks, &mut queues, false);
+                check_runtime(
+                    &live_scene,
+                    &live_state,
+                    entity,
+                    &built.surface,
+                    &ticks,
+                    &queues,
+                );
                 for _ in 0..2 {
                     let status = if built.surface.sampling.state.records.is_empty()
                         || built.surface.sampling.state.records_attached
                     {
                         runtime_updates += 1;
+                        live_scene.dt = 1500;
+                        live_state
+                            .context()
+                            .dispatch(
+                                entity,
+                                scene_loading::TICK,
+                                None,
+                                registry.environment(100000),
+                                &mut live_scene,
+                            )
+                            .unwrap();
                         crush::tick(
                             &mut built.surface,
                             1500,
@@ -323,9 +502,18 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     };
                     r.ints([status], "authored record tick status");
                     r.runtime(&built.surface, entity, &mut ticks, &mut queues, false);
+                    check_runtime(
+                        &live_scene,
+                        &live_state,
+                        entity,
+                        &built.surface,
+                        &ticks,
+                        &queues,
+                    );
                 }
                 let activated = if let Some(record) = built.surface.sampling.state.records.first() {
                     let world = record.world_position;
+                    sample_live(&mut live_scene, entity, world);
                     built
                         .surface
                         .sampling
@@ -337,9 +525,22 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 };
                 r.check(activated, "post-retirement activation");
                 r.runtime(&built.surface, entity, &mut ticks, &mut queues, false);
+                check_runtime(
+                    &live_scene,
+                    &live_state,
+                    entity,
+                    &built.surface,
+                    &ticks,
+                    &queues,
+                );
                 detached += usize::from(!built.surface.sampling.state.records_attached);
                 // Preserve constructor-only placement coverage after the independent
                 // short sequence; these small component clones exist only in tests.
+                let live_surface = live_scene.surfaces.entries[id.0].as_mut().unwrap();
+                live_surface.sampling.state = saved_sampling.clone();
+                live_surface.runtime = saved_runtime.clone();
+                live_state.ticks = saved_ticks;
+                live_state.queues = saved_queues;
                 built.surface.sampling.state = saved_sampling;
                 built.surface.runtime = saved_runtime;
                 count += 1;
@@ -378,10 +579,134 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
             assert!(world.grid.cells.iter().all(Vec::is_empty));
             assert!(r.0.is_empty(), "{name} trailing bytes");
             assert!(objects.next().is_none(), "{name} C omitted authored Crush");
+            let live_entities: Vec<_> = live_scene
+                .world
+                .colliders
+                .iter()
+                .map(|c| c.entity)
+                .collect();
+            let owned_meshes: Vec<_> = live_scene
+                .surfaces
+                .entries
+                .iter()
+                .flatten()
+                .map(|s| (s.mesh, s.runtime.private_mesh))
+                .collect();
+            for entity in &live_entities {
+                live_state
+                    .context()
+                    .dispatch(
+                        *entity,
+                        scene_loading::LEAVE,
+                        None,
+                        registry.environment(100000),
+                        &mut live_scene,
+                    )
+                    .unwrap();
+            }
+            live_state
+                .context()
+                .drain(
+                    scene_loading::STOP,
+                    registry.environment(100000),
+                    &mut live_scene,
+                )
+                .unwrap();
+            for entity in &live_entities {
+                live_state
+                    .context()
+                    .dispatch(
+                        *entity,
+                        scene_loading::DEACTIVATE,
+                        None,
+                        registry.environment(100000),
+                        &mut live_scene,
+                    )
+                    .unwrap();
+            }
+            live_state
+                .context()
+                .drain(
+                    scene_loading::STOP,
+                    registry.environment(100000),
+                    &mut live_scene,
+                )
+                .unwrap();
+            assert_eq!(live_state.entities.record_count(), 0);
+            assert!(live_scene.objects.iter().all(Option::is_none));
+            assert!(live_scene.surfaces.entries.iter().all(Option::is_none));
+            assert!(live_scene.world.deformables.is_empty() && live_scene.special.is_empty());
+            for (mesh, private) in owned_meshes {
+                assert_eq!(
+                    live_scene.surfaces.meshes.get(mesh).is_none(),
+                    private,
+                    "retire only private geometry"
+                );
+            }
+            live_retired += live_entities.len();
         }
     }
     assert!(count > 40 && glows > 0);
     eprintln!(
-        "{count} authored Crush constructions / {glows} glow records / {shared} shared-mesh pairs / {runtime_updates} runtime ticks / {detached} detached buffers exact against real C startup"
+        "{count} authored and fresh live Crush constructions / {glows} glow records / {shared} shared-mesh pairs / {runtime_updates} bound runtime ticks / {detached} detached buffers exact against real C startup; {live_retired} live objects retired"
     );
+}
+fn sample_live(
+    scene: &mut tankracer_game::scene_objects::Scene,
+    entity: EntityId,
+    world: [i32; 3],
+) {
+    scene
+        .surfaces
+        .with_sampling(Some(entity), &scene.world.colliders, |surface| {
+            let surface = surface.unwrap();
+            surface.state.sample(&surface.geometry, world);
+        })
+        .unwrap();
+}
+fn check_runtime(
+    scene: &tankracer_game::scene_objects::Scene,
+    state: &entity_factory::State<tankracer_game::object_query::ObstacleId>,
+    entity: EntityId,
+    expected: &Deformable,
+    ticks: &Ticks<EntityId>,
+    queues: &Queues<EntityId>,
+) {
+    let id = state.entities.record(entity).unwrap().object.unwrap();
+    let surface = scene.surfaces.entries[id.0].as_ref().unwrap();
+    assert_eq!(
+        surface.sampling.state, expected.sampling.state,
+        "bound sampler/tick records"
+    );
+    assert_eq!(
+        format!("{:?}", surface.runtime),
+        format!("{:?}", expected.runtime),
+        "bound tick runtime"
+    );
+    assert_eq!(
+        state.ticks.flags[entity.0 as usize],
+        ticks.flags[entity.0 as usize]
+    );
+    let known: Vec<_> = queues
+        .notifications
+        .iter()
+        .filter(|id| state.entities.record(**id).is_some())
+        .copied()
+        .collect();
+    assert_eq!(
+        state
+            .queues
+            .notifications
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        known
+    );
+}
+fn check_list(r: &mut Reader<'_>, values: impl Iterator<Item = u32>, label: &str) {
+    let expected: Vec<_> = values.collect();
+    assert_eq!(r.word() as usize, expected.len(), "{label} live list count");
+    for id in expected {
+        assert_eq!(r.word(), id, "{label} live list order");
+    }
 }

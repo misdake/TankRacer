@@ -1,7 +1,7 @@
-//! Fresh ordinary-object loading through the shared factory and real parent
+//! Fresh scene-object loading through the shared factory and real parent
 //! order. Resource construction never installs memberships implicitly.
 use crate::{
-    breakable,
+    breakable, crush,
     dispatch::{Class, ClassId, MethodId},
     entity_factory::{self as factory, Environment, Invocation, Methods, Slots},
     geometry::Bounds,
@@ -10,7 +10,7 @@ use crate::{
     obstacle_collision::{self, Grid, World},
     obstacle_startup::{self, Initial, Materials, Obstacle, PlacedObstacle},
     pose::Pose,
-    scene_collision::Surfaces,
+    scene_collision::{DEFORMABLE_HIT, Surfaces},
     scene_objects::{self as methods, Interfaces, Object, Parents, Scene},
     scene_startup::{self, Visibility},
     spatial::{self, Cell},
@@ -40,6 +40,7 @@ pub const CONSTRUCT: u32 = 17;
 pub const BEFORE_READ: u32 = 18;
 pub const AFTER_READ: u32 = 19;
 pub const AFTER_CONSTRUCT: u32 = 20;
+pub const DEFORMABLE_CONTACT: u32 = 21;
 
 const ALLOCATE_OBJECT: MethodId = MethodId(58);
 const READ_OBJECT: MethodId = MethodId(59);
@@ -47,6 +48,7 @@ const CONSTRUCT_BASE: MethodId = MethodId(60);
 const CONSTRUCT_WORLD: MethodId = MethodId(61);
 const CONSTRUCT_GENERIC: MethodId = MethodId(62);
 const CONSTRUCT_OBSTACLE: MethodId = MethodId(63);
+const CONSTRUCT_CRUSH: MethodId = MethodId(64);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -54,12 +56,13 @@ pub struct Registry {
     pub render_world: ClassId,
     pub generic: ClassId,
     pub obstacle: ClassId,
+    pub crush: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
         let mut world = Class {
-            maximum_slot: AFTER_CONSTRUCT as i32,
-            methods: vec![None; AFTER_CONSTRUCT as usize + 1],
+            maximum_slot: DEFORMABLE_CONTACT as i32,
+            methods: vec![None; DEFORMABLE_CONTACT as usize + 1],
         };
         for (slot, method) in [
             (ALLOCATE, ALLOCATE_OBJECT),
@@ -97,17 +100,32 @@ impl Default for Registry {
         ] {
             obstacle.methods[slot as usize] = Some(method);
         }
+        let mut crush = obstacle.clone();
+        for (slot, method) in [
+            (INITIALIZE, methods::CRUSH_INITIALIZE),
+            (CONSTRUCT, CONSTRUCT_CRUSH),
+            (DESTROY, methods::CRUSH_DESTROY),
+            (ENTER, methods::CRUSH_ENTER),
+            (LEAVE, methods::CRUSH_LEAVE),
+            (MODE, methods::CRUSH_HIGHLIGHT),
+            (TICK, crush::TICK),
+            (DEFORMABLE_CONTACT, DEFORMABLE_HIT),
+        ] {
+            crush.methods[slot as usize] = Some(method);
+        }
         Self {
             classes: vec![
                 Arc::new(world),
                 Arc::new(render_world),
                 Arc::new(generic),
                 Arc::new(obstacle),
+                Arc::new(crush),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
             generic: ClassId(2),
             obstacle: ClassId(3),
+            crush: ClassId(4),
         }
     }
 }
@@ -192,17 +210,19 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         state: &mut factory::State<ObstacleId>,
         record: level::Object<'a>,
     ) -> Result<EntityId, Error> {
-        if !record.class.eq_ignore_ascii_case("Obstacle") {
+        let class = if record.class.eq_ignore_ascii_case("Obstacle") {
+            self.registry.obstacle
+        } else if record.class.eq_ignore_ascii_case("Crush") {
+            self.registry.crush
+        } else {
             return Err(Error::UnsupportedClass(record.class.into()));
-        }
+        };
         self.record = Some(record);
         self.failure = None;
         let registry = self.registry;
         let env = registry.environment(self.work_limit);
         let result = (|| {
-            let definition = state
-                .context()
-                .define(record.name, registry.obstacle, env, self)?;
+            let definition = state.context().define(record.name, class, env, self)?;
             state
                 .context()
                 .dispatch(definition.entity, READ, None, env, self)?;
@@ -445,6 +465,68 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         *call.result = call.entity.0;
         Ok(())
     }
+    fn construct_crush(
+        &mut self,
+        mut call: Invocation<'_, ObstacleId>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.obstacle, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .ok_or(-1)?;
+        let data = &self.scene.object(id)?.data;
+        let parent = scene_startup::CrushParent {
+            collider: self.scene.world.colliders[id.0],
+            source: data.source.clone(),
+            mesh: data.mesh,
+            visibility: data.visibility,
+            weight: self.scene.world.objects[id.0].weight,
+            sort_position: data.sort_position,
+        };
+        let initial = self.scene.crush_initial(id)?;
+        let built = scene_startup::Crush::finish(
+            &self.record.ok_or(-1)?,
+            parent,
+            initial,
+            &mut scene_startup::Resources {
+                source: self.resources.source,
+                models: self.resources.models,
+                meshes: &mut self.scene.surfaces.meshes,
+                terrain: self.resources.terrain,
+                random: self.resources.random,
+            },
+        );
+        let built = self.resource(built)?;
+        // The parent queued stop before allocating glow records. The subclass
+        // cancels it only for an immediate-entry object with a live glow buffer.
+        if built.surface.sampling.state.records_attached && built.visibility.add_lap == 0 {
+            call.context
+                .queues
+                .cancel_notification(call.context.ticks, call.entity, env.work_limit)
+                .map_err(|e| crush::code(crush::Error::Lifecycle(e)))?;
+        }
+        let mesh = built.surface.mesh;
+        self.scene.world.colliders[id.0] = built.collider;
+        self.scene.world.objects[id.0].weight = built.weight;
+        self.scene.world.objects[id.0].mesh_bounds = built.source.bounds;
+        let object = self.scene.object_mut(id)?;
+        object.data.source = Some(built.source);
+        object.data.mesh = Some(mesh);
+        object.data.visibility = built.visibility;
+        object.ground_height = Some(built.ground_height);
+        if self.scene.surfaces.entries.len() <= id.0 {
+            self.scene.surfaces.entries.resize_with(id.0 + 1, || None);
+        }
+        self.scene.surfaces.entries[id.0] = Some(built.surface);
+        self.scene.finish_crush_initial(id);
+        *call.result = call.entity.0;
+        Ok(())
+    }
 }
 impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
     fn invoke(
@@ -492,6 +574,7 @@ impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
             }
             CONSTRUCT_GENERIC => self.construct_generic(call, env),
             CONSTRUCT_OBSTACLE => self.construct_obstacle(call, env),
+            CONSTRUCT_CRUSH => self.construct_crush(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

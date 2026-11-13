@@ -6,6 +6,25 @@
 #undef frame_deformable_construct_resources
 #include "reference_game.h"
 #include "physics_geometry.h"
+static uint32_t crush_ids[1024],crush_count;
+static int known_crush(uint32_t entity)
+{uint32_t i;for(i=0;i<crush_count;i++)if(crush_ids[i]==entity)return 1;return 0;}
+static void live_list(uint32_t head)
+{
+    uint32_t node=reference_game_word(head,4),n=0,used=0;
+    while(node!=head){if(used++==65536)exit(8);if(known_crush(reference_game_word(node+8,4)))n++;node=reference_game_word(node,4);}
+    oracle_put(n);node=reference_game_word(head,4);
+    while(node!=head){n=reference_game_word(node+8,4);if(known_crush(n))oracle_put(n);node=reference_game_word(node,4);}
+}
+static void live_loading(uint32_t entity,uint32_t o)
+{
+    uint32_t i;static const uint32_t lists[]={0x54b48c,0x54b488,0x53cd18,0x53e4b4,0x55b6a8,0x55b6bc,0x55b6b8};
+    if(crush_count==1024)exit(8);
+    crush_ids[crush_count++]=entity;
+    oracle_put(reference_game_word(o+16,4));oracle_put(reference_game_word(o+0x90,4));
+    for(i=0;i<7;i++)live_list(reference_game_word(lists[i],4));
+    for(i=0;i<64;i++)live_list(reference_game_word(0x544e70+i*4,4));
+}
 /* Only the oracle gets a copied C arena. Its allocator uses an extra address
  * range above ALL original DATA, so startup and its host allocator stay intact.
  * Rust still constructs from archives and receives semantic fields only. */
@@ -86,14 +105,14 @@ int frame_deformable_construct_resources(frame_data_read read,frame_data_write w
     for(i=0;i<n;i++)for(j=0;j<3;j++)dump_short(reference_game_word(mesh+4,4)+i*8+j*2);
     oracle_put(reference_game_word(mesh+14,2));
     for(i=0;i<n;i++)oracle_put(reference_game_word(reference_game_word(o+0xdd,4)+i,1));
-    oracle_put(reference_game_word(0x55b6ac,4));shadow_sequence(entity,o);return 0;
+    oracle_put(reference_game_word(0x55b6ac,4));live_loading(entity,o);shadow_sequence(entity,o);return 0;
 }
 int main(int argc,char **argv)
 {
     uint32_t map;int status;
     if(argc!=4)return 2;
     map=(uint32_t)strtoul(argv[2],0,10);
-    oracle_binary();fwrite("SC02",1,4,stdout);
+    oracle_binary();fwrite("SC03",1,4,stdout);
     status=reference_game_start_cup(argv[1],map,(uint32_t)strtoul(argv[3],0,10),1,0,0);if(status)return status;
     oracle_put(0);tank_destroy();return 0;
 }
