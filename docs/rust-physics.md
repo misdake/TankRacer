@@ -2219,3 +2219,38 @@ scheduling. No complete fresh scene, moving-browser or whole-game claim.
 $env:TANKRACER_VEHICLE_SCENE_REFERENCE=(Resolve-Path build/native/vehicle_scene_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_scene_reference --locked -- --ignored --nocapture
 ```
+
+## Connected physics with the complete after-pose chain (2026-11-14)
+
+The connected fixture now calls `frame_vehicle_scene_active` in C and
+`vehicle_scene::chain::active` in Rust at the real pre-display-rescale service
+boundary. It no longer substitutes impact animation for the rest of the chain.
+**VC03: 1,254 updates / 17,591,969 words**, across all eight maps and fifteen
+vehicles, match for contact, drive, collisions, motion, every after-pose owner,
+complete quad/line banks, shared effects and error prefixes. Eight vehicles are
+present; two alternate in short sequences. This is still a test-boundary state
+comparison, not construction of a fresh independent runtime.
+
+The semantic scene codec visits each field for both reading and comparison.
+Shield-bank 0/1 tails alias player-effect words already owned by the main
+snapshot and are not duplicated. Native fixture inputs include actual resource
+pickup activation, temporary lines, a timed shield, smoke thresholds and
+braking/reverse input. A real wide terrain patch is selected by Rust queries and
+passed as a test spawn point; C then performs its own unchanged queries. This
+exercises plane-based debris without injecting a synthetic post-contact flag.
+Viewport visibility is an explicit external input, as no renderer runs here.
+
+Every component actually changes: spray 1,254, marks 422, pickup 88, impact rings
+638, smoke 1,254, debris 80, lights 840, temporary rows 88, shield strips 88.
+There are 604 peer-write observations, 236 wear observations and 37 real
+deformable mesh changes followed by 33 later samples. Native instrumentation
+validates each changed seed write is exactly one LCG advance: **14,790 advances**
+match Rust. It separately observes **1,166 unchanged seed stores**; the contact
+pipeline writes back an unchanged seed when its effect timer is inactive.
+Counting those stores as additional draws would incorrectly reject matching
+simulation. Native/Wasm production code and map metadata are unchanged; workspace
+lint and C preservation pass. Next is fresh scene registration and scheduling.
+
+Rebuild `tests/reference_vehicle.c` with the host/core archives before running
+the existing `TANKRACER_VEHICLE_REFERENCE` test. The oracle now receives a verified
+ground position from the Rust driver in addition to map/car selection.

@@ -5,9 +5,12 @@
 #include "physics_entities.h"
 #include "frame_math.h"
 #include "frame_scene_effects.h"
+#include "frame_vehicle_scene.h"
+#include "physics_pose.h"
 static unsigned char *ram;
 static unsigned char baseline[TANKRACER_DATA_BYTES];
-static uint32_t object,ids[9],actors[9],count,own,captured,variant,after_calls;
+static uint32_t object,ids[9],actors[9],count,own,captured,variant,after_calls,rng_writes,rng_changes;
+static int counting_rng;
 static uint32_t surface_id,surface_object,surface_node;
 static uint32_t word(uint32_t a){return oracle_get(ram+a,4);}
 static void set(uint32_t a,uint32_t v,unsigned n){oracle_set(ram+a,v,n);}
@@ -18,6 +21,7 @@ static uint32_t object_of(uint32_t id){uint32_t p=word(word(0x55c694)+id*8u);ret
 static uint32_t owner_entity(uint32_t o){unsigned i;if(!o)return 0;for(i=0;i<count;i++)if(actors[i]==o)return ids[i];exit(8);}
 static uint32_t tank_index(uint32_t o){unsigned i;if(!o)return 0;for(i=0;i<count;i++)if(actors[i]==o)return i+1u;exit(8);}
 #include "reference_motion_io.h"
+#include "reference_vehicle_scene_io.h"
 static void pools(void)
 {
     emit(0x55ae20,1);emit(0x55ae1c,1);emit(0x54f490,800);emit(0x54f448,16);emit(0x54f488,2);emit(0x550110,8);
@@ -86,6 +90,8 @@ static void frame_config(void)
     raw(object+0x6f6,2);raw(object+0x6f8,1);raw(object+0x6fa,2);raw(object+0x6fc,1);
     oracle_put(word(0x5319c8)>>24);narrow(0x5319cc,2);emit(0x5319d0,1);oracle_put(word(0x531ca4)>>24);
     emit(0x531b98,1);emit(0x531b94,1);emit(0x544f70,4);
+    emit(0x54b4b0,1);oracle_put((ram[object+16]&32u)!=0);raw(object+0x10bd,1);emit(0x5468a8,1);emit(object+0x656,3);
+    emit(0x74aee0,3);emit(0x74af18,3);emit(0x5321c3,1);emit(0x5321da,1);emit(0x532208,1);emit(0x5964d4,1);emit(0x545d38,1);
 }
 static void surface(void)
 {
@@ -105,7 +111,7 @@ static void snapshot(void)
     unsigned i;for(i=0;i<count;i++)actor(i);object=actors[own];
     surface();emit(0x55b6ac,1);emit(0x55c698,1);emit(0x58eebc,1);emit(0x58ef5c,1);
     oracle_put(tank_index(word(0x546014)));if(word(0x546014)){emit(0x546008,1);emit(0x546010,1);}else{oracle_put(0);oracle_put(0);}
-    emit(0x545e1c,1);pools();
+    emit(0x545e1c,1);pools();scene_state();
 }
 static void capture(void)
 {
@@ -120,19 +126,27 @@ static int read_data(void *ctx,uint32_t at,void *out,uint32_t n)
     memcpy(out,ram+at,n);return 1;
 }
 static int write_data(void *ctx,uint32_t at,const void *data,uint32_t n)
-{(void)ctx;if(at>TANKRACER_DATA_BYTES||n>TANKRACER_DATA_BYTES-at)return 0;memcpy(ram+at,data,n);return 1;}
+{
+    (void)ctx;if(at>TANKRACER_DATA_BYTES||n>TANKRACER_DATA_BYTES-at)return 0;
+    if(counting_rng&&at==0x55b6ac&&n==4){
+        uint32_t old=word(at),value=oracle_get(data,4);rng_writes++;
+        if(value!=old){if(value!=old*1664525u+1013904223u)return 0;rng_changes++;}
+    }
+    memcpy(ram+at,data,n);return 1;
+}
 static int scene(void *ctx,int phase,uint32_t o,uint32_t entity,int32_t arg)
 {
-    int status;(void)ctx;(void)entity;(void)arg;
-    if(phase==PHYSICS_SCENE_AFTER_POSE){after_calls++;status=physics_impact_particles_tick(read_data,write_data,0,o,frame_math_trig());if(status)return status;return variant==7?9:0;}
+    int status;(void)ctx;(void)arg;
+    if(phase==PHYSICS_SCENE_AFTER_POSE){after_calls++;status=frame_vehicle_scene_active(read_data,write_data,0,o,entity,frame_math_trig());if(status)return status;return variant==7?9:0;}
     return 0;
 }
 static int feedback(void *ctx,int32_t strength){(void)ctx;(void)strength;return 0;}
 static void empty_list(uint32_t p){set(p,p,4);set(p+4,p,4);}
 int main(int argc,char **argv)
 {
-    uint32_t map,vehicle,i,j,step,turn,root,peer;int status;physics_effect_environment effect;physics_collision_services collision;physics_obstacle_services obstacle;physics_vehicle_services services;physics_entity_environment entities;
-    if(argc!=4 && !(argc==5&&!strcmp(argv[4],"--surface-info")))return 2;
+    uint32_t map,vehicle,i,j,step,turn,root,peer;int status;int32_t ground[3]={0};physics_effect_environment effect;physics_collision_services collision;physics_obstacle_services obstacle;physics_vehicle_services services;physics_entity_environment entities;
+    if(argc!=7 && !(argc==5&&!strcmp(argv[4],"--surface-info")))return 2;
+    if(argc==7)for(i=0;i<3;i++)ground[i]=(int32_t)strtol(argv[4+i],0,10);
     map=(uint32_t)strtoul(argv[2],0,10);vehicle=(uint32_t)strtoul(argv[3],0,10);
     status=reference_game_start_with_opponents(argv[1],map,vehicle,0,1);if(status)return status;
     ram=(unsigned char *)(uintptr_t)tank_data();
@@ -150,9 +164,10 @@ int main(int argc,char **argv)
     memcpy(baseline,ram,TANKRACER_DATA_BYTES);
     effect=(physics_effect_environment){read_data,write_data,0,frame_math_trig()};collision=(physics_collision_services){physics_impact_particles_callback,&effect,0};obstacle=(physics_obstacle_services){&collision,physics_known_entity_method,feedback,&entities};services=(physics_vehicle_services){&obstacle,scene,0};
     entities=(physics_entity_environment){read_data,write_data,0,frame_math_trig(),&obstacle,scene,0};
-    oracle_binary();fwrite("VC02",1,4,stdout);
+    oracle_binary();fwrite("VC03",1,4,stdout);
     for(variant=0;variant<8;variant++){
         own=root;memcpy(ram,baseline,TANKRACER_DATA_BYTES);object=actors[own];
+        set(0x54b4b0,1,4);
         for(i=0;i<64;i++)empty_list(word(0x544e70+i*4u));
         empty_list(word(0x53cd18));
         if(variant==6){
@@ -174,18 +189,29 @@ int main(int argc,char **argv)
             }
         }
         set(object+0x50,variant&1u?70000u:600001u,4);set(object+0x58,variant&1u?300000u:0u,4);
-        if(variant==3)set(object+0xd90,1,1);
+        if(variant==3){
+            set(object+0xd90,1,1);captured=1;
+            for(i=0;i<3;i++){set(object+i*4u,(uint32_t)ground[i],4);set(object+0x78+i*4u,(uint32_t)ground[i],4);set(object+0x84+i*4u,(uint32_t)ground[i],4);set(object+0x2a6+i*4u,(uint32_t)ground[i],4);}
+            set(object+0x54,(uint32_t)-300000,4);
+            status=physics_pose_update(read_data,write_data,0,object,frame_math_trig());if(status)return 7;
+        }
         if(variant==4){int32_t points[6]={0};unsigned char colors[8]={0};uint32_t h;for(i=0;i<95;i++){status=frame_line_allocate_values(read_data,write_data,0,points,colors,&h);if(status)return 7;}}
         captured=1;set(object+0x1082,500,4);set(0x590564,0,4);
         status=physics_impact_particles(read_data,write_data,0,object,object+0x11c,1,frame_math_trig());if(status)return 7;
+        set(object+0xaa0,39,4);set(object+0x978,69,4);
+        set(object+0xdf1,9,1);set(object+0xdf2,7,1);set(object+0x988,149,4);set(object+0x98c,299,4);
+        if(variant==1){status=frame_pickup_effect_start(read_data,write_data,0,object,object);if(status)return 7;}
+        if(variant==2){set(object+0xe08,1,1);set(object+0xe0b,500,2);}
+        if(variant==5){set(object+0xdd0,0,2);status=frame_temp_effects_start(read_data,write_data,0,object);if(status)return 7;}
         for(step=0;step<4;step++)for(turn=0;turn<2;turn++){
             own=turn?peer:root;
             object=actors[own];set(0x5904fc,variant%3==0?17u:16u,4);set(0x590564,step+1u,4);set(0x52ee9c,(uint32_t[]){0,1,2,3,4,5,0,0}[variant],4);
-            set(object+0x94,65536,4);set(object+0x9c,step%2?16384u:0u,4);set(object+0xdea,1,1);set(object+0xded,1,1);set(object+0xdaf,0,4);set(object+0xdcb,0,1);set(object+0xdd0,0,2);set(object+0xdd6,0,2);
-            captured=after_calls=0;oracle_put(variant);oracle_put(step*2u+turn);
+            set(object+0x94,step%2?0:step==2?(uint32_t)-65536:65536,4);set(object+0x98,step%2?1:0,4);set(object+0x9c,step%2?16384u:0u,4);set(object+0xdea,1,1);set(object+0xded,1,1);set(object+0xdaf,0,4);set(object+0xdcb,0,1);set(object+0xdd0,variant==5&&own==root?500:0,2);set(object+0xdd6,0,2);
+            captured=after_calls=rng_writes=rng_changes=0;oracle_put(variant);oracle_put(step*2u+turn);counting_rng=1;
             status=physics_vehicle_step(read_data,write_data,0,ids[own],frame_math_trig(),&services);
+            counting_rng=0;
             if(!captured){fprintf(stderr,"no contact boundary: map=%u vehicle=%u variant=%u step=%u status=%d\n",map,vehicle,variant,step,status);return 9;}
-            oracle_put((uint32_t)status);snapshot();oracle_put(after_calls);
+            oracle_put((uint32_t)status);oracle_put(rng_writes);oracle_put(rng_changes);snapshot();oracle_put(after_calls);
             if(status)goto next_variant;
         }
 next_variant: ;

@@ -17,11 +17,15 @@ use tankracer_game::{
     math::Matrix,
     object_query::{Bounds, Collider, EntityId, ObstacleId, Tank, TankId},
     obstacle_collision as obstacle, pose, powertrain, scene_collision, scene_meshes, suspension,
-    tank_collision, vehicle, velocity,
+    tank_collision, vehicle,
+    vehicle_scene::{chain, debris, lights, pickup, smoke, spray},
+    velocity,
 };
 #[path = "common/motion.rs"]
 mod common;
 use common::{Reader, words as motion_words};
+#[path = "common/vehicle_scene.rs"]
+mod scene_codec;
 
 fn gain(v: u32) -> Gain {
     Gain {
@@ -113,6 +117,7 @@ struct Snapshot {
     pool: Pool,
     particles: impact_particles::State,
     surface: Option<SurfaceSnapshot>,
+    scene: scene_codec::State,
 }
 struct SurfaceSnapshot {
     collider: Collider,
@@ -524,6 +529,7 @@ impl Snapshot {
                 frame: r.word(),
             }
         });
+        let scene = scene_codec::State::read(r, n, &mut pool);
         Self {
             states,
             models,
@@ -537,9 +543,10 @@ impl Snapshot {
             pool,
             particles: impact_particles::State { batches, next },
             surface,
+            scene,
         }
     }
-    fn words(&self) -> Vec<u32> {
+    fn words(&mut self) -> Vec<u32> {
         let mut out = Vec::new();
         for i in 0..self.states.len() {
             let s = &self.states[i];
@@ -711,6 +718,7 @@ impl Snapshot {
                 b.frame,
             ]);
         }
+        out.extend(self.scene.words(&mut self.pool));
         out
     }
 }
@@ -718,7 +726,12 @@ struct Scene {
     own: TankId,
     fail: bool,
     calls: u32,
-    dt: i32,
+    data: scene_codec::State,
+    entities: Vec<EntityId>,
+    settings: chain::Settings,
+    spray: spray::Tuning,
+    smoke: smoke::Tuning,
+    pickup: pickup::Tuning,
     surfaces: scene_collision::Surfaces,
     hits: usize,
     samples: usize,
@@ -753,23 +766,51 @@ impl vehicle::Services for Scene {
     }
     fn after_pose(
         &mut self,
-        _: vehicle::AfterPose<'_>,
+        v: vehicle::AfterPose<'_>,
         bank: &mut collision_effects::Bank<'_, '_>,
         random: &mut u32,
     ) -> Result<(), i32> {
         self.calls += 1;
-        bank.particles
-            .tick(
-                &mut bank.vehicles[self.own.0],
-                self.dt,
-                &mut impact_particles::Context {
-                    frame: bank.frame,
-                    random,
-                    pool: bank.lines,
-                    tuning: bank.tuning,
-                },
-            )
-            .map_err(impact_particles::Error::status)?;
+        let mut owners = Vec::new();
+        let mut local = None;
+        for (i, (l, entity)) in self.data.local.iter_mut().zip(&self.entities).enumerate() {
+            owners.push(debris::Owner {
+                entity: *entity,
+                state: &mut l.debris,
+            });
+            if i == self.own.0 {
+                local = Some(chain::Local {
+                    spray: &mut l.spray,
+                    smoke: &mut l.smoke,
+                    marks: &mut l.marks,
+                    lights: &mut l.lights,
+                    temporary_timer: v.pose_input.timer as i16,
+                    temporary_slot: l.temporary_slot,
+                });
+            }
+        }
+        let mut sound = None;
+        chain::active(
+            v,
+            local.expect("own vehicle"),
+            chain::World {
+                own: self.own.0,
+                debris: &mut self.data.debris,
+                debris_owners: &mut owners,
+                pickup: &mut self.data.pickup,
+                temporary: &mut self.data.temporary,
+                shield: &mut self.data.shield,
+                debris_sound: &mut sound,
+            },
+            bank,
+            random,
+            self.settings,
+            chain::Tuning {
+                spray: &self.spray,
+                smoke: &self.smoke,
+                pickup: &self.pickup,
+            },
+        )?;
         if self.fail { Err(9) } else { Ok(()) }
     }
 }
@@ -789,6 +830,10 @@ struct Settings {
     collision: obstacle::Tuning,
     grid_origin: [i32; 2],
     grid_shifts: [u32; 2],
+    scene: chain::Settings,
+    spray: spray::Materials,
+    hardware: bool,
+    flare_growth: i32,
 }
 impl Settings {
     fn read(r: &mut Reader) -> Self {
@@ -931,6 +976,25 @@ impl Settings {
         };
         let grid_origin = r.vector();
         let grid_shifts = r.vector().map(|v| v as u32);
+        let scene = chain::Settings {
+            special: force_surface,
+            lights: lights::Settings {
+                active: true,
+                visible: r.signed(),
+                queued: r.word() != 0,
+                reverse_braking: r.word() != 0,
+                material: r.word(),
+            },
+            light_offset: r.vector(),
+            camera: (r.vector(), r.vector()),
+        };
+        let spray = spray::Materials {
+            filth: r.word(),
+            crap: r.word(),
+            splash: r.word(),
+        };
+        let hardware = r.word() & 32768 != 0;
+        let flare_growth = r.signed();
         Self {
             frame,
             drive,
@@ -947,8 +1011,62 @@ impl Settings {
             collision,
             grid_origin,
             grid_shifts,
+            scene,
+            spray,
+            hardware,
+            flare_growth,
         }
     }
+}
+
+fn ground_patch(data: &TerrainData) -> [i32; 3] {
+    for plane in [true, false] {
+        for node in &data.nodes {
+            let mesh = &data.meshes[node.mesh as usize];
+            if (!plane && node.surface != 1) || (plane && mesh.flags & 16 == 0) {
+                continue;
+            }
+            for triangle in &mesh.triangles {
+                let center: [i32; 3] = std::array::from_fn(|i| {
+                    mesh.position[i]
+                        .wrapping_add(
+                            triangle
+                                .indices
+                                .iter()
+                                .map(|&j| i32::from(mesh.vertices[j as usize][i]))
+                                .sum::<i32>()
+                                / 3,
+                        )
+                        .wrapping_mul(8)
+                });
+                let mut hit = tankracer_game::terrain::Hit::default();
+                if !tankracer_game::terrain::query(data, center[0], center[2], &mut hit).unwrap()
+                    || (!plane && hit.surface != 1)
+                    || (plane && hit.flags & 16 == 0)
+                {
+                    continue;
+                }
+                let valid = [[-2048, -2048], [-2048, 2048], [2048, -2048], [2048, 2048]]
+                    .into_iter()
+                    .all(|[x, z]| {
+                        let mut h = tankracer_game::terrain::Hit::default();
+                        tankracer_game::terrain::query(
+                            data,
+                            center[0].wrapping_add(x),
+                            center[2].wrapping_add(z),
+                            &mut h,
+                        )
+                        .unwrap()
+                            && (plane || h.surface == 1)
+                            && (!plane || h.flags & 16 != 0)
+                    });
+                if valid {
+                    return [center[0], hit.height.wrapping_add(1500), center[2]];
+                }
+            }
+        }
+    }
+    panic!("no wide ground patch");
 }
 
 #[test]
@@ -968,6 +1086,9 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
     let mut surface_hits = 0;
     let mut surface_samples = 0;
     let mut surface_changes = 0;
+    let mut scene_changes = [0_usize; 9];
+    let mut rng_draws = 0_u64;
+    let mut unchanged_seed_stores = 0_u64;
     for (map, car) in (1..=15).map(|v| (0, v)).chain((1..8).map(|m| (m, 1))) {
         let bytes = fs::read(assets.join("LEVELS").join(maps[map]).join("FASTFILE.DAT")).unwrap();
         let archive = Archive::parse(&bytes).unwrap();
@@ -977,10 +1098,14 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             .find(|e| e.name.ends_with(".BSM"))
             .unwrap();
         let terrain = TerrainData::decode_bsm(archive.get(file.name).unwrap()).unwrap();
+        // Select a real wide ground patch. The native side receives only a test
+        // spawn point, then executes unchanged terrain/physics/effect queries.
+        let ground = ground_patch(&terrain);
         let output = Command::new(&executable)
             .arg(&assets)
             .arg(map.to_string())
             .arg(car.to_string())
+            .args(ground.map(|v| v.to_string()))
             .output()
             .unwrap();
         assert!(
@@ -989,7 +1114,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             output.status.code(),
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"VC02");
+        assert_eq!(&output.stdout[..4], b"VC03");
         let mut r = Reader {
             words: output.stdout[4..]
                 .chunks_exact(4)
@@ -1010,10 +1135,26 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             });
             let mut before = Snapshot::read(&mut r, n);
             let expected_status = r.signed();
-            let expected = Snapshot::read(&mut r, n);
+            let seed_stores = r.word();
+            let expected_draws = r.word();
+            assert!(seed_stores >= expected_draws);
+            rng_draws += u64::from(expected_draws);
+            unchanged_seed_stores += u64::from(seed_stores - expected_draws);
+            let mut expected = Snapshot::read(&mut r, n);
             let expected_calls = r.word();
             let initial_velocities: Vec<_> =
                 before.states.iter().map(|s| s.motion.velocity).collect();
+            let old_scene = (
+                before.scene.local[own.0].spray.clone(),
+                before.scene.local[own.0].marks.clone(),
+                before.scene.pickup.clone(),
+                before.particles.clone(),
+                before.scene.local[own.0].smoke.clone(),
+                before.scene.debris.clone(),
+                before.scene.local[own.0].lights.clone(),
+                before.scene.temporary.clone(),
+                before.scene.shield.clone(),
+            );
             let original_vertices = before
                 .surface
                 .as_ref()
@@ -1075,6 +1216,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                     body_mesh: before.states[i].player.then_some(&mut model.body),
                 });
             }
+            let initial_random = before.random;
             let mut shared = obstacle::Shared {
                 random: before.random,
                 current_slot: before.slot,
@@ -1084,7 +1226,18 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                 own,
                 fail: variant == 7,
                 calls: 0,
-                dt: cfg.frame.dt,
+                data: std::mem::take(&mut before.scene),
+                entities: before.states.iter().map(|s| s.entity).collect(),
+                settings: chain::Settings {
+                    lights: lights::Settings {
+                        active: before.tanks[own.0].active,
+                        ..cfg.scene.lights
+                    },
+                    ..cfg.scene
+                },
+                spray: spray::Tuning::environment(cfg.spray, map == 2, cfg.hardware),
+                smoke: smoke::Tuning::default(),
+                pickup: pickup::Tuning::new(cfg.flare_growth),
                 surfaces,
                 hits: 0,
                 samples: 0,
@@ -1179,6 +1332,29 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             surface_samples += scene.samples;
             before.random = shared.random;
             before.slot = shared.current_slot;
+            before.scene = scene.data;
+            let changed = [
+                old_scene.0 != before.scene.local[own.0].spray,
+                old_scene.1 != before.scene.local[own.0].marks,
+                old_scene.2 != before.scene.pickup,
+                old_scene.3 != before.particles,
+                old_scene.4 != before.scene.local[own.0].smoke,
+                old_scene.5 != before.scene.debris,
+                old_scene.6 != before.scene.local[own.0].lights,
+                old_scene.7 != before.scene.temporary,
+                old_scene.8 != before.scene.shield,
+            ];
+            for (n, change) in scene_changes.iter_mut().zip(changed) {
+                *n += usize::from(change);
+            }
+            let mut seed = initial_random;
+            for _ in 0..expected_draws {
+                tankracer_game::random::next(&mut seed);
+            }
+            assert_eq!(
+                seed, before.random,
+                "map={map} car={car} variant={variant} step={step}, RNG draws={expected_draws}"
+            );
             let actual = before.words();
             let expected = expected.words();
             assert_eq!(actual.len(), expected.len());
@@ -1209,7 +1385,11 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
         surface_hits > 0 && surface_changes > 0 && surface_samples > 0,
         "surface hits={surface_hits}, changes={surface_changes}, samples={surface_samples}"
     );
+    assert!(
+        scene_changes.into_iter().all(|n| n > 0),
+        "after-pose component coverage {scene_changes:?}"
+    );
     eprintln!(
-        "{records} connected vehicle records / {words} words exact; peer writes={peer_hits}, wear observations={wears}, tank counts={tank_counts:?}, surface hits={surface_hits}, changed meshes={surface_changes}, surface samples={surface_samples}"
+        "{records} connected vehicle records / {words} words exact; peer writes={peer_hits}, wear observations={wears}, tank counts={tank_counts:?}, surface hits={surface_hits}, changed meshes={surface_changes}, surface samples={surface_samples}; component changes={scene_changes:?}, RNG advances={rng_draws}, unchanged seed stores={unchanged_seed_stores}"
     );
 }
