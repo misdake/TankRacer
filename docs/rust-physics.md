@@ -535,3 +535,56 @@ Next: tank overlap response and collision dispatch, obstacle/deformable game
 operations, then complete motion/update orchestration and the browser proxy.
 Existing map-budget measurements are unchanged: this stage adds no spatial cache
 and does not yet attach these candidate arrays to the live Rust scene.
+
+Ordered query checkpoint: `1cec4a3`.
+
+## Tank overlap response and collision dispatch
+
+`tank_collision::Pair` composes strict contact overlap, per-corner impact calls,
+ordered separation, track/body damage and the qualified pair impulse. Geometry
+and mutable kinematics remain separate world components; damage mutates owned
+meshes through a synchronous effect implementation. Original address aliases
+are not carried into the runtime. Malformed/aliased tank handles are explicit
+typed errors; valid world slots own unique tanks.
+
+The four cardinal push vectors are magnitude **1024**, as verified against the
+original defaults, rather than reflection's 4096 unit vectors. Other-in-self
+overlap stops at its first corner; self-in-other examines all corners and emits
+each eligible impact in order. Modes 4/5 suppress these impact calls. A low-speed
+separation pass always runs once before checking approach or the saved initial
+horizontal-speed sum plus 20,000. The work limit preserves the last completed
+iteration. Track damage applies only strictly above 250,000 and below 450,000;
+the high-speed branch chooses side separation versus pair impulse from both
+facing codes. Each branch retains signed wrapping and the original comparisons.
+
+`step` now connects the actual nine-slot tank query to overlap response and its
+non-overlapping swept fallback. It computes the original segment from current
+base position and previous physical position, captures a peer's pre-response X/Z
+velocity for modes 4/5, then applies responses and finally increments the owning
+tank's collision timer. Failed responses retain the captured peer and earlier
+writes but skip the timer. Mode 4/5's later velocity blending belongs to the
+outer vehicle update and is not silently folded into collision dispatch.
+
+**8,192 four-tick C comparisons / 589,824 output words** match: 4,096 overlap
+records and 4,096 complete query/response dispatch records. They include 765
+separation-limit results, 1,156 effect-error results, 2,097 successful dispatch
+hits and 6,960 impact calls. All current velocities, timers, peer snapshots,
+damage flags, body vertices/face normals and ordered effect-probe writes match.
+Coverage includes strict speed thresholds, zero/large time deltas, zero/rotated
+bases, both owner orders, overlapping/inside/swept misses, mode-specific peer
+state, saturating wear and repeated damage vertices. C's actual damage routines
+are used; impact particles are still a deterministic service-order/error probe,
+not claimed as migrated. Ordinary tests explain cardinal scale, the mandatory
+first separation and effect failure before velocity/timer commits.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_tank_collision.c build/native/libtankracer_core.a -o build/native/tank_collision_reference.exe
+$env:TANKRACER_TANK_COLLISION_REFERENCE=(Resolve-Path build/native/tank_collision_reference.exe).Path
+cargo test -p tankracer-game --test tank_collision_reference -- --ignored --nocapture
+```
+
+Workspace native tests and host/Wasm Clippy pass; the qualified C sources remain
+unchanged. No per-call allocation or per-map cache is added. Next:
+obstacle/deformable response and game dispatch, real impact particles/shared RNG,
+then motion and full vehicle orchestration. A complete moving Rust vehicle is
+still not running.

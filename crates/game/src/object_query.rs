@@ -289,17 +289,18 @@ pub struct Tank {
     pub contacts: [[i32; 3]; 4],
 }
 fn corners_inside(a: &Tank, b: &Tank) -> bool {
-    b.contacts.iter().any(|&point| {
-        let local = relative(
-            point,
-            a.collider.pose.position,
-            Some(a.collider.pose.matrix),
-        );
-        local[0] > a.overlap_bounds.min[0]
-            && local[0] < a.overlap_bounds.max[0]
-            && local[2] > a.overlap_bounds.min[2]
-            && local[2] < a.overlap_bounds.max[2]
-    })
+    b.contacts.iter().any(|&point| contains(a, point))
+}
+pub(crate) fn contains(tank: &Tank, point: [i32; 3]) -> bool {
+    let local = relative(
+        point,
+        tank.collider.pose.position,
+        Some(tank.collider.pose.matrix),
+    );
+    local[0] > tank.overlap_bounds.min[0]
+        && local[0] < tank.overlap_bounds.max[0]
+        && local[2] > tank.overlap_bounds.min[2]
+        && local[2] < tank.overlap_bounds.max[2]
 }
 pub fn overlap(a: &Tank, b: &Tank) -> bool {
     corners_inside(a, b) || corners_inside(b, a)

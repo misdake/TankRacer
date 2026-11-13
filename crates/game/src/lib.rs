@@ -16,6 +16,7 @@ pub mod object_query;
 pub mod pose;
 pub mod sampling;
 pub mod suspension;
+pub mod tank_collision;
 pub mod terrain;
 pub mod vector;
 pub mod vehicle_model;
