@@ -17,26 +17,17 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`10189d3`**. Ordinary auxiliary mesh activation/update
-  now shares private geometry, authored centers, collision radius and lifecycle.
-  43 scenarios / 159 operations / 29,608 words match C; 49 map/replacement
-  bindings run, and SM02 qualifies all 435 models including center columns.
-  Startup, collision, debris, Fall/Crush, lifecycle and connected-vehicle
-  regressions plus workspace/native/Wasm/build checks pass. Browser remains
-  static (183,235 B Wasm). [Details/qualification limits](rust-physics.md).
-- Still missing: complete vehicle construction/prefix/after-pose and runtime
-  wiring, real vehicle blast response, Bounce/Spin/remaining readers, complete
-  startup/shared RNG replay and Pickup backup capture/restore. Fragment GPU
-  rendering and arbitrary long-name/header aliases remain outside this increment.
-- **Next runnable increment:** prioritize vehicle construction, prefix/after-pose
-  and scheduler -> independent moving proxy using these connected dependencies.
-  Add remaining class readers when required by that runnable slice; keep the rest
-  explicit in M5-M7 rather than silently approximating them. Vehicle blast and
-  full startup/RNG remain required work. `Scene::updates(&mut random)` keeps
-  nested effects on the authoritative RNG. Store is qualification-only.
-  M3 stays open until it runs without C or test snapshots. Preserve shared mesh
-  ownership, RNG consumption and the distinction between activation/impact limits.
-  Interning a forward name does not allocate an entity ID in the original.
+- Last verified code: **`10189d3`**; checkpoint commit **`70e8f20`**.
+  Startup/collision, debris, Fall/Crush, private mesh fragments and connected
+  vehicle kernels pass C parity; workspace/native/Wasm/build checks pass.
+  These are qualified parts, not a complete running vehicle.
+- **Next runnable increment:** vehicle construction -> timer/ability prefix ->
+  after-pose updates -> scheduler -> independently moving browser proxy.
+  M3 stays open until this runs without C or test snapshots. Bring additional
+  readers forward only when required by that slice.
+- Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
+  full startup/shared RNG replay, Pickup backup/restore, fragment drawing and
+  long-name/header aliases. Keep these explicit through M5-M7.
 - Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
   graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
   claiming budget compliance. Original resources/GPU/dynamic memory are separate.
@@ -89,7 +80,8 @@ verified commit. At each completed increment:
 
 1. Re-read the stages and constraints; confirm the increment still serves them.
    Check exact state handling, plugin ownership and the aggregate map budget.
-2. Record **what runs, what passed, what is missing, and the next runnable step**.
+2. Replace the current checkpoint with **what runs, what passed, what is missing,
+   and the next runnable step**. Do not grow this file into a chronological log.
 3. Put detailed contracts/test counts/commands in the linked specialist docs.
 4. Commit verified work, update this checkpoint with the code commit, and re-read
    it before continuing. Keep pending changes distinct; a tested helper alone

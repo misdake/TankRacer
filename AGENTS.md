@@ -11,6 +11,8 @@
 - Before continuing, check the worktree against the checkpoint. Keep verified,
   uncommitted and incomplete work distinct; do not infer completion from context
   summaries or from a helper module passing tests.
+- Keep one current checkpoint in the roadmap, not an accumulating work log.
+  A stage is complete only when its runnable exit condition is met.
 - Develop in small runnable increments. Preserve the C reference; Rust browser
   builds currently go to `build/rust/site`.
 - Local milestone commits are authorized. Do not push unless asked.
