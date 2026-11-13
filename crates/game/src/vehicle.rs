@@ -62,9 +62,8 @@ pub struct World<'a, 'mesh> {
     pub effects: collision_effects::Bank<'a, 'mesh>,
     pub player_effects: &'a mut [u32],
 }
-pub struct Resources<'a, 'geometry> {
+pub struct Resources<'a> {
     pub gun: Option<body::GunMesh<'a>>,
-    pub deformable: Option<&'a mut contact_pipeline::Deformable<'geometry>>,
 }
 /// Current simulation inputs for scene effects, after pose but before display
 /// rescaling. Effects can update the impact accumulator without a second copy,
@@ -83,6 +82,14 @@ pub struct AfterPose<'a> {
 /// These are scene-owned operations, with no default or deferred substitute.
 /// Collision response, RNG, particles and damage execute in this module's flow.
 pub trait Services: collision_effects::ObjectServices {
+    /// Run contact with a short borrow of the scene's current mesh. The view
+    /// cannot escape into the later collision phase that mutates that mesh.
+    fn with_deformable<R>(
+        &mut self,
+        entity: Option<EntityId>,
+        colliders: &[crate::object_query::Collider],
+        run: impl FnOnce(Option<&mut contact_pipeline::Deformable<'_>>) -> R,
+    ) -> Result<R, i32>;
     fn contact_feedback(&mut self, vehicle: &mut State, random: &mut u32) -> Result<(), i32>;
     fn after_pose(
         &mut self,
@@ -98,6 +105,7 @@ pub enum Error {
     InactiveVehicle,
     InvalidTimeStep,
     Contact(contact_pipeline::Error),
+    Surface(i32),
     ContactFeedback(i32),
     Powertrain(powertrain::Error),
     Obstacle(obstacle::Error),
@@ -119,6 +127,7 @@ impl Error {
             Self::InactiveVehicle => -5,
             Self::Contact(contact_pipeline::Error::Terrain(terrain::Error::Arithmetic)) => -2,
             Self::Contact(_) => -1,
+            Self::Surface(c) => *c,
             Self::ContactFeedback(c) => *c,
             Self::Powertrain(e) => e.status(),
             Self::Obstacle(obstacle::Error::Arithmetic(_)) => -2,
@@ -238,7 +247,7 @@ pub fn step_physics(
     world: &mut World<'_, '_>,
     config: &Config<'_>,
     frame: &Frame,
-    resources: Resources<'_, '_>,
+    resources: Resources<'_>,
     services: &mut impl Services,
 ) -> Result<(), Error> {
     let n = vehicles.len();
@@ -277,7 +286,7 @@ fn run(
     world: &mut World<'_, '_>,
     config: &Config<'_>,
     frame: &Frame,
-    resources: Resources<'_, '_>,
+    resources: Resources<'_>,
     services: &mut impl Services,
 ) -> Result<(), Error> {
     let state = &mut vehicles[own.0];
@@ -285,32 +294,38 @@ fn run(
     sampling.dt = frame.dt;
     sampling.frame = frame.number;
     sampling.player = u32::from(state.player);
-    let feedback = state
-        .contact
-        .step_vehicle(
-            contact_pipeline::Vehicle {
-                motion: &mut state.motion,
-                powertrain: &mut state.powertrain,
-                pose: &mut state.pose,
-            },
-            world.terrain,
-            &contact_pipeline::Config {
-                sampling: &sampling,
-                suspension: config.contact.suspension,
-                contact: config.contact.contact,
-                layout: config.contact.layout,
-            },
-            &mut world.shared.random,
-            resources.deformable,
-            |slot| {
-                if let Some(value) = world.player_effects.get_mut(usize::from(slot)) {
-                    *value = 0;
-                    true
-                } else {
-                    false
-                }
+    let feedback = services
+        .with_deformable(
+            state.collision.deformable,
+            &world.objects.colliders,
+            |deformable| {
+                state.contact.step_vehicle(
+                    contact_pipeline::Vehicle {
+                        motion: &mut state.motion,
+                        powertrain: &mut state.powertrain,
+                        pose: &mut state.pose,
+                    },
+                    world.terrain,
+                    &contact_pipeline::Config {
+                        sampling: &sampling,
+                        suspension: config.contact.suspension,
+                        contact: config.contact.contact,
+                        layout: config.contact.layout,
+                    },
+                    &mut world.shared.random,
+                    deformable,
+                    |slot| {
+                        if let Some(value) = world.player_effects.get_mut(usize::from(slot)) {
+                            *value = 0;
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                )
             },
         )
+        .map_err(|code| Error::Surface(if code < 0 { code } else { -1 }))?
         .map_err(Error::Contact)?;
     if feedback {
         services

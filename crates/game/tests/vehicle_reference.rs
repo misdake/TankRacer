@@ -9,15 +9,15 @@ use tankracer_assets::{
 use tankracer_game::{
     attitude, body, collision_effects,
     contact::{self, Coefficient},
-    contact_pipeline, damage,
-    dispatch::{ClassId, MethodId},
+    contact_pipeline, damage, deformable_hit, deformation,
+    dispatch::{Class, ClassId, MethodId},
     drive,
     effect_pool::{Line, LineHandle, Pool, Quad},
     impact_particles::{self, Batch, Particle},
     math::Matrix,
-    object_query::{Bounds, Collider, EntityId, Tank, TankId},
-    obstacle_collision as obstacle, pose, powertrain, suspension, tank_collision, vehicle,
-    velocity,
+    object_query::{Bounds, Collider, EntityId, ObstacleId, Tank, TankId},
+    obstacle_collision as obstacle, pose, powertrain, scene_collision, suspension, tank_collision,
+    vehicle, velocity,
 };
 #[path = "common/motion.rs"]
 mod common;
@@ -112,6 +112,142 @@ struct Snapshot {
     peer: Option<tank_collision::PeerSnapshot>,
     pool: Pool,
     particles: impact_particles::State,
+    surface: Option<SurfaceSnapshot>,
+}
+struct SurfaceSnapshot {
+    collider: Collider,
+    properties: obstacle::Object,
+    surface: scene_collision::Deformable,
+}
+impl SurfaceSnapshot {
+    fn read(r: &mut Reader) -> Self {
+        let entity = EntityId(r.word());
+        let position = r.vector();
+        let matrix = Matrix(r.vector());
+        let has_basis = r.word() != 0;
+        let basis = Matrix(r.vector());
+        let radius = r.word() as u16;
+        let bounds = Bounds {
+            min: r.vector(),
+            max: r.vector(),
+        };
+        let weight = r.signed();
+        let mesh_bounds = [r.vector().map(|v| v as i16), r.vector().map(|v| v as i16)];
+        let config = deformable_hit::Config {
+            floor: r.signed(),
+            compression: r.signed(),
+            drift_shift: r.word(),
+            material: r.signed() as i16,
+            has_sound: r.word() != 0,
+        };
+        let state = deformable_hit::State {
+            dirty: r.word() as u8,
+            last_vehicle: match r.word() {
+                0 => None,
+                v => Some(EntityId(v)),
+            },
+            sound_timer: r.signed(),
+        };
+        let sample_bounds = [r.vector(), r.vector()];
+        let edge_cap = r.signed();
+        let dirty = r.word() as u8;
+        let n = r.word() as usize;
+        let records = (0..n)
+            .map(|_| {
+                let position = r.vector();
+                let c = r.word().to_le_bytes();
+                deformation::Record {
+                    position,
+                    state: c[0],
+                    color: [c[1], c[2], c[3]],
+                }
+            })
+            .collect();
+        let mesh = geometry(r);
+        let vertex_flags = (0..mesh.vertices.len()).map(|_| r.word() as u8).collect();
+        Self {
+            collider: Collider {
+                entity,
+                pose: pose::Pose { position, matrix },
+                external_basis: has_basis.then_some(basis),
+                radius,
+                bounds,
+            },
+            properties: obstacle::Object {
+                class: ClassId(0),
+                weight,
+                threshold: 0,
+                activity: 0,
+                flags: 0,
+                mesh_bounds,
+            },
+            surface: scene_collision::Deformable {
+                config,
+                state,
+                mesh,
+                vertex_flags,
+                sampling: scene_collision::Sampling {
+                    bounds: sample_bounds,
+                    edge_cap,
+                    state: deformation::State {
+                        pose: deformation::Pose {
+                            origin: position,
+                            inverse_basis: matrix.0,
+                        },
+                        records,
+                        dirty,
+                    },
+                },
+            },
+        }
+    }
+    fn words(&self, out: &mut Vec<u32>) {
+        let c = &self.collider;
+        let s = &self.surface;
+        out.push(c.entity.0);
+        append(out, c.pose.position);
+        append(out, c.pose.matrix.0);
+        out.push(u32::from(c.external_basis.is_some()));
+        append(out, c.external_basis.unwrap_or(Matrix::IDENTITY).0);
+        out.push(u32::from(c.radius));
+        append(out, c.bounds.min);
+        append(out, c.bounds.max);
+        out.push(self.properties.weight as u32);
+        for b in self.properties.mesh_bounds {
+            append(out, b.map(i32::from));
+        }
+        append(
+            out,
+            [
+                s.config.floor,
+                s.config.compression,
+                s.config.drift_shift as i32,
+                i32::from(s.config.material),
+                i32::from(s.config.has_sound),
+            ],
+        );
+        out.extend([
+            u32::from(s.state.dirty),
+            s.state.last_vehicle.map_or(0, |e| e.0),
+            s.state.sound_timer as u32,
+        ]);
+        for b in s.sampling.bounds {
+            append(out, b);
+        }
+        out.extend([
+            s.sampling.edge_cap as u32,
+            u32::from(s.sampling.state.dirty),
+            s.sampling.state.records.len() as u32,
+        ]);
+        for p in &s.sampling.state.records {
+            append(out, p.position);
+            out.push(u32::from_le_bytes([
+                p.state, p.color[0], p.color[1], p.color[2],
+            ]));
+        }
+        geometry_words(out, &s.mesh);
+        out.extend(s.vertex_flags.iter().copied().map(u32::from));
+    }
 }
 fn read_line(r: &mut Reader) -> Line {
     Line {
@@ -316,6 +452,11 @@ impl Snapshot {
                 body_indices,
             });
         }
+        let surface = if r.word() != 0 {
+            Some(SurfaceSnapshot::read(r))
+        } else {
+            None
+        };
         let random = r.word();
         let slot = r.word();
         let player_effects = [r.word(), r.word()];
@@ -387,6 +528,7 @@ impl Snapshot {
             peer,
             pool,
             particles: impact_particles::State { batches, next },
+            surface,
         }
     }
     fn words(&self) -> Vec<u32> {
@@ -505,6 +647,10 @@ impl Snapshot {
             append(&mut out, t.overlap_bounds.max);
             out.extend([u32::from(t.slot), u32::from(t.active)]);
         }
+        out.push(u32::from(self.surface.is_some()));
+        if let Some(surface) = &self.surface {
+            surface.words(&mut out);
+        }
         out.extend([
             self.random,
             self.slot,
@@ -565,21 +711,35 @@ struct Scene {
     fail: bool,
     calls: u32,
     dt: i32,
+    surfaces: scene_collision::Surfaces,
+    hits: usize,
+    samples: usize,
 }
 impl collision_effects::ObjectServices for Scene {
     fn method(
         &mut self,
-        _: MethodId,
-        _: obstacle::Invocation<'_>,
+        method: MethodId,
+        call: obstacle::Invocation<'_>,
         _: &mut collision_effects::Bank<'_, '_>,
     ) -> Result<(), i32> {
-        panic!("fixture object lists are empty")
+        assert_eq!(method, scene_collision::DEFORMABLE_HIT);
+        self.hits += 1;
+        self.surfaces.collide(call).map(|_| ())
     }
     fn feedback(&mut self, _: i32, _: &mut obstacle::State, _: &mut u32) -> Result<(), i32> {
         panic!("fixture has no deformable")
     }
 }
 impl vehicle::Services for Scene {
+    fn with_deformable<R>(
+        &mut self,
+        entity: Option<EntityId>,
+        colliders: &[Collider],
+        run: impl FnOnce(Option<&mut contact_pipeline::Deformable<'_>>) -> R,
+    ) -> Result<R, i32> {
+        self.samples += usize::from(entity.is_some());
+        self.surfaces.with_sampling(entity, colliders, run)
+    }
     fn contact_feedback(&mut self, _: &mut vehicle::State, _: &mut u32) -> Result<(), i32> {
         Ok(())
     }
@@ -797,6 +957,9 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
     let mut wears = 0;
     let mut words = 0;
     let mut tank_counts = std::collections::BTreeSet::new();
+    let mut surface_hits = 0;
+    let mut surface_samples = 0;
+    let mut surface_changes = 0;
     for (map, car) in (1..=15).map(|v| (0, v)).chain((1..8).map(|m| (m, 1))) {
         let bytes = fs::read(assets.join("LEVELS").join(maps[map]).join("FASTFILE.DAT")).unwrap();
         let archive = Archive::parse(&bytes).unwrap();
@@ -818,7 +981,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             output.status.code(),
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"VC01");
+        assert_eq!(&output.stdout[..4], b"VC02");
         let mut r = Reader {
             words: output.stdout[4..]
                 .chunks_exact(4)
@@ -843,6 +1006,10 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             let expected_calls = r.word();
             let initial_velocities: Vec<_> =
                 before.states.iter().map(|s| s.motion.velocity).collect();
+            let original_vertices = before
+                .surface
+                .as_ref()
+                .map(|s| s.surface.mesh.vertices.clone());
             let bumps = cfg.surfaces.entries.map(|s| s.bump.into());
             let terrain_world = contact_pipeline::World {
                 terrain: &terrain,
@@ -860,6 +1027,19 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                 },
                 deformables: Vec::new(),
             };
+            let mut surfaces = scene_collision::Surfaces {
+                entries: Vec::new(),
+            };
+            if let Some(surface) = before.surface.take() {
+                objects.colliders.push(surface.collider);
+                objects.objects.push(surface.properties);
+                objects.classes.push(std::sync::Arc::new(Class {
+                    maximum_slot: 0,
+                    methods: vec![Some(scene_collision::DEFORMABLE_HIT)],
+                }));
+                objects.deformables.push(ObstacleId(0));
+                surfaces.entries.push(Some(surface.surface));
+            }
             let mut corners: Vec<_> = before
                 .states
                 .iter()
@@ -892,15 +1072,15 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                 random: before.random,
                 current_slot: before.slot,
             };
-            let resources = vehicle::Resources {
-                gun,
-                deformable: None,
-            };
+            let resources = vehicle::Resources { gun };
             let mut scene = Scene {
                 own,
                 fail: variant == 7,
                 calls: 0,
                 dt: cfg.frame.dt,
+                surfaces,
+                hits: 0,
+                samples: 0,
             };
             let result = {
                 let bank = collision_effects::Bank {
@@ -968,6 +1148,18 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                 "map={map} car={car} variant={variant} step={step}, result={result:?}"
             );
             drop(targets);
+            if let Some(surface) = scene.surfaces.entries.first_mut().and_then(Option::take) {
+                surface_changes += usize::from(
+                    original_vertices.as_deref() != Some(surface.mesh.vertices.as_slice()),
+                );
+                before.surface = Some(SurfaceSnapshot {
+                    collider: objects.colliders[0],
+                    properties: objects.objects[0],
+                    surface,
+                });
+            }
+            surface_hits += scene.hits;
+            surface_samples += scene.samples;
             before.random = shared.random;
             before.slot = shared.current_slot;
             let actual = before.words();
@@ -996,7 +1188,11 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
         peer_hits > 0 && wears > 0,
         "peer hits={peer_hits}, wear observations={wears}"
     );
+    assert!(
+        surface_hits > 0 && surface_changes > 0 && surface_samples > 0,
+        "surface hits={surface_hits}, changes={surface_changes}, samples={surface_samples}"
+    );
     eprintln!(
-        "{records} connected vehicle records / {words} words exact; peer writes={peer_hits}, wear observations={wears}, tank counts={tank_counts:?}"
+        "{records} connected vehicle records / {words} words exact; peer writes={peer_hits}, wear observations={wears}, tank counts={tank_counts:?}, surface hits={surface_hits}, changed meshes={surface_changes}, surface samples={surface_samples}"
     );
 }

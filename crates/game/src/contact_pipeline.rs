@@ -139,7 +139,7 @@ pub struct Sampling {
 
 /// The immutable shape and its separately owned current activation state.
 pub struct Deformable<'a> {
-    pub geometry: &'a deformation::Geometry,
+    pub geometry: deformation::Geometry<'a>,
     pub state: &'a mut deformation::State,
 }
 
@@ -193,7 +193,7 @@ impl Primary {
             }
             if let Some(deform) = deformable.as_mut() {
                 height =
-                    height.wrapping_add(deform.state.sample(deform.geometry, point.world).offset);
+                    height.wrapping_add(deform.state.sample(&deform.geometry, point.world).offset);
             }
             if point.flags & 4 != 0 {
                 self.flagged_ground_count += 1;

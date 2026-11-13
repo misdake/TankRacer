@@ -997,3 +997,46 @@ sampling and rendering must borrow the same current mesh, with contact-only
 borrows ending before collision methods mutate it; retaining a copied sampling
 mesh or extending that borrow across the whole phase would be incorrect. The
 independent moving Rust game and M3 remain unfinished.
+
+
+## Live deformable mesh in the connected vehicle phase
+
+`scene_collision::Surfaces` owns each deformable mesh once, alongside hit state,
+vertex flags and sampling records. Contact now obtains a scoped view of the
+current vertex slice; that borrow ends before the collision method mutates the
+mesh. No frame copy or original-memory arena is needed. Sampling derives its
+pose from the collider main matrix (4073D0); hits independently retain the
+optional external-basis rule (408170). Mesh dirty (+CA) and sampling-record dirty
+(+CC) remain separate authoritative fields.
+
+A same-instance test samples height 200, invokes the real hit through the class
+method table, then samples height 193 from the identical vertex allocation.
+It also checks record activation, separate dirty flags, method slot restoration,
+material, sound event, shared RNG and missing-entity rejection.
+
+The connected C oracle now uses VC02. One branch retains a real loaded
+map deformable, relocates it under the player and executes the actual known
+C method, including compression, flags, sound timer and RNG. The following
+contact phase samples its modified vertices. Snapshot coverage includes the
+current mesh/face bytes, collider, hit/sampling configurations and states and
+record activation. Serialization now correctly treats vehicle +D8C as an entity
+ID; it was previously mistaken for an object pointer, hidden by empty lists.
+Unused breakable fields are not projected over deformable timer storage.
+
+**1,254 records / 8,716,157 semantic words match**, across the same 22 map/car
+combinations (all 15 cars in ENGLAND, car 1 in the other seven maps). Coverage
+includes **37 real surface hits, 37 changed meshes, 33 later surface sampling
+borrows**, 603 peer-velocity writes and 236 track-wear observations. Other
+branches retain their collision modes, pool pressure and after-pose error case.
+As before, every boundary takes its input from C: this proves connected short
+sequence semantics, not a complete autonomous Rust race. Regular obstacle hits,
+full world construction, timer/ability prefix and complete after-pose scene
+operations remain pending.
+
+Checks: workspace tests, native/all-target Clippy and Wasm game Clippy pass;
+6,144 deformation cases / 270,336 words and both 6,144-case contact suites pass
+again after the ownership change. `tools/verify_sources.py` confirms all 244
+production C files unchanged (97 modules, two audio packs). Renderer code was
+not changed; no new GPU or performance qualification is claimed. The scoped
+view/store lookup adds no per-frame vertex allocation or precomputed map cache.
+The native C reproduction command in the previous section still applies.

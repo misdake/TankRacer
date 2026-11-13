@@ -1,10 +1,22 @@
 //! Concrete gameplay bindings for collision interfaces. No original code pointers.
 pub use crate::breakable::{BREAKABLE_HIT, ENABLE_TICK};
-use crate::{deformable_hit, dispatch::MethodId, obstacle_collision::Invocation};
+use crate::{
+    contact_pipeline, deformable_hit, deformation,
+    dispatch::MethodId,
+    object_query::{Collider, EntityId},
+    obstacle_collision::Invocation,
+};
 use tankracer_assets::mesh::Geometry;
 
 /// A logical binding assigned by the Rust class catalogue, unrelated to PE IDs.
 pub const DEFORMABLE_HIT: MethodId = MethodId(0);
+pub struct Sampling {
+    /// Original pre-expansion local clamp bounds (+BA..C6).
+    pub bounds: [[i32; 2]; 2],
+    pub edge_cap: i32,
+    /// Record activation's dirty byte (+CC) is distinct from mesh dirty (+CA).
+    pub state: deformation::State,
+}
 /// One authoritative mutable mesh: rendering and surface sampling must read its
 /// current vertices rather than copying the original model each frame.
 pub struct Deformable {
@@ -12,6 +24,61 @@ pub struct Deformable {
     pub state: deformable_hit::State,
     pub mesh: Geometry,
     pub vertex_flags: Vec<u8>,
+    pub sampling: Sampling,
+}
+
+/// Scene components parallel the collision handles; absent entries belong to
+/// other classes. Contact views end before methods regain mutable mesh access.
+pub struct Surfaces {
+    pub entries: Vec<Option<Deformable>>,
+}
+impl Surfaces {
+    pub fn with_sampling<R>(
+        &mut self,
+        entity: Option<EntityId>,
+        colliders: &[Collider],
+        run: impl FnOnce(Option<&mut contact_pipeline::Deformable<'_>>) -> R,
+    ) -> Result<R, i32> {
+        let Some(entity) = entity else {
+            return Ok(run(None));
+        };
+        let index = colliders
+            .iter()
+            .position(|c| c.entity == entity)
+            .ok_or(-1)?;
+        let collider = &colliders[index];
+        let surface = self
+            .entries
+            .get_mut(index)
+            .and_then(Option::as_mut)
+            .ok_or(-1)?;
+        surface.sampling.state.pose = deformation::Pose {
+            origin: collider.pose.position,
+            inverse_basis: collider.pose.matrix.0,
+        };
+        let mut view = contact_pipeline::Deformable {
+            geometry: deformation::Geometry {
+                sample_bounds: surface.sampling.bounds,
+                edges: [
+                    collider.bounds.min[0],
+                    collider.bounds.max[0],
+                    collider.bounds.min[2],
+                    collider.bounds.max[2],
+                ],
+                edge_cap: surface.sampling.edge_cap,
+                vertices: &surface.mesh.vertices,
+            },
+            state: &mut surface.sampling.state,
+        };
+        Ok(run(Some(&mut view)))
+    }
+    pub fn collide(&mut self, call: Invocation<'_>) -> Result<bool, i32> {
+        self.entries
+            .get_mut(call.target.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)?
+            .collide(call)
+    }
 }
 impl Deformable {
     /// Execute the real method and return its sound-trigger event. Playback is
@@ -55,13 +122,13 @@ mod tests {
     };
     use std::sync::Arc;
     struct Methods {
-        surface: Deformable,
+        surfaces: Surfaces,
         sounds: usize,
     }
     impl Effects for Methods {
         fn method(&mut self, method: MethodId, call: Invocation<'_>) -> Result<(), i32> {
             assert_eq!(method, DEFORMABLE_HIT);
-            self.sounds += usize::from(self.surface.collide(call)?);
+            self.sounds += usize::from(self.surfaces.collide(call)?);
             Ok(())
         }
         fn feedback(&mut self, _: i32, _: &mut State, _: &mut u32) -> Result<(), i32> {
@@ -74,20 +141,34 @@ mod tests {
     #[test]
     fn query_dispatch_real_mesh_method_and_shared_rng_compose_using_base_position() {
         let mut methods = Methods {
-            surface: Deformable {
-                config: deformable_hit::Config {
-                    floor: 0,
-                    compression: 64,
-                    drift_shift: 0,
-                    material: -7,
-                    has_sound: true,
-                },
-                state: deformable_hit::State::default(),
-                mesh: Geometry {
-                    vertices: vec![[0, 200, 0]],
-                    triangles: Vec::new(),
-                },
-                vertex_flags: vec![4],
+            surfaces: Surfaces {
+                entries: vec![Some(Deformable {
+                    config: deformable_hit::Config {
+                        floor: 0,
+                        compression: 64,
+                        drift_shift: 0,
+                        material: -7,
+                        has_sound: true,
+                    },
+                    state: deformable_hit::State::default(),
+                    mesh: Geometry {
+                        vertices: vec![[0, 200, 0]],
+                        triangles: Vec::new(),
+                    },
+                    vertex_flags: vec![4],
+                    sampling: Sampling {
+                        bounds: [[-500, 500]; 2],
+                        edge_cap: 65536,
+                        state: deformation::State {
+                            records: vec![deformation::Record {
+                                position: [0; 3],
+                                state: 0,
+                                color: [9; 3],
+                            }],
+                            ..Default::default()
+                        },
+                    },
+                })],
             },
             sounds: 0,
         };
@@ -151,17 +232,52 @@ mod tests {
             random: 1,
             current_slot: 9,
         };
+        let (vertices, first) = methods
+            .surfaces
+            .with_sampling(Some(EntityId(2)), &world.colliders, |view| {
+                let view = view.unwrap();
+                (
+                    view.geometry.vertices.as_ptr(),
+                    view.state.sample(&view.geometry, [0; 3]),
+                )
+            })
+            .unwrap();
+        assert_eq!(first.vertex_height, 200);
+        assert_eq!(first.activated_records, 1);
+        let surface = methods.surfaces.entries[0].as_ref().unwrap();
+        assert_eq!(surface.state.dirty, 0);
+        assert_eq!(surface.sampling.state.dirty, 1);
         assert_eq!(
             obstacle::deformables(&mut world, &mut vehicle, env, &mut shared, &mut methods),
             Ok(Some(ObstacleId(0)))
         );
-        assert_eq!(methods.surface.mesh.vertices, [[1, 193, 1]]);
+        let surface = methods.surfaces.entries[0].as_ref().unwrap();
+        assert_eq!(surface.mesh.vertices, [[1, 193, 1]]);
+        assert_eq!(surface.state.last_vehicle, Some(EntityId(1)));
+        assert_eq!(surface.state.dirty, 1);
+        let second = methods
+            .surfaces
+            .with_sampling(Some(EntityId(2)), &world.colliders, |view| {
+                let view = view.unwrap();
+                assert_eq!(view.geometry.vertices.as_ptr(), vertices);
+                view.state.sample(&view.geometry, [0; 3])
+            })
+            .unwrap();
+        assert_eq!(second.vertex_height, 193);
+        assert_eq!(second.activated_records, 0);
         assert_eq!(vehicle.material_tag, -7);
         assert_eq!(vehicle.deformable, Some(EntityId(2)));
-        assert_eq!(methods.surface.state.last_vehicle, Some(EntityId(1)));
         assert_eq!(methods.sounds, 1);
         assert_eq!(shared.random, 1586005467);
         assert_eq!(shared.current_slot, 9);
         assert_eq!(vehicle.velocity, [0; 3]);
+        assert_eq!(
+            methods
+                .surfaces
+                .with_sampling(Some(EntityId(99)), &world.colliders, |_| panic!(
+                    "missing entity must not enter contact"
+                )),
+            Err::<(), _>(-1)
+        );
     }
 }

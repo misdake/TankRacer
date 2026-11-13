@@ -1,13 +1,14 @@
 //! Moving/deformable surface sampling (4073D0), with explicit resource and state.
 use crate::fixed::trunc_shift;
 
-#[derive(Debug, Clone)]
-pub struct Geometry {
+/// A contact-scoped view of the current scene mesh, never a second vertex copy.
+#[derive(Debug, Clone, Copy)]
+pub struct Geometry<'a> {
     pub sample_bounds: [[i32; 2]; 2],
     /// Local raw X lower/upper, Z lower/upper; deliberately separate from bounds.
     pub edges: [i32; 4],
     pub edge_cap: i32,
-    pub vertices: Vec<[i16; 3]>,
+    pub vertices: &'a [[i16; 3]],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +66,7 @@ pub fn edge_weight(local: [i32; 3], bounds: [i32; 4], cap: i32) -> i32 {
 }
 
 impl State {
-    pub fn sample(&mut self, geometry: &Geometry, world: [i32; 3]) -> Sample {
+    pub fn sample(&mut self, geometry: &Geometry<'_>, world: [i32; 3]) -> Sample {
         debug_assert!(self.records.len() <= 65536);
         let relative: [i32; 3] =
             std::array::from_fn(|i| world[i].wrapping_sub(self.pose.origin[i]));
@@ -82,7 +83,7 @@ impl State {
             local_clamped[component] = local_clamped[component].max(lower).min(upper);
         }
         let mut maximum = 0;
-        for &[x, y, z] in &geometry.vertices {
+        for &[x, y, z] in geometry.vertices {
             let dx = local_clamped[0].wrapping_sub(i32::from(x));
             let dz = local_clamped[2].wrapping_sub(i32::from(z));
             if dx > -128 && dx < 128 && dz > -128 && dz < 128 {
@@ -129,7 +130,7 @@ mod tests {
             sample_bounds: [[-10, 10]; 2],
             edges: [-10000, 10000, -10000, 10000],
             edge_cap: 65536,
-            vertices: vec![[138, 300, 0], [137, 40, 0], [0, -100, 0]],
+            vertices: &[[138, 300, 0], [137, 40, 0], [0, -100, 0]],
         };
         let mut state = State {
             pose: Pose::default(),

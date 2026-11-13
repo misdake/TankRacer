@@ -77,7 +77,7 @@ fn strict_windows_wrapping_clamps_and_record_mutations_match_c() {
                 std::array::from_fn(|_| random.signed())
             },
             edge_cap: if i < 1024 { 65536 } else { random.signed() },
-            vertices: (0..32)
+            vertices: &(0..32)
                 .map(|v| {
                     if i < 1024 {
                         [
@@ -89,7 +89,7 @@ fn strict_windows_wrapping_clamps_and_record_mutations_match_c() {
                         std::array::from_fn(|_| random.word() as i16)
                     }
                 })
-                .collect(),
+                .collect::<Vec<_>>(),
         };
         let mut state = State {
             pose,

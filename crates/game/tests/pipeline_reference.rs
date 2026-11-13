@@ -248,7 +248,7 @@ fn config(c: &contact::Config) -> [u32; 11] {
         c.travel_dead_step as u32,
     ]
 }
-fn deform_input(geometry: &deformation::Geometry, state: &deformation::State) -> Vec<u32> {
+fn deform_input(geometry: &deformation::Geometry<'_>, state: &deformation::State) -> Vec<u32> {
     let mut out = Vec::new();
     signed(&mut out, state.pose.origin);
     signed(&mut out, state.pose.inverse_basis);
@@ -472,7 +472,7 @@ fn compare(vehicle: bool) {
                 sample_bounds: [[-1000, 1000]; 2],
                 edges: [-16000, 16000, -16000, 16000],
                 edge_cap: 65536,
-                vertices: vec![[-128, 20, 0], [0, 40, 0], [128, 80, 0]],
+                vertices: &[[-128, 20, 0], [0, 40, 0], [128, 80, 0]],
             };
             let mut deform = deformation::State {
                 pose: deformation::Pose {
@@ -618,7 +618,7 @@ fn compare(vehicle: bool) {
                     noise,
                 };
                 let deformable = has_deform.then_some(pipeline::Deformable {
-                    geometry: &geometry,
+                    geometry,
                     state: &mut deform,
                 });
                 let mut binding = deformable;

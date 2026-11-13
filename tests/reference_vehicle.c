@@ -2,11 +2,13 @@
 #include "reference_game.h"
 #include "physics_step.h"
 #include "physics_effects.h"
+#include "physics_entities.h"
 #include "frame_math.h"
 #include "frame_scene_effects.h"
 static unsigned char *ram;
 static unsigned char baseline[TANKRACER_DATA_BYTES];
 static uint32_t object,ids[9],actors[9],count,own,captured,variant,after_calls;
+static uint32_t surface_id,surface_object,surface_node;
 static uint32_t word(uint32_t a){return oracle_get(ram+a,4);}
 static void set(uint32_t a,uint32_t v,unsigned n){oracle_set(ram+a,v,n);}
 static void emit(uint32_t a,unsigned n){unsigned i;for(i=0;i<n;i++)oracle_put(word(a+i*4u));}
@@ -49,7 +51,7 @@ static void actor(unsigned index)
     unsigned i;object=actors[index];oracle_put(ids[index]);raw(object+0xde5,1);state();
     emit(object+0xe4,3);emit(object+0xa4,1);emit(object+0xac,1);emit(object+0xb0,1);raw(object+0xdeb,1);narrow(object+0xdde,1);emit(object+0xf4,1);
     pose_inputs();emit(object+0x10be,1);
-    oracle_put((ram[object+0xd90]&1u)!=0);emit(object+0x10c6,1);emit(object+0x118,1);emit(object+0x107e,1);emit(object+0xd95,1);oracle_put(owner_entity(word(object+0xd8c)));emit(object+0x114,1);emit(object+0x108,3);emit(object+0xfc,3);
+    oracle_put((ram[object+0xd90]&1u)!=0);emit(object+0x10c6,1);emit(object+0x118,1);emit(object+0x107e,1);emit(object+0xd95,1);emit(object+0xd8c,1);emit(object+0x114,1);emit(object+0x108,3);emit(object+0xfc,3);
     for(i=0;i<4;i++){
         uint32_t r=object+0x11c+i*70u;emit(r,3);narrow(r+24,2);emit(r+32,2);raw(r+68,2);emit(r+56,3);emit(r+40,1);emit(r+48,2);
     }
@@ -85,10 +87,23 @@ static void frame_config(void)
     oracle_put(word(0x5319c8)>>24);narrow(0x5319cc,2);emit(0x5319d0,1);oracle_put(word(0x531ca4)>>24);
     emit(0x531b98,1);emit(0x531b94,1);emit(0x544f70,4);
 }
+static void surface(void)
+{
+    uint32_t o=surface_object,mesh=word(o+0x48),matrix=word(o+0x14),nv=oracle_get(ram+mesh,2),n=word(o+0xcd),i,j;
+    oracle_put(variant==6);if(variant!=6)return;
+    oracle_put(surface_id);emit(o,3);emit(o+0x18,9);oracle_put(matrix!=0);
+    if(matrix)emit(matrix,9);else for(i=0;i<9;i++)oracle_put(i%4==0?4096u:0u);
+    raw(mesh+12,2);emit(o+0x60,6);emit(o+0x5c,1);
+    for(i=0;i<6;i++)narrow(mesh+0x1c+i*2,2);
+    emit(o+0xae,1);emit(o+0xb2,1);emit(o+0xe5,1);narrow(o+0x4e,2);oracle_put(word(o+0x84)!=0);
+    raw(o+0xca,1);emit(o+0xaa,1);emit(o+0xe9,1);emit(o+0xba,4);emit(o+0xb6,1);raw(o+0xcc,1);
+    oracle_put(n);for(i=0;i<n;i++){uint32_t r=word(o+0xd5)+i*32;emit(r,3);emit(r+24,1);}
+    shape(mesh);for(j=0;j<nv;j++)raw(word(o+0xdd)+j,1);
+}
 static void snapshot(void)
 {
     unsigned i;for(i=0;i<count;i++)actor(i);object=actors[own];
-    emit(0x55b6ac,1);emit(0x55c698,1);emit(0x58eebc,1);emit(0x58ef5c,1);
+    surface();emit(0x55b6ac,1);emit(0x55c698,1);emit(0x58eebc,1);emit(0x58ef5c,1);
     oracle_put(tank_index(word(0x546014)));if(word(0x546014)){emit(0x546008,1);emit(0x546010,1);}else{oracle_put(0);oracle_put(0);}
     emit(0x545e1c,1);pools();
 }
@@ -112,27 +127,42 @@ static int scene(void *ctx,int phase,uint32_t o,uint32_t entity,int32_t arg)
     if(phase==PHYSICS_SCENE_AFTER_POSE){after_calls++;status=physics_impact_particles_tick(read_data,write_data,0,o,frame_math_trig());if(status)return status;return variant==7?9:0;}
     return 0;
 }
-static int method(void *ctx,uint32_t fn,uint32_t id,uint32_t payload,uint32_t *out)
-{(void)ctx;(void)fn;(void)id;(void)payload;(void)out;return -6;}
 static int feedback(void *ctx,int32_t strength){(void)ctx;(void)strength;return 0;}
 static void empty_list(uint32_t p){set(p,p,4);set(p+4,p,4);}
 int main(int argc,char **argv)
 {
-    uint32_t map,vehicle,i,j,step,turn,root,peer;int status;physics_effect_environment effect;physics_collision_services collision;physics_obstacle_services obstacle;physics_vehicle_services services;
-    if(argc!=4)return 2;
+    uint32_t map,vehicle,i,j,step,turn,root,peer;int status;physics_effect_environment effect;physics_collision_services collision;physics_obstacle_services obstacle;physics_vehicle_services services;physics_entity_environment entities;
+    if(argc!=4 && !(argc==5&&!strcmp(argv[4],"--surface-info")))return 2;
     map=(uint32_t)strtoul(argv[2],0,10);vehicle=(uint32_t)strtoul(argv[3],0,10);
     status=reference_game_start_with_opponents(argv[1],map,vehicle,0,1);if(status)return status;
     ram=(unsigned char *)(uintptr_t)tank_data();
+    if(argc==5){
+        uint32_t head=word(0x53cd18),node=word(head),used=0;
+        while(node!=head){uint32_t id=word(node+8),o=object_of(id),mesh=word(o+0x48);if(used++==65536)return 8;
+            printf("map=%u entity=%u vertices=%u records=%u floor=%d compression=%d edge=%u\n",map,id,oracle_get(ram+mesh,2),word(o+0xcd),oracle_signed(word(o+0xae)),oracle_signed(word(o+0xb2)),word(o+0xb6));node=word(node);}
+        tank_destroy();return 0;
+    }
     for(i=0;i<9;i++){uint32_t id=word(0x53e8e0+i*4u);if(id){ids[count]=id;actors[count]=object_of(id);if(id==word(0x53e8b8))own=count;count++;}}
     if(count<2)return 6;
+    surface_node=word(word(0x53cd18));if(surface_node==word(0x53cd18))return 6;
+    surface_id=word(surface_node+8);surface_object=object_of(surface_id);
     root=own;peer=root?0u:1u;
     memcpy(baseline,ram,TANKRACER_DATA_BYTES);
-    effect=(physics_effect_environment){read_data,write_data,0,frame_math_trig()};collision=(physics_collision_services){physics_impact_particles_callback,&effect,0};obstacle=(physics_obstacle_services){&collision,method,feedback,0};services=(physics_vehicle_services){&obstacle,scene,0};
-    oracle_binary();fwrite("VC01",1,4,stdout);
+    effect=(physics_effect_environment){read_data,write_data,0,frame_math_trig()};collision=(physics_collision_services){physics_impact_particles_callback,&effect,0};obstacle=(physics_obstacle_services){&collision,physics_known_entity_method,feedback,&entities};services=(physics_vehicle_services){&obstacle,scene,0};
+    entities=(physics_entity_environment){read_data,write_data,0,frame_math_trig(),&obstacle,scene,0};
+    oracle_binary();fwrite("VC02",1,4,stdout);
     for(variant=0;variant<8;variant++){
         own=root;memcpy(ram,baseline,TANKRACER_DATA_BYTES);object=actors[own];
         for(i=0;i<64;i++)empty_list(word(0x544e70+i*4u));
         empty_list(word(0x53cd18));
+        if(variant==6){
+            uint32_t head=word(0x53cd18),mesh=word(surface_object+0x48),v=word(mesh+4),best=v;
+            for(i=0;i<oracle_get(ram+mesh,2);i++)if((int16_t)oracle_get(ram+v+i*8+2,2)>(int16_t)oracle_get(ram+best+2,2))best=v+i*8;
+            set(head,surface_node,4);set(head+4,surface_node,4);set(surface_node,head,4);set(surface_node+4,head,4);
+            for(i=0;i<3;i++)set(surface_object+i*4,word(object+i*4)-(uint32_t)((int32_t)(int16_t)oracle_get(ram+best+i*2,2)*8),4);
+            for(i=0;i<9;i++)set(surface_object+0x18+i*4,i%4==0?4096u:0u,4);
+            set(surface_object+0x14,surface_object+0x18,4);
+        }
         set(0x531868,0,4);set(0x53186c,0,4);set(0x531870,2000,4);set(0x531878,0,4);set(0x53187c,0,4);set(0x531880,(uint32_t)-2000,4);
         for(i=0;i<count;i++){
             uint32_t a=actors[i];set(a+0xd8c,0,4);set(a+0xde9,1,1);set(a+0xd90,0,1);
