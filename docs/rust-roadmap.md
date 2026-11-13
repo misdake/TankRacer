@@ -1,87 +1,77 @@
 # Rust rewrite roadmap
 
+This is the short source of truth. Read it before/after each milestone and after
+context recovery; check the actual worktree before resuming. Detailed evidence:
+[assets](rust-assets.md), [physics](rust-physics.md), [renderer](rust-renderer.md).
+
 ## Current checkpoint
 
-- Active: **M3 — physics**. Verified modules and model construction exist;
-  the complete moving Rust vehicle is **not running**.
-- Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world/atlas/free
-  camera (`e98e429`): 5 draws, 8,762 visible triangles; 133 GPU pixel cases pass.
-- M3 verified against C: terrain/contact/suspension, drive/fixed-point math,
-  vehicle poses/model assembly/damage, ordered object queries and collision
-  response, deformable objects, breakable hit chains, spatial/tick membership,
-  impact particles/shared line pool and real ground-effect bindings; composed
-  post-collision motion/poses/hull, contact/powertrain bindings and the connected
-  active physics caller with shared real collision particles/damage.
-- Last verified code: **`98e9dd0`**. 1,254 connected C phase records match across
-  15 cars / eight maps, with alternating actors and 603 peer-velocity writes.
-  Existing motion regression, workspace tests, native/Wasm Clippy and unchanged-C
-  verification pass. This is post-prefix physics; the test's object lists are empty.
-- Remaining: real scene hit/class-method integration, pre-contact timers/abilities,
-  complete after-pose effects, object motion ticks and scheduler. Probes do not
-  complete those methods, nor does this phase test prove a full game replay.
-  Rust world construction and the complete moving vehicle are still unfinished.
-- Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
-  [physics](rust-physics.md) and [renderer](rust-renderer.md); keep them out of this summary.
-- Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
-  collision graphs cost 175–330 KB/map native and share the same map limit;
-  not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: real scene bindings and authored Rust world construction, sharing one
-  current deformable mesh for sampling/rendering; complete the pre-contact and
-  after-pose game operations → independent moving proxy.
-  No permanent original-memory arena or C runtime dependency.
-  M3 stays open until the proxy runs.
-- The existing C/browser game remains the working reference. Rust output goes
-  to `build/rust/site`; no automatic push or replacement of the reference site.
+- **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
+  free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
+  The complete moving Rust vehicle is **not running**.
+- Last verified code: **`98e9dd0`**. Terrain/contact/suspension, powertrain,
+  poses/model assembly, collision/damage and shared effects are implemented;
+  1,254 connected physics records match C across 15 cars/eight maps. That
+  committed phase test uses empty object lists and starts after the timer/ability
+  prefix; it does not qualify a complete game replay.
+- **Pending worktree:** contact-scoped borrowing of the current deformable mesh,
+  actual scene hit dispatch and extended connected tests. Finish ownership/branch
+  checks and record evidence before promoting this work to a verified checkpoint.
+- **Next runnable increment:** finish real scene/class bindings and Rust world
+  construction; connect pre-contact timers/abilities, after-pose effects and
+  object ticks/scheduler, then run an independent moving proxy. M3 stays open
+  until that proxy runs without C or an original-memory arena.
+- Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
+  graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
+  claiming budget compliance. Original resources/GPU/dynamic memory are separate.
+- Preserve the working C/browser reference. Rust output: `build/rust/site`.
+  Local milestone commits are authorized; **do not push** unless asked.
 
-## Milestones
+## Incremental delivery
 
-- [x] **M1 Foundation:** Rust build, Wasm/browser shell, explicit render state,
-  indexed geometry, resource loading foundation, GPU correctness tests.
-- [x] **M2 Static world:** ENGLAND meshes/materials, resource provenance, free
-  camera, atlas/texture classification and static batches.
-- [ ] **M3 Physics:** simple vehicle proxy; terrain → contact/suspension → drive
-  and pose → collision. Compare each module and short sequence against C.
-- [ ] **M4 Vehicle:** body/turret/tracks/wheels, camera, shadows and material layers.
-- [ ] **M5 Core race:** pickups, weapons, destruction, laps, timing and HUD.
-- [ ] **M6 Optional content:** cones, signs, birds and ENGLAND train, independently
-  removable with tested runtime enable/disable and complete cleanup.
-- [ ] **M7 Complete game:** opponents, original menus, full CUP and all eight maps.
-- [ ] **M8 Optimize/release:** measured CPU/GPU/query/upload/draw improvements,
-  full-content regression and standalone static package.
+| Stage | Deliverable / exit condition |
+| --- | --- |
+| M1 done | Rust/Wasm build, browser shell, own raw WebGL renderer, explicit state and GPU tests. |
+| M2 done | ENGLAND static scene, categorized resources/materials, atlas/batches and free camera. |
+| M3 active | Independent moving proxy: precise terrain, suspension, drive, poses and collision; C module/short-sequence parity. |
+| M4 | Vehicle body/turret/tracks/wheels, cameras, shadows and material layers. |
+| M5 | Pickups, weapons, destruction, laps, timing and HUD; playable core race. |
+| M6 | Cones, signs, birds and ENGLAND train as independent configurable plugins; runtime toggle and complete cleanup. |
+| M7 | Opponents, original menus, full CUP and all eight maps. |
+| M8 | Profile and optimize CPU/GPU/query/upload/draw work; full-content regression and standalone package. |
 
-Every step leaves a runnable version. Commit milestones after relevant checks;
-use short branch/sequence tests, extending coverage when changes justify it.
+Each increment must leave a runnable build. Small changes get focused checks;
+large changes get broader checks. Prefer branches and short sequences; extend
+sequence length when a delayed failure or an actual dependency justifies it.
 
-## Non-negotiable constraints
+## Design constraints
 
-1. Final runtime is clean, readable **Rust → Wasm → own raw WebGL renderer**.
-   C is a migration/test oracle, not a permanent address-memory runtime.
-2. Immutable resources, authoritative simulation and read-only render scene are
-   separate. GPU does world transforms/projection/clipping; static meshes stay
-   resident. Preserve exact physics arithmetic, update/event order and RNG.
-3. Minor visual differences are acceptable; wrong blend, depth, masking or
-   texture edges are not. Material/pipeline states are explicit and GPU-tested.
-4. Optional modules own resources, entities, colliders, effects, sounds and
-   subscriptions. `enabled=false` removes the feature; `visible=false` only
-   hides it. Config changes apply at fixed ticks and are recorded for replay.
-   Audit shared RNG/order dependencies; batching must preserve detachability.
-5. Additional per-map acceleration: aim **<1,000,000 bytes**, absolute maximum
-   **2,000,000 bytes**, decimal, resident/uncompressed including metadata,
-   alignment/capacity. Above 1 MB needs convincing whole-frame measurements.
-   Account original resources and transient/dynamic memory separately.
-6. First principles: eliminate unused/repeated work, precompute immutable work,
-   improve layout, batch/share work, then choose caches/spatial structures from
-   profiles. Preserve query priority/boundaries; do not approximate collision
-   height, normals or surface material. Report gains and costs honestly.
+1. Clean, readable **Rust -> Wasm -> own raw WebGL renderer**. Separate immutable
+   resources, authoritative simulation and read-only render scene. C remains a
+   test oracle, never the final runtime.
+2. Preserve physics arithmetic, event/update order and RNG. Minor visual changes
+   are acceptable; blend, depth, masking and texture-edge errors are not.
+   Materials/pipeline states must be explicit and GPU-tested. Keep static meshes
+   resident; GPU handles transforms/projection/clipping; batch compatible work.
+3. Optional plugins own their entities, colliders, resources, effects, audio and
+   subscriptions. Disabling removes behavior; hiding only removes drawing.
+   Apply config changes on fixed ticks, record them, and audit shared RNG/order.
+4. Extra per-map precomputation: target **<1,000,000 B**; absolute maximum
+   **2,000,000 B**, resident/uncompressed including capacity/alignment/metadata.
+   Exceeding 1 MB requires convincing whole-frame gains. Account original
+   resources and transient/dynamic memory separately.
+5. Optimize from first principles and measurements: remove unused/repeated work,
+   precompute immutable work, improve layout and batching, then choose caches or
+   spatial structures. Preserve query priority/boundaries and exact surface data.
 
-## Checkpoint procedure
+## Mandatory checkpoint routine
 
-Read this file before each milestone, after completing one, and after context
-recovery. Update the checkbox, current checkpoint, verification/commit and next
-concrete task. Check the worktree before resuming; distinguish verified work,
-pending changes and remaining scope. Keep this summary short and move detailed
-evidence into the linked documents. Then proceed to the next runnable increment.
+Before starting/resuming, read this file and inspect Git status against the last
+verified commit. At each completed increment:
 
-At each checkpoint, answer: **What runs now? What passed? What is still missing?
-What is the next runnable increment?** Recheck the constraints above before
-choosing that increment. A tested helper alone does not complete a milestone.
+1. Re-read the stages and constraints; confirm the increment still serves them.
+2. Record **what runs, what passed, what is missing, and the next runnable step**.
+3. Put detailed contracts/test counts/commands in the linked specialist docs.
+4. Commit verified work, update this checkpoint with the code commit, and re-read
+   it before continuing. Keep pending changes distinct; a tested helper alone
+   never completes a stage.
