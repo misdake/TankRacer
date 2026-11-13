@@ -17,15 +17,14 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`09798c4`**. Complete single-view active/inactive after-pose
-  chains match C on 40 scenarios / 320 calls: every component changes, 40 error
-  prefixes and per-call RNG counts match. Earlier kernels, fresh construction
-  (122 / 83,936 words) and connected physics are qualified separately.
-  Workspace/native/Wasm/build and C preservation pass; no running-car claim.
+- Last verified code: **`085441b`**. Connected physics now runs the full active
+  after-pose chain: 1,254 updates / 17,591,969 words match C across all maps/15
+  vehicles. Every effect component changes; actual RNG advances match separately
+  from unchanged seed stores. Fresh construction and inactive-chain tests remain
+  qualified. Workspace lint and C preservation pass; production Wasm is unchanged.
   Shared shield startup still requires its original 180-draw initialization.
-- **Next runnable increment:** wire the full chain into connected-physics
-  comparison (its old service still only ticks impacts) -> bind the fresh
-  player/prefix into scene identity/scheduler -> moving browser proxy.
+- **Next runnable increment:** bind the fresh player/prefix into the shared scene
+  identity/scheduler -> resource-initialized native movement -> moving browser proxy.
   M3 stays open until this runs without C or test snapshots. Bring additional
   readers forward only when required by that slice.
 - Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
