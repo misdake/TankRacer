@@ -1,3 +1,8 @@
 * text=auto eol=lf
 *.DAT binary
 *.bin binary
+# Preserve the exact bytes recorded in the reference provenance manifest.
+src/** -text
+web/** -text
+host/frontend.inc -text
+tools/static_response.mjs -text
