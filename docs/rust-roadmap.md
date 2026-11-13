@@ -9,20 +9,23 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`13fcd5d`**. Authored resources, common Obstacle/Crush
-  construction and connected physics have C boundary comparisons. Latest parent
-  suite: 2,937 outputs / 22 map/CUP files. Workspace tests, native/Wasm lint and
-  unchanged-C checks pass. Counts, commands and original-EXE corrections belong
-  in [physics evidence](rust-physics.md), not in this short plan.
-- Still missing: concrete subclass callbacks, named references, complete startup
-  and shared RNG replay, scheduler, vehicle timer/ability prefix and after-pose
-  effects. Constructor tests still supply some boundary inputs from C; they do
-  not prove independent startup. New fragment/animation rendering is pending.
-- **Next runnable increment:** concrete subclass initialization and lifecycle/
-  method bindings, named entity resolution and complete world membership/ticks;
+- Last verified code: **`e66ecfd`**. Live scheduler/deferred queues (585 scenarios),
+  name interning (224 operations) and named collision attachments (4,096 records,
+  441 binding changes) match C boundaries. Existing membership, workspace tests,
+  native/Wasm lint, unchanged-C checks and release browser build pass. Earlier
+  resources/parent construction/connected physics remain qualified; details in
+  [physics evidence](rust-physics.md).
+- Still missing: canonical entity allocation/ID reuse, concrete subclass methods,
+  authored attachment/factory binding, complete startup and shared RNG replay,
+  vehicle timer/ability prefix and after-pose effects. Scheduler tests supply
+  scripted callbacks; constructors still use some C boundary inputs. Neither
+  proves a running world. New fragment/animation rendering is pending.
+- **Next runnable increment:** canonical entities and concrete subclass lifecycle/
+  method bindings, authored references and complete world membership/ticks;
   connect vehicle prefix/after-pose and scheduler -> independent moving proxy.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
   ownership, RNG consumption and the distinction between activation/impact limits.
+  Interning a forward name does not allocate an entity ID in the original.
 - Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
   graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
   claiming budget compliance. Original resources/GPU/dynamic memory are separate.
