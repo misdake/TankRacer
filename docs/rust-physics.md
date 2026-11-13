@@ -410,3 +410,69 @@ cargo test -p tankracer-game --test vehicle_model_reference -- --ignored --nocap
 Next: mutable damage, motion/collision and complete per-tick vehicle orchestration,
 then the browser proxy. Model construction is verified; a complete moving Rust
 vehicle is still not running. No new per-map acceleration data is introduced.
+
+Model construction checkpoint: `2099509`.
+
+## Damage and collision response
+
+`damage` implements one-shot body/turret quadrant dents, saturating track wear
+and incident-face normal repair. World hits use the actual part pose; zero X/Z
+belong to the original nonpositive quadrants. Flags commit before mesh access,
+and different quadrants may select and repeatedly deform the same vertex.
+Body Y remains unchanged; turret Y uses different front/rear gains. Face repair
+normalizes both edges, takes their ordered cross product, then normalizes again
+using the original signed integer approximation. It intentionally leaves optional
+imported vertex normals, material/UV/color data and unrelated faces untouched.
+
+`collision` ports wall reflection, default/explicit local and final gains, two-
+tank impulse exchange, approach prediction and direction classification. Wall
+separation adds its outward push even when not approaching. Low-strength pair
+exchange transforms all three world components, including Y from tilted bases.
+The strong branch retains the original unequal peer impulse, speed cap and the
+repeated peer-X damping. Binary 1.7 conversion preserves x87 truncation through
+exact integer arithmetic, including multiples of ten; no host floating point.
+
+`ground_collision` performs the ordered four-contact pass: a miss reverses X/Z
+at most once, boundary contacts reflect/update yaw, and the final boundary corner
+selects high-speed track damage. Yaw uses the initial velocity magnitude, not a
+later reflected velocity. Strict 150,000/450,000 thresholds, invalid/sentinel
+corner handling and optional external-basis transforms are preserved.
+
+Ground effects are required **synchronous game operations** through `Effects`,
+not a deferred render queue. Failure stops before the current reflection and
+keeps previous contact/effect writes. Particle/RNG implementations still need
+their own migration: this checkpoint tests that service boundary with an ordered
+stateful probe and deliberate errors, while track/body damage uses the actual
+new Rust module and actual C functions. No built-in no-op service hides this gap.
+
+Verification: **9,600 damage/ground records / 4,721,280 output words** match C
+using all fifteen real vehicle models and four-tick sequences. Of these, 3,840
+exercise the composed ground stage, including 261 error results and 948 impact
+calls. Coverage includes signed-16 geometry extremes, degenerate faces, duplicate
+damage vertices, track saturation, noncanonical flags, rotating/wrapping poses,
+contact mixtures and callback-prefix writes. All mutable vertices, complete face
+records, flags, velocities, yaw and effect-probe traces are compared.
+
+An additional **20,720 collision records / 143,600 words** match C: 8,192 wall
+responses, 8,192 pair exchanges, 2,063 binary-constant cases, 225 direction cases
+and 2,048 approach predictions. Wall tests cover all four gain-presence pairs,
+mode/player damping, separating/reflecting branches and 96 arithmetic errors;
+error output remains untouched. Pair cases include gentle/strong exchange,
+explicit cap fixtures, tilted bases and saved peer inputs distinct from current
+peer state. Ordinary tests explain one-shot/saturation behavior, partial failures,
+vertical impulses, unconditional wall push and nonideal binary constants.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_damage.c build/native/libtankracer_core.a -o build/native/damage_reference.exe
+$env:TANKRACER_DAMAGE_REFERENCE=(Resolve-Path build/native/damage_reference.exe).Path
+cargo test -p tankracer-game --test damage_reference -- --ignored --nocapture
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_collision.c build/native/libtankracer_core.a -o build/native/collision_reference.exe
+$env:TANKRACER_COLLISION_REFERENCE=(Resolve-Path build/native/collision_reference.exe).Path
+cargo test -p tankracer-game --test collision_reference -- --ignored --nocapture
+```
+
+Runtime stages allocate no memory. Damage scans the small existing face array
+only on a newly damaged quadrant; no adjacency cache or per-map acceleration is
+added. These checks establish module semantics, not a complete collision world or
+running vehicle. Next: object/tank queries and overlap, obstacle/deformable game
+dispatch, then position integration and full per-tick vehicle orchestration.
