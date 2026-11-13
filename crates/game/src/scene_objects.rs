@@ -2,6 +2,7 @@
 //! Class tables stay immutable; parent calls and nested activation are immediate.
 pub mod collision;
 mod falling;
+mod fragments;
 use crate::{
     crush,
     dispatch::{ClassId, MethodId},
@@ -84,7 +85,14 @@ pub struct Scene {
     pub world: World,
     pub components: Components,
 }
+/// Lifecycle-only calls need no random stream. Frame execution must borrow the
+/// caller's authoritative stream; missing simulation context is an explicit error.
+pub enum Execution<'a> {
+    Lifecycle,
+    Simulation { random: &'a mut u32 },
+}
 pub struct View<'a> {
+    pub execution: Execution<'a>,
     pub world: &'a mut World,
     pub components: &'a mut Components,
 }
@@ -103,6 +111,7 @@ pub struct Components {
     pub parents: Parents,
     pub interfaces: Interfaces,
     pub dt: i32,
+    pub frame_group: u32,
 }
 impl Scene {
     pub fn new(world: World, surfaces: Surfaces, parents: Parents, interfaces: Interfaces) -> Self {
@@ -123,13 +132,22 @@ impl Scene {
                 parents,
                 interfaces,
                 dt: 0,
+                frame_group: 0,
             },
         }
     }
     pub fn view(&mut self) -> View<'_> {
         View {
+            execution: Execution::Lifecycle,
             world: &mut self.world,
             components: &mut self.components,
+        }
+    }
+    pub fn updates<'a>(&'a mut self, random: &'a mut u32) -> View<'a> {
+        View {
+            world: &mut self.world,
+            components: &mut self.components,
+            execution: Execution::Simulation { random },
         }
     }
     pub fn install_obstacle(
@@ -388,6 +406,7 @@ impl Methods<ObstacleId> for View<'_> {
         match method {
             FALL_DESTROY => return self.destroy_fall(id, call, env),
             FALL_TICK => return self.tick_fall(id, call, env),
+            DEBRIS_TICK => return self.tick_debris(id, call, env),
             RESET_POSE => {
                 let pose = &mut self.world.colliders.get_mut(id.0).ok_or(-1)?.pose;
                 pose.matrix = Matrix::IDENTITY;

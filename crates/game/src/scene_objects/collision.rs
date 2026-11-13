@@ -1,6 +1,6 @@
 //! Collision callbacks borrow the very components and factory used by updates.
 //! Traversal owns the world/vehicle/globals borrow; no flags, queues or RNG mirror.
-use super::{Components, View};
+use super::{Components, Execution, View};
 use crate::{
     breakable::{self, Environment as HitEnvironment, Metadata, Motion, Owner},
     dispatch::MethodId,
@@ -8,6 +8,7 @@ use crate::{
     object_query::ObstacleId,
     obstacle_collision::{Invocation, World},
     scene_collision::DEFORMABLE_HIT,
+    shatter::{self, BlastTarget},
     symbols::Binding,
 };
 use std::sync::Arc;
@@ -33,6 +34,24 @@ pub trait Services: Sized {
         has_payload: bool,
     ) -> Result<(), i32> {
         scene.scene_method(method, call, has_payload)
+    }
+    /// Vehicle slots are read separately because an earlier immediate impulse
+    /// may change a later slot or target. These game bindings must be supplied.
+    fn blast_target(
+        &mut self,
+        _slot: usize,
+        _scene: &mut Collision<'_>,
+        _call: Invocation<'_>,
+    ) -> Result<Option<BlastTarget>, i32> {
+        Err(-5)
+    }
+    fn blast_impulse(
+        &mut self,
+        _target: crate::object_query::EntityId,
+        _scene: &mut Collision<'_>,
+        _call: Invocation<'_>,
+    ) -> Result<(), i32> {
+        Err(-5)
     }
     fn sound(
         &mut self,
@@ -74,6 +93,7 @@ impl Collision<'_> {
                 call,
                 hit,
             ),
+            super::DEBRIS_HIT => self.activate_debris(call, services),
             DEFORMABLE_HIT => {
                 // The method result/RNG/timer commit precedes the host sound.
                 let sound = self.components.surfaces.collide(reborrow(&mut call))?;
@@ -85,6 +105,52 @@ impl Collision<'_> {
             _ => services.method(method, self, call, has_payload),
         }
     }
+    fn activate_debris(
+        &mut self,
+        mut call: Invocation<'_>,
+        services: &mut impl Services,
+    ) -> Result<(), i32> {
+        let id = call.target;
+        let entity = call.world.colliders.get(id.0).ok_or(-1)?.entity;
+        let limit = self.environment.work_limit;
+        let object = self.components.object_mut(id)?;
+        let debris = object.data.debris.as_mut().ok_or(-1)?;
+        let Some(activation) = shatter::begin(debris, call.vehicle.velocity, limit)? else {
+            *call.result = entity.0;
+            return Ok(());
+        };
+        if debris.flags & 4 != 0 {
+            for slot in 0..9 {
+                if let Some(target) = services.blast_target(slot, self, reborrow(&mut call))?
+                    && target.affected(call.world.colliders[id.0].pose.position)
+                {
+                    services.blast_impulse(target.entity, self, reborrow(&mut call))?;
+                }
+            }
+        }
+        let position = call.world.colliders[id.0].pose.position;
+        shatter::activate(
+            self.components
+                .object_mut(id)?
+                .data
+                .debris
+                .as_mut()
+                .ok_or(-1)?,
+            position,
+            activation,
+            call.random,
+            limit,
+        )?;
+        crate::spatial::remove_first(&mut self.components.ordinary, &id, limit)
+            .map_err(super::spatial_code)?;
+        if !crate::spatial::contains(&self.components.special, &id, limit)
+            .map_err(super::spatial_code)?
+        {
+            self.components.special.push(id);
+        }
+        *call.result = entity.0;
+        Ok(())
+    }
     pub fn scene_method(
         &mut self,
         method: MethodId,
@@ -95,6 +161,9 @@ impl Collision<'_> {
         let payload = has_payload.then_some(Payload::Entity(call.vehicle.entity));
         self.components.dt = call.dt;
         View {
+            execution: Execution::Simulation {
+                random: call.random,
+            },
             world: call.world,
             components: self.components,
         }

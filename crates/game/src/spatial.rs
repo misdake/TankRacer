@@ -43,6 +43,24 @@ pub(crate) fn remove_first<T: PartialEq>(
         _ => Err(Error::Limit),
     }
 }
+pub(crate) fn contains<T: PartialEq>(list: &[T], value: &T, limit: u32) -> Result<bool, Error> {
+    if limit == 0 {
+        return Err(Error::InvalidLimit);
+    }
+    for (i, item) in list.iter().enumerate() {
+        if i >= limit as usize {
+            return Err(Error::Limit);
+        }
+        if item == value {
+            return Ok(true);
+        }
+    }
+    if list.len() < limit as usize {
+        Ok(false)
+    } else {
+        Err(Error::Limit)
+    }
+}
 pub fn insert(
     grid: &mut Grid,
     id: ObstacleId,

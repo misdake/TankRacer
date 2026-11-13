@@ -1722,3 +1722,69 @@ $env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_st
 $env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_reference.exe).Path
 cargo test -p tankracer-game --test obstacle_startup_reference --test breakable_reference --locked -- --ignored --nocapture
 ```
+
+## Live debris activation, motion and animation
+
+`shatter` implements the resource-backed 41CF80/41C980/41CEF0 paths. It operates
+on the actual constructed Debris/Piece/Animation data, preserving independent
+piece state, source model radii, sprite radii, matrices and translation tails.
+Activation commits active/retired flags before immediate blast callbacks, then
+consumes the shared RNG for animation phase, scattering and angular impulse.
+The slower-explode branch uses the original unscaled temporary velocity for
+angular magnitude even though the stored linear velocity has been reduced.
+Terry-style pieces, directional scatter and sprite spin keep their own paths.
+
+Updates implement gravity, friction, rotations, ground bounce, random re-launch,
+rolling and retirement, including signed wrapping/INT_MIN and angle errors.
+Animation uses a 16-bit timer, advances at most one cell per call, discards timer
+excess, retains byte UV wrapping and updates cycle/growth at the original point.
+The resource component now retains the animation's 16-bit rotation word.
+
+The registry's DEBRIS_CONTACT binding executes through the live collision owner,
+removing ordinary drawing membership and appending unique special membership
+only after the piece updates succeed. Native list search budgets include the
+terminal sentinel; a full unsuccessful search can therefore fail after all
+piece/RNG writes have committed. DEBRIS_UPDATE is implemented by the same scene
+view used by Fall's virtual tail calls and deactivates through the real shared
+factory/parent/queue path when every piece and animation has finished.
+
+`Scene::updates(&mut random)` supplies a simulation-capable view. Nested class
+calls use that very RNG reference, not an extra stream stored in a module.
+Lifecycle-only views remain suitable for construction/destruction and reject
+RNG-dependent ticks explicitly. The scene's frame-group value is an explicit
+simulation input for the original periodic re-launch branch.
+
+Blast eligibility checks preserve strict X/Z boundaries, wrapping distances,
+protection timing and all nine ordered slots. Each slot is read again just
+before its callback; earlier impulses may change later targets. The vehicle
+impulse method is still an explicit **unported game binding**, not a device
+substitution: missing target/impulse bindings fail -5. The native qualification
+injects those pair-method callbacks; it does not claim the player's full blast
+response is ported. Auxiliary mesh-break methods remain unimplemented as well.
+
+**156 scenarios / 642 operations / 116,051 semantic words** match unchanged C
+through the actual shared scene/factory owner. The SH01 oracle starts from fresh
+C bootstrap/classes/World loading and replaces only typed resource fixtures and
+vehicle input values. Tests cover direct activation/update, Fall virtual tail
+updates, ordinary breakable hit -> real debris activation -> actual scheduler
+passes, repeated hits, callback mutations/failures and short motion sequences.
+Snapshots include Fall state/matrices, every fragment/animation field, shared
+RNG/current slot, peer writes, scheduler cursor/flags/order, drawing membership,
+queues and the full collision grid. There are **30 error prefixes**, 72 retired
+observations and 30 blast-callback observations. A normal unit test checks that
+frame updates require the shared stream and missing game bindings retain the
+already-committed prefix rather than silently discarding an effect.
+
+Regression: prior shared breakable, Fall kernel, authored ordinary/Fall/Crush
+construction, fresh mixed scripts, scene lifecycle and connected vehicle suites
+pass. Workspace tests, native/Wasm Clippy, browser release build and unchanged-C
+verification pass. No rendering state or map acceleration data changed. Browser
+Wasm stays 183,221 B/static; this is not a moving-vehicle milestone or a GPU
+fragment-rendering claim. Next: auxiliary mesh break and remaining readers,
+vehicle blast bindings, then complete vehicle prefix/after-pose and startup.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_shatter.c build/native/libtankracer_core.a -lm -o build/native/shatter_reference.exe
+$env:TANKRACER_SHATTER_REFERENCE=(Resolve-Path build/native/shatter_reference.exe).Path
+cargo test -p tankracer-game --test shatter_reference --locked -- --include-ignored --nocapture
+```

@@ -18,7 +18,7 @@ pub struct MaterialId(pub u32);
 pub trait Materials {
     fn resolve(&mut self, name: &str, mode: u32) -> Result<Option<MaterialId>, i32>;
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sprite {
     pub material: Option<MaterialId>,
     pub position: [i32; 3],
@@ -28,7 +28,7 @@ pub struct Sprite {
     pub uv: [u8; 4],
     pub color: [u8; 3],
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Animation {
     pub material: Option<MaterialId>,
     pub position: [i32; 3],
@@ -39,12 +39,13 @@ pub struct Animation {
     pub cycles: u16,
     pub growth: i16,
     pub timer: i16,
+    pub rotation: u16,
     pub cycle: u16,
     pub size: [i32; 2],
     pub uv: [u8; 4],
     pub color: [u8; 3],
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Piece {
     pub source: Option<Arc<Model>>,
     pub position: [i32; 3],
@@ -58,7 +59,7 @@ pub struct Piece {
     pub flags: u32,
     pub sprite_angle: i32,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Debris {
     pub pieces: Vec<Piece>,
     pub retired: u16,
@@ -129,6 +130,7 @@ fn animation(
         cycles,
         growth,
         timer: 0,
+        rotation: 0,
         cycle: 0,
         size: [0; 2],
         uv: [0, 0, cell_size as u8, cell_size as u8],
