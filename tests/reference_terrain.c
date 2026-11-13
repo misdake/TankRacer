@@ -4,6 +4,7 @@
 #include "game_host.h"
 #include "frame_shape.h"
 #include "physics_terrain.h"
+#include "physics_geometry.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +50,9 @@ static int no_material(void *ctx,uint32_t name,uint32_t mode,uint32_t *out)
 int main(int argc,char **argv)
 {
     context ctx={0};unsigned char *owned=0;uint32_t root,words[20],n,i,map,cup;int32_t x,z;
-    uint64_t queries=0;double seconds=0;char line[1024];int status,auxiliary=argc==4 && !strcmp(argv[3],"--aux");
-    if (argc!=3 && !auxiliary) return 2;
+    uint64_t queries=0;double seconds=0;char line[1024];int status;
+    int auxiliary=argc==4 && !strcmp(argv[3],"--aux"),fallback=argc==4 && !strcmp(argv[3],"--fallback");
+    if (argc!=3 && !auxiliary && !fallback) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout),_O_BINARY);
 #endif
@@ -77,8 +79,17 @@ int main(int argc,char **argv)
         status=tank_start();if (status) return 4;ctx.ram=tank_data();
     }
     root=get32(ctx.ram+0x55ae60u);ctx.reads=0;
-    words[0]=auxiliary ? 0x31305141u : 0x31305154u;words[1]=0x5dab54u;if (write_words(words,2)) return 5;
+    words[0]=auxiliary ? 0x31305141u : fallback ? 0x31305146u : 0x31305154u;
+    words[1]=0x5dab54u;if (write_words(words,2)) return 5;
     while (fgets(line,sizeof(line),stdin)) {
+        if (fallback) {
+            int32_t world[3],mode,normal[3]={0x1234,-6,89};
+            if (sscanf(line,"%d %d %d %d",world,world+1,world+2,&mode)!=4) return 6;
+            words[0]=(uint32_t)physics_fallback_query(read_data,&ctx,root,world,mode,normal);
+            for (i=0;i<3;i++) words[1+i]=(uint32_t)normal[i];
+            if (write_words(words,4)) return 5;
+            queries++;continue;
+        }
         if (auxiliary) {
             int32_t values[16];char *next=line,*end;
             physics_auxiliary_contact out={.world={-1,-2,-3},.kind=17,.cached=23,.surface=19};

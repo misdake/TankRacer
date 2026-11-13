@@ -368,6 +368,9 @@ fn fixture(normal: [i16; 3], overflow: bool) -> Vec<u8> {
     put32(d, 96 + 0xa4, 1);
     d[264..266].copy_from_slice(&[0, 255]);
     put32(d, 272, 552);
+    for cell in 0..64 {
+        put16(d, 272 + 0x88 + cell * 2, -1);
+    }
     put32(d, 272 + 0x108, (-32768_i32) as u32);
     put32(d, 272 + 0x10c, (-32768_i32) as u32);
     d[272 + 0x110] = 13;

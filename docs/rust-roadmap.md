@@ -2,22 +2,24 @@
 
 ## Current checkpoint
 
-- Active: **M3 — physics**. Primary terrain checkpoint verified; vehicle is not running.
+- Active: **M3 — physics**. Queries/suspension verified; vehicle is not running.
 - Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world, atlas and
   free camera (`e98e429`). Actual scene: 5 draws, 8,762 visible triangles.
 - Verified M2: all eight maps' geometry and valid SUR pixels match C; 133 GPU
   pixel cases pass. Detailed evidence: [assets](rust-assets.md),
   [renderer](rust-renderer.md).
-- M3 terrain: typed primary graph, 97–195 KB/map native; 166,740 real-map points
+- M3 terrain: typed primary graph; now 218,594 real-map points
   match C's three query interfaces, plus arithmetic fixtures (`7e4594b`). Contracts, test
   commands and limitations: [physics](rust-physics.md).
-- M3 contact/suspension and auxiliary sampling ported: 26,153 arithmetic/short
-  sequence records and 11,172 geometry samples match C. No vehicle integration yet.
-- Budget: render acceleration/metadata **376,808 bytes in Wasm**. Terrain and
-  later physics acceleration share the same per-map limit; not yet integrated
-  into the live Wasm counter. GPU resource bytes are accounted separately.
-- Next: fallback geometry and deformation/contact integration → typed vehicle state/config
-  → drive/pose/collision → browser proxy. M3 stays open until the proxy runs.
+- M3 contact/suspension (`9f638a2`): 26,153 arithmetic/short sequence records and
+  11,172 auxiliary samples match C. Secondary grid/fallback also ported: 535,896
+  real-map + 2,800 fixture queries match C. No vehicle integration yet.
+- Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
+  collision graphs cost 175–330 KB/map native and share the same map limit;
+  not yet in the live Wasm counter. GPU resource bytes are counted separately.
+- Next: typed deformation → complete sampling/material/fallback/suspension pipeline
+  → typed vehicle state/config → drive/pose/collision → browser proxy.
+  M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
 

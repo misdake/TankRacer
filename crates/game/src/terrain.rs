@@ -213,8 +213,10 @@ mod tests {
                     indices: [0, 1, 2],
                     flags: 0x2100,
                 }],
+                face_centers: Vec::new(),
             }],
             triangle_refs: vec![0, 255],
+            fallback: Default::default(),
         }
     }
 
@@ -256,6 +258,7 @@ mod tests {
                 indices: [0, 1, 2],
                 flags: 0,
             }],
+            face_centers: Vec::new(),
         });
         data.nodes.push(TerrainNode {
             source_offset: 2000,

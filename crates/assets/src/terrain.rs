@@ -40,6 +40,8 @@ pub struct CollisionMesh {
     pub radius: u16,
     pub vertices: Vec<[i16; 3]>,
     pub triangles: Vec<CollisionTriangle>,
+    /// Stored triangle bounding-box centers used by the fallback metric.
+    pub face_centers: Vec<[i16; 3]>,
 }
 
 #[derive(Debug)]
@@ -57,6 +59,32 @@ pub struct TerrainNode {
 }
 
 #[derive(Debug)]
+pub struct FallbackNode {
+    pub source_offset: u32,
+    pub mesh: u32,
+    pub basis: [i16; 4],
+    pub bounds: [i16; 4],
+    pub candidates: Span,
+}
+
+#[derive(Debug)]
+pub struct FallbackData {
+    pub cells: [Span; 64],
+    pub node_refs: Vec<u32>,
+    pub nodes: Vec<FallbackNode>,
+}
+
+impl Default for FallbackData {
+    fn default() -> Self {
+        Self {
+            cells: [Span::default(); 64],
+            node_refs: Vec::new(),
+            nodes: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct TerrainData {
     pub source_root: u32,
     pub origin: [i32; 2],
@@ -66,6 +94,7 @@ pub struct TerrainData {
     pub nodes: Vec<TerrainNode>,
     pub meshes: Vec<CollisionMesh>,
     pub triangle_refs: Vec<u8>,
+    pub fallback: FallbackData,
 }
 
 struct Reader<'a>(&'a [u8]);
@@ -119,6 +148,7 @@ impl TerrainData {
             nodes: Vec::new(),
             meshes: Vec::new(),
             triangle_refs: Vec::new(),
+            fallback: FallbackData::default(),
         };
         let mut node_ids = HashMap::new();
         let mut mesh_ids = HashMap::new();
@@ -157,37 +187,11 @@ impl TerrainData {
                     });
                 }
                 let start = bin as usize;
-                let tail =
-                    data.0
-                        .get(list..)
-                        .and_then(|s| s.get(start..))
-                        .ok_or(Error::Truncated {
-                            offset: list,
-                            bytes: start,
-                        })?;
-                let mut length = 0;
-                loop {
-                    let which = *tail.get(length).ok_or(Error::Truncated {
-                        offset: list + start,
-                        bytes: length + 1,
-                    })?;
-                    length += 1;
-                    if which == 255 {
-                        break;
-                    }
-                    if which as usize >= result.meshes[mesh as usize].triangles.len() {
-                        return Err(Error::InvalidGraph {
-                            offset: list + start,
-                            reason: "triangle list index outside mesh",
-                        });
-                    }
-                    if length >= 65536 {
-                        return Err(Error::InvalidGraph {
-                            offset: list + start,
-                            reason: "unterminated triangle list",
-                        });
-                    }
-                }
+                let length = triangle_list_length(
+                    &data,
+                    list + start,
+                    result.meshes[mesh as usize].triangles.len(),
+                )?;
                 end = end.max(start + length);
             }
             let candidates = Span {
@@ -198,7 +202,7 @@ impl TerrainData {
                 .triangle_refs
                 .extend_from_slice(data.span(list, end)?);
             let id = NodeId(result.nodes.len() as u32);
-            node_ids.insert(node, id);
+            node_ids.insert(node, id.0);
             result.nodes.push(TerrainNode {
                 source_offset: node as u32,
                 mesh,
@@ -217,55 +221,66 @@ impl TerrainData {
             });
             node = data.u32(node)? as usize;
         }
-        let table = data.u32(root)? as usize;
-        let entries = usize::from(data.u16(root + 0x114)?);
-        data.span(table, entries * 4)?;
-        let mut lists = HashMap::<usize, Span>::new();
-        for cell in 0..64 {
-            let offset = data.i16(root + 8 + cell * 2)?;
-            if offset == -1 {
-                continue;
-            }
-            if offset < 0 || offset as usize >= entries {
+        let (cells, refs) = decode_grid(&data, root, 0, &node_ids)?;
+        result.cells = cells;
+        result.node_refs = refs.into_iter().map(NodeId).collect();
+        node_ids.clear();
+        node = header.u32(12)? as usize;
+        while node != 0 {
+            if node_ids.contains_key(&node) {
                 return Err(Error::InvalidGraph {
-                    offset: root + 8 + cell * 2,
-                    reason: "invalid root list offset",
+                    offset: node,
+                    reason: "cyclic secondary node chain",
                 });
             }
-            let offset = offset as usize;
-            let span = if let Some(&span) = lists.get(&offset) {
-                span
+            data.span(node, 0x1c)?;
+            let mesh_at = data.u32(node + 4)? as usize;
+            let mesh = if let Some(&id) = mesh_ids.get(&mesh_at) {
+                id
             } else {
-                let start = result.node_refs.len();
-                let mut i = offset;
-                loop {
-                    if i >= entries {
-                        return Err(Error::InvalidGraph {
-                            offset: table,
-                            reason: "unterminated root list",
-                        });
-                    }
-                    let which = data.u32(table + i * 4)? as usize;
-                    i += 1;
-                    if which == 0 {
-                        break;
-                    }
-                    result
-                        .node_refs
-                        .push(*node_ids.get(&which).ok_or(Error::InvalidGraph {
-                            offset: which,
-                            reason: "root references an unbound primary node",
-                        })?);
-                }
-                let span = Span {
-                    start: start as u32,
-                    length: (result.node_refs.len() - start) as u32,
-                };
-                lists.insert(offset, span);
-                span
+                let id = result.meshes.len() as u32;
+                result.meshes.push(decode_mesh(&data, mesh_at)?);
+                mesh_ids.insert(mesh_at, id);
+                id
             };
-            result.cells[cell] = span;
+            let collision_mesh = &result.meshes[mesh as usize];
+            if collision_mesh.face_centers.len() != collision_mesh.triangles.len() {
+                return Err(Error::InvalidGraph {
+                    offset: mesh_at,
+                    reason: "fallback mesh has no face centers",
+                });
+            }
+            let list = data.u32(node + 8)? as usize;
+            let length = triangle_list_length(&data, list, collision_mesh.triangles.len())?;
+            let candidates = Span {
+                start: result.triangle_refs.len() as u32,
+                length: length as u32,
+            };
+            result
+                .triangle_refs
+                .extend_from_slice(data.span(list, length)?);
+            node_ids.insert(node, result.fallback.nodes.len() as u32);
+            result.fallback.nodes.push(FallbackNode {
+                source_offset: node as u32,
+                mesh,
+                basis: [
+                    data.i16(node + 0xc)?,
+                    data.i16(node + 0xe)?,
+                    data.i16(node + 0x10)?,
+                    data.i16(node + 0x12)?,
+                ],
+                bounds: [
+                    data.i16(node + 0x14)?,
+                    data.i16(node + 0x16)?,
+                    data.i16(node + 0x18)?,
+                    data.i16(node + 0x1a)?,
+                ],
+                candidates,
+            });
+            node = data.u32(node)? as usize;
         }
+        (result.fallback.cells, result.fallback.node_refs) =
+            decode_grid(&data, root, 1, &node_ids)?;
         Ok(result)
     }
 
@@ -279,15 +294,94 @@ impl TerrainData {
             + self.nodes.capacity() * std::mem::size_of::<TerrainNode>()
             + self.meshes.capacity() * std::mem::size_of::<CollisionMesh>()
             + self.triangle_refs.capacity()
+            + self.fallback.node_refs.capacity() * std::mem::size_of::<u32>()
+            + self.fallback.nodes.capacity() * std::mem::size_of::<FallbackNode>()
             + self
                 .meshes
                 .iter()
                 .map(|m| {
                     m.vertices.capacity() * std::mem::size_of::<[i16; 3]>()
                         + m.triangles.capacity() * std::mem::size_of::<CollisionTriangle>()
+                        + m.face_centers.capacity() * std::mem::size_of::<[i16; 3]>()
                 })
                 .sum::<usize>()
     }
+}
+
+fn triangle_list_length(r: &Reader<'_>, at: usize, faces: usize) -> Result<usize, Error> {
+    for i in 0..65536 {
+        let which = r.u8(at + i)?;
+        if which == 255 {
+            return Ok(i + 1);
+        }
+        if usize::from(which) >= faces {
+            return Err(Error::InvalidGraph {
+                offset: at + i,
+                reason: "triangle list index outside mesh",
+            });
+        }
+    }
+    Err(Error::InvalidGraph {
+        offset: at,
+        reason: "unterminated triangle list",
+    })
+}
+
+fn decode_grid(
+    r: &Reader<'_>,
+    root: usize,
+    grid: usize,
+    ids: &HashMap<usize, u32>,
+) -> Result<([Span; 64], Vec<u32>), Error> {
+    let table = r.u32(root + grid * 4)? as usize;
+    let entries = usize::from(r.u16(root + 0x114 + grid * 2)?);
+    r.span(table, entries * 4)?;
+    let mut cells = [Span::default(); 64];
+    let mut refs = Vec::new();
+    let mut lists = HashMap::<usize, Span>::new();
+    for (cell, span) in cells.iter_mut().enumerate() {
+        let at = root + 8 + grid * 0x80 + cell * 2;
+        let offset = r.i16(at)?;
+        if offset == -1 {
+            continue;
+        }
+        if offset < 0 || offset as usize >= entries {
+            return Err(Error::InvalidGraph {
+                offset: at,
+                reason: "invalid root list offset",
+            });
+        }
+        let offset = offset as usize;
+        if let Some(&cached) = lists.get(&offset) {
+            *span = cached;
+            continue;
+        }
+        let start = refs.len();
+        let mut i = offset;
+        loop {
+            if i >= entries {
+                return Err(Error::InvalidGraph {
+                    offset: table,
+                    reason: "unterminated root list",
+                });
+            }
+            let which = r.u32(table + i * 4)? as usize;
+            i += 1;
+            if which == 0 {
+                break;
+            }
+            refs.push(*ids.get(&which).ok_or(Error::InvalidGraph {
+                offset: which,
+                reason: "root references an unbound node",
+            })?);
+        }
+        *span = Span {
+            start: start as u32,
+            length: (refs.len() - start) as u32,
+        };
+        lists.insert(offset, *span);
+    }
+    Ok((cells, refs))
 }
 
 fn decode_mesh(r: &Reader<'_>, at: usize) -> Result<CollisionMesh, Error> {
@@ -326,6 +420,22 @@ fn decode_mesh(r: &Reader<'_>, at: usize) -> Result<CollisionMesh, Error> {
             flags: r.u16(p + 18)?,
         });
     }
+    let centers = [
+        r.u32(at + 0x10)? as usize,
+        r.u32(at + 0x14)? as usize,
+        r.u32(at + 0x18)? as usize,
+    ];
+    let mut face_centers = Vec::new();
+    if centers.iter().all(|&offset| offset != 0) {
+        face_centers.reserve_exact(faces);
+        for i in 0..faces {
+            face_centers.push([
+                r.i16(centers[0] + i * 2)?,
+                r.i16(centers[1] + i * 2)?,
+                r.i16(centers[2] + i * 2)?,
+            ]);
+        }
+    }
     Ok(CollisionMesh {
         source_offset: at as u32,
         position: [r.i32(at + 36)?, r.i32(at + 40)?, r.i32(at + 44)?],
@@ -333,6 +443,7 @@ fn decode_mesh(r: &Reader<'_>, at: usize) -> Result<CollisionMesh, Error> {
         radius: r.u16(at + 12)?,
         vertices,
         triangles,
+        face_centers,
     })
 }
 
@@ -341,7 +452,48 @@ mod tests {
     use super::*;
     use crate::archive::Archive;
     #[test]
-    fn every_cup_primary_graph_decodes_with_bounded_resident_data() {
+    fn corrupt_secondary_cycles_grids_and_missing_centers_are_rejected() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/game/LEVELS/ENGLAND/FASTFILE.DAT");
+        let bytes = std::fs::read(path).unwrap();
+        let archive = Archive::parse(&bytes).unwrap();
+        let file = archive
+            .entries()
+            .iter()
+            .find(|e| e.name.ends_with(".BSM"))
+            .unwrap();
+        let source = archive.get(file.name).unwrap();
+        let node = u32::from_le_bytes(source[12..16].try_into().unwrap()) as usize;
+        let root = u32::from_le_bytes(source[16..20].try_into().unwrap()) as usize;
+        let mesh =
+            u32::from_le_bytes(source[20 + node + 4..20 + node + 8].try_into().unwrap()) as usize;
+        for (at, value, reason) in [
+            (
+                20 + node,
+                (node as u32).to_le_bytes().to_vec(),
+                "cyclic secondary node chain",
+            ),
+            (
+                20 + root + 0x88,
+                (-2_i16).to_le_bytes().to_vec(),
+                "invalid root list offset",
+            ),
+            (
+                20 + mesh + 0x10,
+                0_u32.to_le_bytes().to_vec(),
+                "fallback mesh has no face centers",
+            ),
+        ] {
+            let mut data = source.to_vec();
+            data[at..at + value.len()].copy_from_slice(&value);
+            assert!(
+                matches!(TerrainData::decode_bsm(&data), Err(Error::InvalidGraph {reason: actual,..}) if actual==reason),
+                "{reason}"
+            );
+        }
+    }
+    #[test]
+    fn every_cup_collision_graph_decodes_with_bounded_resident_data() {
         let root =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/game/LEVELS");
         for name in [
@@ -360,8 +512,9 @@ mod tests {
             assert!(!terrain.meshes.is_empty());
             assert!(terrain.resident_bytes() < 2_000_000);
             eprintln!(
-                "{name}: {} nodes, {} collision meshes, {} bytes",
+                "{name}: {} primary / {} fallback nodes, {} collision meshes, {} bytes",
                 terrain.nodes.len(),
+                terrain.fallback.nodes.len(),
                 terrain.meshes.len(),
                 terrain.resident_bytes()
             );

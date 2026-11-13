@@ -8,10 +8,11 @@ Collision-only/hidden render geometry is retained. Collision meshes are decoded
 once; no guest address space, per-field byte callbacks or original executable
 is present in the Rust query path. IDs are dense; source offsets remain provenance.
 
-The existing index is retained before inventing new acceleration. Across the
-eight maps, resident decoded primary data occupies 97,424–195,390 native bytes
+The existing index is retained before inventing new acceleration. The primary
+checkpoint occupied 97,424–195,390 native bytes/map. With the secondary graph
+below, total decoded collision data occupies 174,534–329,640 native bytes
 (including headers/alignment/capacity). This is conservatively charged to the
-same map budget as the renderer; later fallback/contact indexes must also share it.
+same map budget as the renderer; later contact indexes must also share it.
 
 `game::terrain` implements the original selection and three output contracts:
 
@@ -23,7 +24,8 @@ same map budget as the renderer; later fallback/contact indexes must also share 
 - Division by zero/INT_MIN divided by -1 is an error, with original output timing.
 
 The oracle runs these C functions against a fully initialized native game for
-all eight real maps. 166,740 points cover face interiors, vertices and ±1/±7
+all eight real maps. Initially 166,740 points (expanded to 218,594 when fallback
+mesh vertices were added) cover face interiors, vertices and ±1/±7
 physics-unit quantization boundaries, root-grid boundaries and extreme integers.
 All three interfaces/statuses/partial outputs match. Small generated BSM fixtures
 add flat/vertical planes, division overflow, owner/extra flags; they pass through
@@ -89,6 +91,40 @@ cargo test -p tankracer-game --test terrain_reference auxiliary -- --ignored --n
 ```
 
 These modules add fixed per-vehicle state, no map cache/index. This is **not a
-working vehicle** yet: fallback geometry, deformation/contact integration,
-configuration, drive/pose and collision remain, then the browser proxy. Gameplay
+working vehicle** yet: deformation/contact integration, configuration, drive/pose
+and collision remain, then the browser proxy. Gameplay
 still uses the existing C reference; no whole-frame performance claim is made.
+
+Contact/suspension checkpoint: `9f638a2`.
+
+## Secondary grid and fallback normals
+
+`TerrainData::fallback` owns the second ordered 8x8 root grid and sector nodes;
+collision meshes and face-index storage share the primary decoder's arrays.
+The two root grids use the same validated parser. Cyclic chains, invalid grid
+offsets, missing face centers and invalid face indices are errors at load time.
+
+`geometry::fallback` follows the original sector rectangle/radius tests and flag-4
+mode filter. It compares stored triangle **bounding-box centers**, not centroids,
+surface intersections or Euclidean distances. The metric is largest unsigned
+magnitude plus one quarter of each other magnitude, then interpreted as signed
+32 bits. Only a strictly smaller result than the current best (initially 300000)
+replaces the candidate. A miss preserves the output normal. No allocation,
+byte-address callback, new spatial index or cache is used during queries.
+
+The C comparison covers 535,896 real-map queries around all secondary mesh
+centers, quantization boundaries, radius bounds, far heights and integer extremes.
+2,800 fixture queries additionally prove equal-distance source ordering, a
+successful mode-2/flag-4 selection (not present in the sampled shipped geometry),
+the strict cutoff and unsigned/wrapping magnitude behavior. All outputs match.
+The expanded primary/auxiliary oracles also pass after the decoder change.
+
+```powershell
+# Rebuild terrain_reference first; all C production sources remain unchanged.
+cargo test -p tankracer-game --test geometry_reference -- --ignored --nocapture
+```
+
+Next integration order: typed deformable geometry → primary sampling and its
+surface-noise/effect state → material/fallback/layout/lazy auxiliary/suspension
+pipeline → vehicle resource config and drive/pose/collision → browser proxy.
+Keep the exact dependency order, including previous-gap and stale-cache behavior.
