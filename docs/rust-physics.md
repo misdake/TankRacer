@@ -588,3 +588,79 @@ unchanged. No per-call allocation or per-map cache is added. Next:
 obstacle/deformable response and game dispatch, real impact particles/shared RNG,
 then motion and full vehicle orchestration. A complete moving Rust vehicle is
 still not running.
+
+Tank dispatch checkpoint: `bcdc436`.
+
+## Obstacle/deformable response and real mesh compression
+
+`obstacle_collision` connects the qualified queries to reflection, weighted
+velocity blending, class-specific score/size updates, feedback and synchronous
+method calls. The obstacle's speed threshold is checked **after** reflection:
+below-threshold hits keep the reflected velocity but skip blending and dispatch.
+Blending wraps each product and truncates the final signed sum by seven, across
+all three components; an apparently identity weight must not erase that arithmetic.
+Score gates compare exact class IDs, not inheritance or the player boolean.
+
+Deformable handling clears the material tag before querying, commits the contacted
+entity only after successful query completion, invokes feedback before reflection,
+then blends and dispatches. It consumes RNG only for eligible strict-bound contact
+points, and the first draw precedes the impact-pair test. Both impact calls and
+their shared RNG updates finish before considering the next contact. The pair's
+first index is saved before either callback, even if a callback changes forward
+velocity. Post-method contact checks observe current collider and vehicle data.
+Local query normals are deliberately passed through as in the source.
+
+The mutable world owns stable candidate handles and shared class tables; a method
+may change collider state or list membership synchronously. `dispatch` uses logical
+Rust method IDs rather than executable addresses. It preserves the original slot
+lifetime: normal/null-method success restores the saved slot, but an out-of-range
+interface or failed method keeps its changed slot. Result/scene writes survive
+failure. Missing classes/handles are explicit errors; no silent method stub exists.
+
+`deformable_hit` implements the actual 408170 method: strict +/-256 raw-vertex
+windows, signed-16 height narrowing and floor clamp, per-vertex lateral drift,
+material overwrite, hit owner/dirty flags and the sound-trigger timer. Both sound
+random draws occur even without device playback. This is separate from the earlier
+surface sampling stage's +/-128 window. It does not invent normal/radius updates.
+
+`scene_collision::Deformable` binds that real method into the collision invocation
+and owns one mutable mesh for future rendering and surface-query consumers. The
+method consumes **base position**, whereas the preceding query uses physical
+position. A composed native Rust test makes those positions different and checks
+the full query -> dispatch -> compression -> material/RNG path and slot restoration.
+This binding is not yet a complete runtime method registry or world loader.
+
+**6,144 C flow records / 141,312 words** pass (2,048 each for obstacle response,
+deformable response and standalone dispatch). These include 2,653 successful
+query hits, 2,674 service calls and 277 error results. The stateful service probe
+changes velocities, collider positions, lists, RNG and method slots to verify
+same-frame ordering, prefix commits, positive-error normalization and early gates.
+Those probe methods/impacts are contract tests, not claimed gameplay implementations.
+
+Separately, **4,096 actual C deformable-method records / 225,280 words** pass,
+including 183 injected flag-read failures and 261 sound triggers. Four-tick
+sequences cover all drift flag combinations, shift masking, zero/negative/large
+time deltas, geometry/height boundaries, absent/rotated bases and timer expiration.
+All modified vertices, material, timers, owner/dirty fields, output result and RNG
+match. Missing flag data stops after the current height write, preserving the
+source prefix. Ordinary tests explain strict-window and base-position behavior.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_obstacle.c build/native/libtankracer_core.a -o build/native/obstacle_reference.exe
+$env:TANKRACER_OBSTACLE_REFERENCE=(Resolve-Path build/native/obstacle_reference.exe).Path
+cargo test -p tankracer-game --test obstacle_reference -- --ignored --nocapture
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_deformable_hit.c build/native/libtankracer_core.a -o build/native/deformable_hit_reference.exe
+$env:TANKRACER_DEFORMABLE_HIT_REFERENCE=(Resolve-Path build/native/deformable_hit_reference.exe).Path
+cargo test -p tankracer-game --test deformable_hit_reference -- --ignored --nocapture
+```
+
+Shared RNG arithmetic is centralized in `random::next`; it still borrows the one
+game-owned seed. Existing all-map contact/pipeline C regression (6,144 records)
+also passes after this mechanical consolidation. Workspace tests and native/Wasm
+Clippy pass; all qualified C production sources are unchanged.
+
+The new stages add no spatial acceleration cache or per-call heap allocation.
+Owned world/class/candidate storage will need live aggregate accounting when
+connected to Wasm; it is not included in existing scene-budget measurements yet.
+Next: the real breakable-obstacle method/lifecycle and impact particles, then full
+motion/update orchestration. A complete moving Rust vehicle remains unfinished.

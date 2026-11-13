@@ -71,10 +71,7 @@ impl From<&tankracer_assets::config::Suspension> for LoadConfig {
 
 /// Original route initialization consumes sixteen values of the shared game RNG.
 pub fn initialize_noise(seed: &mut u32) -> [u16; 16] {
-    std::array::from_fn(|_| {
-        *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-        (*seed >> 4) as u16
-    })
+    std::array::from_fn(|_| (crate::random::next(seed) >> 4) as u16)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,7 +106,7 @@ impl SurfaceEffect {
             return;
         }
         self.timer = i32::from(self.timer.wrapping_sub(dt) as i16);
-        *seed = seed.wrapping_mul(0x19660d).wrapping_add(0x3c6ef35f);
+        crate::random::next(seed);
         self.phase = self
             .phase
             .wrapping_add((((*seed >> 4) & 65535) % 4000) as i32 - 2000);
