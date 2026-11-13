@@ -2,3 +2,5 @@
 //! work; individual kernels never stand in for an incomplete successful tick.
 pub mod lights;
 pub mod marks;
+pub mod shield;
+pub mod temporary;

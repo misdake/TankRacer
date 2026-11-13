@@ -395,6 +395,7 @@ fn fixture(case: usize) -> Fixture {
                 }
             })
         }),
+        ..prefix::Temporary::default()
     };
     let mut tuning = spin::Tuning::default();
     if case.is_multiple_of(11) {

@@ -2030,3 +2030,54 @@ whole-frame equivalence remain unclaimed; browser movement is still pending.
 $env:TANKRACER_VEHICLE_QUADS_REFERENCE=(Resolve-Path build/native/vehicle_quads_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_quads_reference --locked -- --ignored --nocapture
 ```
+
+## Shared temporary effects and shield orbit (2026-11-14)
+
+`vehicle_scene::temporary` now owns all four temporary line slots: timestamps,
+endpoint/color/phase payload and nine line handles per slot. `vehicle_prefix`
+re-exports that same owner, so prefix expiry and after-pose updates cannot use
+different copies of a slot. Activation preserves the strict unsigned oldest
+selection, already-active timestamp-only refresh, allocator exhaustion aliases,
+original endpoint/random ordering and retained phases. Tick commits each line
+and row in order; failures retain earlier geometry, color and RNG writes.
+Environment startup resets timestamps only, preserving other payload.
+
+`vehicle_scene::shield` owns nine shared strips of four orbits. Initialization
+executes exactly **180 global LCG draws**, retaining position payload while
+resetting the documented channels/tails. Tick integrates yaw with the old rate
+before chasing new rate/pitch targets, uses the original fixed-point tables,
+permits intermediate size overshoot and wraps spin to 16 bits. Player/nonplayer
+and bounded network-bank selection remain explicit. Its `AfterPose` view reads
+the canonical base position, basis and active effect flag. Startup must invoke
+initialization at the original point in the shared RNG sequence; a default
+zero-valued struct is not initialized world state. Do not replace shared strips
+with per-vehicle RNG/state or add an absent once-per-frame update gate.
+
+**VE02: 160 scenarios / 1,280 operations / 1,760,160 words / 8 error prefixes**
+match production bootstrap/start/tick/expiry calls. The native oracle counts
+actual RNG writes per operation; seed progression and draw counts both match.
+Totals: 28,800 bootstrap draws, 12,720 activation draws, 14,224 temporary-tick
+draws and 708 shield-tick draws. Includes 256 shield changes, 106 timestamp-only
+refreshes, 58 oldest-slot reuses and 33 full-line-pool effects. Failure coverage
+includes two activation/retirement failures, four line-update failures and two
+explicit expiry failures. Snapshots cover every temporary row, all nine shield
+strips, shared seed and all affected line/pool aliases. Only material resolution
+is supplied at the external resource boundary. This qualifies these components,
+not all side effects of the complete environment bootstrap.
+
+Fresh player, prefix, quad/mark/light and connected-physics regressions pass,
+as do workspace/native/Wasm checks, browser build and C preservation. Browser
+Wasm is unchanged at 183,235 B. No GPU extraction, moving-browser or whole-frame
+equivalence claim; no new per-map precomputation was added.
+
+Next after-pose work: track spray, damage smoke, shared debris and pickup fade,
+then the complete coordinator. For spray, inspect the 16-entry surface/type map
+and six 23-byte styles. Its stale-position radius offset is immediately
+overwritten in all three coordinates before any callback/query; removing those
+writes is a candidate source-proven simplification, to qualify by C comparison.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_energy.c build/native/libtankracer_core.a -lm -o build/native/vehicle_energy_reference.exe
+$env:TANKRACER_VEHICLE_ENERGY_REFERENCE=(Resolve-Path build/native/vehicle_energy_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_energy_reference --locked -- --ignored --nocapture
+```

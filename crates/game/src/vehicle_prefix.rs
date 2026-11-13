@@ -3,7 +3,7 @@ pub mod boost;
 pub mod spin;
 
 use crate::{
-    effect_pool::{LineHandle, Pool},
+    effect_pool::Pool,
     math::{self, Axis, Matrix},
 };
 use tankracer_assets::config::Gain;
@@ -57,33 +57,7 @@ impl View {
         Ok(())
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Temporary {
-    pub available: u32,
-    pub timestamps: [u32; 4],
-    pub lines: [[LineHandle; 9]; 4],
-}
-impl Default for Temporary {
-    fn default() -> Self {
-        Self {
-            available: 0,
-            timestamps: [0; 4],
-            lines: [[LineHandle(0); 9]; 4],
-        }
-    }
-}
-impl Temporary {
-    /// Releases in row/column order, including repeated and exhausted handles.
-    pub fn expire(&mut self, slot: i16, pool: &mut Pool) -> Result<(), i32> {
-        let handles = self.lines.get(slot as usize).ok_or(-1)?;
-        for handle in handles {
-            pool.release(*handle).map_err(|_| -1)?;
-        }
-        self.available = slot as u32;
-        self.timestamps[slot as usize] = 0;
-        Ok(())
-    }
-}
+pub use crate::vehicle_scene::temporary::State as Temporary;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub alternating_sign: i32,
