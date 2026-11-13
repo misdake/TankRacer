@@ -10,11 +10,12 @@
   vehicle poses/model assembly/damage, ordered object queries and collision
   response, deformable objects, breakable hit chains, spatial/tick membership,
   impact particles/shared line pool and real ground-effect bindings; composed
-  post-collision integration, attitude, articulation, poses and contact hull.
-- Last verified code: **`84bdfb2`**. 1,078 actual C update-boundary records match
-  across all 15 cars / eight maps, including 110 failure prefixes. Workspace
-  tests, native/Wasm Clippy and unchanged-C source verification pass.
-  This checks the motion half, not the complete Rust vehicle update.
+  post-collision motion/poses/hull, plus vehicle contact and powertrain bindings.
+- Last verified code: **`ed3856a`**. 4,800 powertrain + 6,144 actual vehicle-contact
+  C records match; earlier motion boundary checks remain qualified. Existing
+  drive/pipeline regressions, workspace tests, native/Wasm Clippy and unchanged-C
+  verification pass. Shared vehicle fields now have explicit commit boundaries;
+  the complete Rust vehicle update caller is still missing.
 - Remaining scene gaps include tank/obstacle particle bindings,
   auxiliary/destruction effects, object motion ticks and the full scheduler;
   probes do not complete them.
@@ -24,9 +25,9 @@
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: connect pre-contact timers/abilities, contact, velocity/drive/yaw and
-  ordered collisions to the motion finalizer; implement real after-pose effects
-  and construct the Rust world → browser proxy.
+- Next: one active update caller joining contact → powertrain → ordered
+  collisions → motion, with real collision-effect bindings; add pre-contact
+  timers/abilities and after-pose effects, then Rust world construction → proxy.
   No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
