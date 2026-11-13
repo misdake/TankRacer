@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tank Racer CUP</title>
+ <link rel="stylesheet" href="./vendor/bootstrap.min.css"><link rel="stylesheet" href="./src/reconstruction.css">
+</head>
+<body>
+ <main id="surface">
+  <canvas id="game" width="640" height="480" tabindex="0" aria-label="Tank Racer CUP"></canvas>
+  <div id="game-tools" class="d-flex gap-2" data-bs-theme="dark" hidden>
+   <div class="dropup">
+    <button id="controls-toggle" class="btn btn-dark border-secondary tool-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Controls" aria-expanded="false" aria-controls="controls-panel" title="Controls">
+     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h2m2 0h2m2 0h2m2 0h2M5 12h2m2 0h2m2 0h2m2 0h2M7 16h10"/></svg>
+    </button>
+    <section id="controls-panel" class="dropdown-menu dropdown-menu-end p-3 shadow" aria-labelledby="controls-toggle">
+     <h2 class="h6 mb-2">Controls</h2>
+     <table class="table table-sm align-middle mb-0"><tbody>
+      <tr><td>Accelerate / Brake</td><td><kbd>↑</kbd> / <kbd>↓</kbd></td></tr>
+      <tr><td>Steer</td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+      <tr><td>Handbrake</td><td><kbd>A</kbd></td></tr>
+      <tr><td>Fire</td><td><kbd>Space</kbd></td></tr>
+      <tr><td>Turret left / right</td><td><kbd>Z</kbd> / <kbd>X</kbd></td></tr>
+      <tr><td>Horn</td><td><kbd>H</kbd></td></tr>
+      <tr><td>Rear view</td><td><kbd>V</kbd></td></tr>
+      <tr><td>Camera</td><td><kbd>C</kbd></td></tr>
+      <tr><td>Pause / Resume</td><td><kbd>Esc</kbd></td></tr>
+     </tbody></table>
+    </section>
+   </div>
+   <div class="dropup">
+    <button id="info-toggle" class="btn btn-dark border-secondary tool-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Information" aria-expanded="false" aria-controls="info-panel" title="Information">
+     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg>
+    </button>
+    <section id="info-panel" class="dropdown-menu dropdown-menu-end p-3 shadow" aria-labelledby="info-toggle">
+     <a id="source-link" class="link-light" href="https://oldgamesdownload.com/game/tank-racer-k4f/" target="_blank" rel="noopener noreferrer">Tank Racer · Old Games Download</a>
+     <hr><div class="d-flex align-items-center gap-2">
+      <button id="unlock-all" class="btn btn-outline-warning btn-sm info-action" type="button">Unlock all</button>
+      <button id="no-opponents" class="btn btn-outline-secondary btn-sm info-action" type="button" aria-pressed="false">No opponents</button>
+     </div>
+    </section>
+   </div>
+  </div>
+  <div id="loading" class="d-flex align-items-center justify-content-center" data-bs-theme="dark" aria-live="polite" aria-busy="true">
+   <div class="loading-card bg-dark rounded p-3 shadow">
+    <div class="d-flex justify-content-between gap-3 small mb-2"><span id="loading-label">Loading game</span><span id="loading-percent">0%</span></div>
+    <div class="progress" role="progressbar" aria-label="Loading progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div id="loading-bar" class="progress-bar" style="width:0%"></div></div>
+    <div id="loading-size" class="small text-body-secondary mt-2">Calculating download size…</div>
+   </div>
+  </div>
+  <div id="error" role="alert" hidden></div>
+ </main>
+ <script src="./vendor/bootstrap.bundle.min.js"></script><script type="module" src="./src/reconstruction.js"></script>
+</body>
+</html>

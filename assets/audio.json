@@ -1,0 +1,1113 @@
+{
+  "sounds": {
+    "engine1": {
+      "pack": "menu",
+      "offset": 12,
+      "bytes": 64340,
+      "sha256": "64726aae31d6b88bb2a02b3d93d2d85c8c0e3cb3daedd537b0aa69213306b138",
+      "frames": 32148,
+      "sample_rate": 22050
+    },
+    "select1": {
+      "pack": "menu",
+      "offset": 64352,
+      "bytes": 21810,
+      "sha256": "8b9b8fc3f79850117deb1ef25e8bea049668de326f7e73c2f73e6a186e3eab3a",
+      "frames": 10883,
+      "sample_rate": 22050
+    },
+    "select12": {
+      "pack": "menu",
+      "offset": 86164,
+      "bytes": 18090,
+      "sha256": "301302667256212e324ec406ad405162e8965ea0fcdf748f891564f2724b4d61",
+      "frames": 9023,
+      "sample_rate": 22050
+    },
+    "select13": {
+      "pack": "menu",
+      "offset": 104256,
+      "bytes": 17866,
+      "sha256": "f1aa46194d792993ce2be7dc58eb19467dae5b3f0687fe547b1a42fcec6c987c",
+      "frames": 8885,
+      "sample_rate": 22050
+    },
+    "select14": {
+      "pack": "menu",
+      "offset": 122124,
+      "bytes": 14982,
+      "sha256": "cf5fbfe6338597ca05f3c1d9f188c3c0d63a9df14808581526db4a94f6602fb9",
+      "frames": 7443,
+      "sample_rate": 22050
+    },
+    "select15": {
+      "pack": "menu",
+      "offset": 137108,
+      "bytes": 16962,
+      "sha256": "f4e26e8ca826d61306df696b588c4362f7cc6a60619c483f8c165a4595e5383f",
+      "frames": 8433,
+      "sample_rate": 22050
+    },
+    "select7": {
+      "pack": "menu",
+      "offset": 154072,
+      "bytes": 28676,
+      "sha256": "04dcf23dd3082da160e2aaacda91fc28f6b96b671e4c42d936335e0d19cac513",
+      "frames": 14290,
+      "sample_rate": 22050
+    },
+    "select8": {
+      "pack": "menu",
+      "offset": 182748,
+      "bytes": 26652,
+      "sha256": "9c22edff422203bf0c5fde43d6a17cab6456cb3737d0b96ec37b3285205685b9",
+      "frames": 13278,
+      "sample_rate": 22050
+    },
+    "select9": {
+      "pack": "menu",
+      "offset": 209400,
+      "bytes": 17930,
+      "sha256": "3cffb2d8716cc3285ddadabe72cbe0219406b0966a7b6f1f38e648899e3c37ea",
+      "frames": 8943,
+      "sample_rate": 22050
+    },
+    "slider": {
+      "pack": "menu",
+      "offset": 227332,
+      "bytes": 44144,
+      "sha256": "64e131973cba9369868f8bd80ebe5d601f307093596afd87807ad094bb89be41",
+      "frames": 22050,
+      "sample_rate": 22050
+    },
+    "alarm_lp": {
+      "pack": "game",
+      "offset": 12,
+      "bytes": 43444,
+      "sha256": "e3c9aadb46c37cbbcd620d44dc9ade3719d68f1063f7b4541454db70a86ca56e",
+      "frames": 21700,
+      "sample_rate": 22050
+    },
+    "bats": {
+      "pack": "game",
+      "offset": 43456,
+      "bytes": 85968,
+      "sha256": "d8e1ff65299e5c933c9555f24a894a6e40e482b1f88d8bd7f30a40c66dfa2794",
+      "frames": 42962,
+      "sample_rate": 22050
+    },
+    "beeps2": {
+      "pack": "game",
+      "offset": 129424,
+      "bytes": 21212,
+      "sha256": "25b0be787b88a089f5642a707fb63c80839b09adabccf64cbbaa01f67ca2983d",
+      "frames": 10584,
+      "sample_rate": 22050
+    },
+    "belch": {
+      "pack": "game",
+      "offset": 150636,
+      "bytes": 92654,
+      "sha256": "930622faf13a85ad65736250f1986d9e69e0498086fa2612fcad983d36838140",
+      "frames": 46305,
+      "sample_rate": 22050
+    },
+    "big_w": {
+      "pack": "game",
+      "offset": 243292,
+      "bytes": 63790,
+      "sha256": "94d5faf238b9b8b1b389197e86bc04351ac928d5c5c46f86166c36b5597cce02",
+      "frames": 31873,
+      "sample_rate": 22050
+    },
+    "blowhorn": {
+      "pack": "game",
+      "offset": 307084,
+      "bytes": 29832,
+      "sha256": "10c01603c38e01927772aa73beb9be2c45105946c5b4c1789b9be9a41c7febee",
+      "frames": 14841,
+      "sample_rate": 22050
+    },
+    "break8": {
+      "pack": "game",
+      "offset": 336916,
+      "bytes": 16476,
+      "sha256": "0947d8eb08eb54636e6fb6bcac290cca8d0aef488f40a4f7f9a29c64e2805cb1",
+      "frames": 8174,
+      "sample_rate": 22050
+    },
+    "chick": {
+      "pack": "game",
+      "offset": 353392,
+      "bytes": 112086,
+      "sha256": "01809449e7a465ed43222aef0e1b7d4afc0f6066b7a370178151b8a6ead85eec",
+      "frames": 56021,
+      "sample_rate": 22050
+    },
+    "chrcbell": {
+      "pack": "game",
+      "offset": 465480,
+      "bytes": 94860,
+      "sha256": "4136c41ab13de4ebd8474a4557c5c6869244ed550b8a93c934432c2247cb7940",
+      "frames": 47408,
+      "sample_rate": 22050
+    },
+    "churbel2": {
+      "pack": "game",
+      "offset": 560340,
+      "bytes": 99174,
+      "sha256": "c355b1c40d97be78f194d0896ba718676ee5c9a617f4ee5ea075c479bde7efe6",
+      "frames": 49565,
+      "sample_rate": 22050
+    },
+    "clang": {
+      "pack": "game",
+      "offset": 659516,
+      "bytes": 24620,
+      "sha256": "af3bf6ef4607a263000bc7cbe160959277ddb19903b31765d43c0ff22e91eee1",
+      "frames": 12288,
+      "sample_rate": 22050
+    },
+    "clang2": {
+      "pack": "game",
+      "offset": 684136,
+      "bytes": 52588,
+      "sha256": "0eec954e38f0a3f09a87b4bd0930703e423f9ea5bf4a68bf04d5ac88f88759a4",
+      "frames": 26272,
+      "sample_rate": 22050
+    },
+    "clang3": {
+      "pack": "game",
+      "offset": 736724,
+      "bytes": 23000,
+      "sha256": "4f9825a75df2ddecf067317703e7dc4533bf28a3afe572e463bc3f6083c2de73",
+      "frames": 11444,
+      "sample_rate": 22050
+    },
+    "clock": {
+      "pack": "game",
+      "offset": 759724,
+      "bytes": 11070,
+      "sha256": "82e8881585dfc0cc5fefc9ed763852c41caf17041d7d96453d152c5893d3db71",
+      "frames": 5513,
+      "sample_rate": 22050
+    },
+    "clunk7": {
+      "pack": "game",
+      "offset": 770796,
+      "bytes": 28116,
+      "sha256": "5d1e576093dca09d128d9c3f886b6554c8e7d9f522949bdabefc1df4f6d3815a",
+      "frames": 13988,
+      "sample_rate": 22050
+    },
+    "collide": {
+      "pack": "game",
+      "offset": 798912,
+      "bytes": 17142,
+      "sha256": "bb1afcb2fcee711d8ba44f290c44dcd24ac4cf614f33396ef57f43924103c962",
+      "frames": 8515,
+      "sample_rate": 22050
+    },
+    "cow1": {
+      "pack": "game",
+      "offset": 816056,
+      "bytes": 51544,
+      "sha256": "fa7e10d9446945f92f4b06dbe6251d11d46ae2de0c9dd438e24590009f143d90",
+      "frames": 25750,
+      "sample_rate": 22050
+    },
+    "crash4": {
+      "pack": "game",
+      "offset": 867600,
+      "bytes": 35112,
+      "sha256": "063368c70e06cf9cc2431178202173205dbd403f17b9b2483ccc1329f52ee7b4",
+      "frames": 17508,
+      "sample_rate": 22050
+    },
+    "crash9": {
+      "pack": "game",
+      "offset": 902712,
+      "bytes": 29010,
+      "sha256": "7531fc71216a61717f31a89e5865c72161b68853fad4eee63b54f6f0def003d7",
+      "frames": 14441,
+      "sample_rate": 22050
+    },
+    "crowd2": {
+      "pack": "game",
+      "offset": 931724,
+      "bytes": 88244,
+      "sha256": "34c8bde4a2f1072472966661ed75ae3bd7965fde1e84ce540658dfee16931837",
+      "frames": 44100,
+      "sample_rate": 22050
+    },
+    "crowd3": {
+      "pack": "game",
+      "offset": 1019968,
+      "bytes": 45180,
+      "sha256": "468b31000b880f3c25eb4390ab49d0a1e40bd05ee4277183cbc76f2fbd84328f",
+      "frames": 22568,
+      "sample_rate": 22050
+    },
+    "crush": {
+      "pack": "game",
+      "offset": 1065148,
+      "bytes": 68416,
+      "sha256": "2d65fbf15709807dbf36069605481182d9ed682a5a820a9a75fa90e17f299196",
+      "frames": 34138,
+      "sample_rate": 22050
+    },
+    "duck": {
+      "pack": "game",
+      "offset": 1133564,
+      "bytes": 8748,
+      "sha256": "97677b3d24b50b4e65d8e6f089d8f8a0c082e74b501b98f71b71354161c3359c",
+      "frames": 4352,
+      "sample_rate": 22050
+    },
+    "eagle": {
+      "pack": "game",
+      "offset": 1142312,
+      "bytes": 86962,
+      "sha256": "ab782dca2581af4b40c5e453819f22a3dc95b57feb68cb1d8b09ca74fb36654b",
+      "frames": 43459,
+      "sample_rate": 22050
+    },
+    "enloopb2": {
+      "pack": "game",
+      "offset": 1229276,
+      "bytes": 56658,
+      "sha256": "161cdde4f39231bf48f063dbf2a64c4bb169ae29da77cad494bf28f247972f5e",
+      "frames": 28281,
+      "sample_rate": 22050
+    },
+    "enloopg3": {
+      "pack": "game",
+      "offset": 1285936,
+      "bytes": 56492,
+      "sha256": "19447cf9daa5df2fc334f9ff9020e73a3135b07575f698c91743e6b2d6633278",
+      "frames": 28224,
+      "sample_rate": 22050
+    },
+    "enloops2": {
+      "pack": "game",
+      "offset": 1342428,
+      "bytes": 56658,
+      "sha256": "f768e0c4a21e95719d256c2901ae5f0acad0ddd6fa463d47c5b67a95a24227c6",
+      "frames": 28281,
+      "sample_rate": 22050
+    },
+    "expldshl": {
+      "pack": "game",
+      "offset": 1399088,
+      "bytes": 45036,
+      "sha256": "c55aa83b41c6e7387fad0ecf786c742d50c2137cde18c94e2e427f986cd54c63",
+      "frames": 22496,
+      "sample_rate": 22050
+    },
+    "fire1": {
+      "pack": "game",
+      "offset": 1444124,
+      "bytes": 50048,
+      "sha256": "e6a24e3c99ed2c4884b13f2e05438298cb0298f31b2df96868c8103ac777f5eb",
+      "frames": 25002,
+      "sample_rate": 22050
+    },
+    "flap": {
+      "pack": "game",
+      "offset": 1494172,
+      "bytes": 62156,
+      "sha256": "a8a42fed699412745497beeab25087e5226e3aa60d8ef8f07c86538fe3b3dcc8",
+      "frames": 31008,
+      "sample_rate": 22050
+    },
+    "foghorn": {
+      "pack": "game",
+      "offset": 1556328,
+      "bytes": 63990,
+      "sha256": "8c21e4786ea891bb5d9eeda9f2110d68d532c8cad9d3ada0619b56bd39591b8e",
+      "frames": 31973,
+      "sample_rate": 22050
+    },
+    "frog": {
+      "pack": "game",
+      "offset": 1620320,
+      "bytes": 43628,
+      "sha256": "a35bed79d57cb26974654b73c2d57b8a531a7e3758bcfd60f4fe9a787a8faa51",
+      "frames": 21792,
+      "sample_rate": 22050
+    },
+    "genrator": {
+      "pack": "game",
+      "offset": 1663948,
+      "bytes": 69372,
+      "sha256": "c4188bb0096bc971fbea0983a7e9c48b895551200874f2a22ac858e36f0fcd84",
+      "frames": 34664,
+      "sample_rate": 22050
+    },
+    "ghost": {
+      "pack": "game",
+      "offset": 1733320,
+      "bytes": 8192,
+      "sha256": "a26c06db312d7dfdff8c623dd51b431ef88bd465de092bb01c8c184a157fa8ad",
+      "frames": 4074,
+      "sample_rate": 22050
+    },
+    "gobeep": {
+      "pack": "game",
+      "offset": 1741512,
+      "bytes": 44144,
+      "sha256": "ec5d31545cd93f7b7d0e6d749961c7289dcff45b10a3da06d75205ba414e295f",
+      "frames": 22050,
+      "sample_rate": 22050
+    },
+    "gsel15": {
+      "pack": "game",
+      "offset": 1785656,
+      "bytes": 16962,
+      "sha256": "f4e26e8ca826d61306df696b588c4362f7cc6a60619c483f8c165a4595e5383f",
+      "frames": 8433,
+      "sample_rate": 22050
+    },
+    "gustwind": {
+      "pack": "game",
+      "offset": 1802620,
+      "bytes": 86270,
+      "sha256": "c56c446ba5bf947b9c993f43acb10578eaa023619573f6be60695b66330dc308",
+      "frames": 43113,
+      "sample_rate": 22050
+    },
+    "homing": {
+      "pack": "game",
+      "offset": 1888892,
+      "bytes": 85060,
+      "sha256": "5947fcf8063276eb8244770ca47f304aba57328ba769d8dd9b2b0333a59eaafe",
+      "frames": 42508,
+      "sample_rate": 22050
+    },
+    "horn1": {
+      "pack": "game",
+      "offset": 1973952,
+      "bytes": 43100,
+      "sha256": "f423fac05850c7f303b890558a864b15c330da0971934b6f93762eb39353c8a1",
+      "frames": 21528,
+      "sample_rate": 22050
+    },
+    "horn2": {
+      "pack": "game",
+      "offset": 2017052,
+      "bytes": 60018,
+      "sha256": "85aa27d39c469aba64e76e3cfaa2e57ce93faab38bef05150b83334be2d33306",
+      "frames": 29987,
+      "sample_rate": 22050
+    },
+    "horn3": {
+      "pack": "game",
+      "offset": 2077072,
+      "bytes": 13452,
+      "sha256": "0ca07f30e0bfdd3fb5d0d8c24a0e6d11c3abfc7b48f57a09f9c84b56de6601e6",
+      "frames": 6704,
+      "sample_rate": 22050
+    },
+    "horn4": {
+      "pack": "game",
+      "offset": 2090524,
+      "bytes": 29832,
+      "sha256": "10c01603c38e01927772aa73beb9be2c45105946c5b4c1789b9be9a41c7febee",
+      "frames": 14841,
+      "sample_rate": 22050
+    },
+    "horn5": {
+      "pack": "game",
+      "offset": 2120356,
+      "bytes": 27580,
+      "sha256": "ada7ddd83cd7bae57e9cfdf5556b47d2d71da0ba5fba0077f11059a619b6c0f3",
+      "frames": 13768,
+      "sample_rate": 22050
+    },
+    "humcl3": {
+      "pack": "game",
+      "offset": 2147936,
+      "bytes": 52188,
+      "sha256": "e23e522e4fd3ff6de1c0fc3628a23088c17effacdd7725369c14c2554ee4ba96",
+      "frames": 26072,
+      "sample_rate": 22050
+    },
+    "humcol2": {
+      "pack": "game",
+      "offset": 2200124,
+      "bytes": 41064,
+      "sha256": "c45c95ba123c15dba717f88328d0d74b2f2c98b074eaa8882b8872df2943c819",
+      "frames": 20510,
+      "sample_rate": 22050
+    },
+    "humcoll": {
+      "pack": "game",
+      "offset": 2241188,
+      "bytes": 24884,
+      "sha256": "1c0be521b90f5f5c554e9b8630f908ce7cc6f374b4fa2c77e6a5a0282afa2478",
+      "frames": 12420,
+      "sample_rate": 22050
+    },
+    "humconc": {
+      "pack": "game",
+      "offset": 2266072,
+      "bytes": 38234,
+      "sha256": "8d6f0ceb4be98e5f4d0f53bef48a98901d97d30d028a48a5d121c65f6971d0e5",
+      "frames": 19095,
+      "sample_rate": 22050
+    },
+    "humeng": {
+      "pack": "game",
+      "offset": 2304308,
+      "bytes": 56702,
+      "sha256": "86c790d73bef8fda5e84124dc0fc1817b35efe8ce2ab4d384a0005669cc4a9de",
+      "frames": 28329,
+      "sample_rate": 22050
+    },
+    "humexpld": {
+      "pack": "game",
+      "offset": 2361012,
+      "bytes": 35178,
+      "sha256": "f62f1c3c97400d901d382c31f328ee8f3e0a972e10518c7b05d9289912914763",
+      "frames": 17567,
+      "sample_rate": 22050
+    },
+    "humfire": {
+      "pack": "game",
+      "offset": 2396192,
+      "bytes": 22886,
+      "sha256": "7d9176d1d6ab25d8187ff2025053d92dd99f4c14c05bc5786033d5aea7a5e2bb",
+      "frames": 11421,
+      "sample_rate": 22050
+    },
+    "humhom": {
+      "pack": "game",
+      "offset": 2419080,
+      "bytes": 76086,
+      "sha256": "4a3a549415d64c737036e765cfd3f999530d00703faffb53fcadc8c621b65bf0",
+      "frames": 38021,
+      "sample_rate": 22050
+    },
+    "humhorn": {
+      "pack": "game",
+      "offset": 2495168,
+      "bytes": 29748,
+      "sha256": "419a01e2b4dfd45ca10c8dbbe0098e0ef393421b93a1bb5a83f810924e3590f5",
+      "frames": 14852,
+      "sample_rate": 22050
+    },
+    "humpick": {
+      "pack": "game",
+      "offset": 2524916,
+      "bytes": 28926,
+      "sha256": "f771719bc23b99dc0cc7c2ea4644057fbbab0b6557465be4f1b68bd0d98d8efc",
+      "frames": 14441,
+      "sample_rate": 22050
+    },
+    "humrock": {
+      "pack": "game",
+      "offset": 2553844,
+      "bytes": 53880,
+      "sha256": "182b161e8876d127e4ebea6901b7e4913517a401efdf4cc6756a7c6f83f0e194",
+      "frames": 26918,
+      "sample_rate": 22050
+    },
+    "humshdo": {
+      "pack": "game",
+      "offset": 2607724,
+      "bytes": 54426,
+      "sha256": "804d0802505af5aa9050f7245710c1369ee0ef861475fe28c7bc4e571e9017cd",
+      "frames": 27191,
+      "sample_rate": 22050
+    },
+    "humshgo": {
+      "pack": "game",
+      "offset": 2662152,
+      "bytes": 53490,
+      "sha256": "a261c2037a3ffac3ec45ee631236642a56486823148a57e91ecb12cbc5784fa2",
+      "frames": 26723,
+      "sample_rate": 22050
+    },
+    "humshup": {
+      "pack": "game",
+      "offset": 2715644,
+      "bytes": 27972,
+      "sha256": "fcfb6114c2cc0764368c69e25092873661e5e86f196531d29ab58765f6d1bff6",
+      "frames": 13964,
+      "sample_rate": 22050
+    },
+    "humskid": {
+      "pack": "game",
+      "offset": 2743616,
+      "bytes": 17788,
+      "sha256": "e46e7de83618b42c62f93ca69de8038824900c27bc760d4440fb4dcc8898d5d9",
+      "frames": 8872,
+      "sample_rate": 22050
+    },
+    "humspla": {
+      "pack": "game",
+      "offset": 2761404,
+      "bytes": 37336,
+      "sha256": "1481cf95829a67e95076260e0788732605187e0cc77b1b7e610bd648b8ab9f76",
+      "frames": 18646,
+      "sample_rate": 22050
+    },
+    "humsstop": {
+      "pack": "game",
+      "offset": 2798740,
+      "bytes": 23736,
+      "sha256": "c0cf9964f87a75ed49caf601536d118f247bd9d8eb4e109e0cd8d3c5f6262ca6",
+      "frames": 11846,
+      "sample_rate": 22050
+    },
+    "humsusp": {
+      "pack": "game",
+      "offset": 2822476,
+      "bytes": 49070,
+      "sha256": "95d186ea0a1cc3692b38f51816dfe89e3eae5df8fb0baf7f9fd25b9feb4b4599",
+      "frames": 24513,
+      "sample_rate": 22050
+    },
+    "humtgrnd": {
+      "pack": "game",
+      "offset": 2871548,
+      "bytes": 22304,
+      "sha256": "20a1961b3520ec8033d40eb95a5b724e0691e311d620fa005b7afd48efb859aa",
+      "frames": 11130,
+      "sample_rate": 22050
+    },
+    "humthun": {
+      "pack": "game",
+      "offset": 2893852,
+      "bytes": 38330,
+      "sha256": "f1e04f666ca2e6a6b7684d6411ea4854f455e6033c31bb814df433b7b3c2ddf2",
+      "frames": 19143,
+      "sample_rate": 22050
+    },
+    "humturbo": {
+      "pack": "game",
+      "offset": 2932184,
+      "bytes": 42532,
+      "sha256": "40a7772c0a4c723b60b239489cb45e21cb063bbf50171f67b6046e18be5c36d3",
+      "frames": 21244,
+      "sample_rate": 22050
+    },
+    "humturr": {
+      "pack": "game",
+      "offset": 2974716,
+      "bytes": 15080,
+      "sha256": "27b832e0af285142e347809991fc6cb2bafc2db4bd1398cd9920830d744d51d4",
+      "frames": 7518,
+      "sample_rate": 22050
+    },
+    "humwat": {
+      "pack": "game",
+      "offset": 2989796,
+      "bytes": 37718,
+      "sha256": "4725171ce0afa41ac49c5ab58a1ea7f5a9cc95b5e498c824c047da08b36fb953",
+      "frames": 18837,
+      "sample_rate": 22050
+    },
+    "jjet3": {
+      "pack": "game",
+      "offset": 3027516,
+      "bytes": 22094,
+      "sha256": "86e1bb77d1efb246dae88d64908ea4df123a4c2ecf72a9e3aeff5a61cf33d7cb",
+      "frames": 11025,
+      "sample_rate": 22050
+    },
+    "mining": {
+      "pack": "game",
+      "offset": 3049612,
+      "bytes": 97058,
+      "sha256": "2772f8666a31dc0e52f6705d81a16e42fe629dd08067a5959ad3a370273974a1",
+      "frames": 48507,
+      "sample_rate": 22050
+    },
+    "motrbike": {
+      "pack": "game",
+      "offset": 3146672,
+      "bytes": 45684,
+      "sha256": "e22a049c901822e70f619b656bdd6eea385579eba9fc29275b05223520b5d97a",
+      "frames": 22820,
+      "sample_rate": 22050
+    },
+    "nuskid1": {
+      "pack": "game",
+      "offset": 3192356,
+      "bytes": 22444,
+      "sha256": "40570eaba5c8c9cc7dd5adc4c82bedfa10212be4fe558c0ad7abf83d2f887a4d",
+      "frames": 11200,
+      "sample_rate": 22050
+    },
+    "nuspdown": {
+      "pack": "game",
+      "offset": 3214800,
+      "bytes": 33586,
+      "sha256": "77f9704fc906601a586304bc3d1fecdb9e3e871a3c586bbe5e59e4bbd6209ca0",
+      "frames": 16771,
+      "sample_rate": 22050
+    },
+    "nuwater1": {
+      "pack": "game",
+      "offset": 3248388,
+      "bytes": 38706,
+      "sha256": "036388bf1088292bb4f5acf38884535f6f4c98945b4f369648bdf08d2c498eae",
+      "frames": 19331,
+      "sample_rate": 22050
+    },
+    "pickup10": {
+      "pack": "game",
+      "offset": 3287096,
+      "bytes": 34524,
+      "sha256": "2eadfea81aa3d93ff4a1631e6558ce9deb24091469e759f7700931e500bfe233",
+      "frames": 17240,
+      "sample_rate": 22050
+    },
+    "pickup13": {
+      "pack": "game",
+      "offset": 3321620,
+      "bytes": 30968,
+      "sha256": "5d7d4c49d1960542e1699d6c4cbc154be299b0b2a47031a7b9112ac03ca64e7b",
+      "frames": 15414,
+      "sample_rate": 22050
+    },
+    "pickup2": {
+      "pack": "game",
+      "offset": 3352588,
+      "bytes": 37884,
+      "sha256": "9a21022a9d2bb91dbc177b85f7e90f8a3ae1f121541ea2e4d4532646b0387750",
+      "frames": 18867,
+      "sample_rate": 22050
+    },
+    "pig": {
+      "pack": "game",
+      "offset": 3390472,
+      "bytes": 13700,
+      "sha256": "69477501f67d9e179a824b2fd514e6a6de1e5c67d5a7760d4daa853975b66da6",
+      "frames": 6828,
+      "sample_rate": 22050
+    },
+    "pit": {
+      "pack": "game",
+      "offset": 3404172,
+      "bytes": 117562,
+      "sha256": "7392c9ae885025f5896cf832d60e3c83766bbeaf937c5a9a2dfdbfe7cc9c059b",
+      "frames": 58759,
+      "sample_rate": 22050
+    },
+    "plastic": {
+      "pack": "game",
+      "offset": 3521736,
+      "bytes": 19020,
+      "sha256": "32eb6998e75e21625417629e6580a24f47aa38282ccacac074571d655d590802",
+      "frames": 9454,
+      "sample_rate": 22050
+    },
+    "prop2": {
+      "pack": "game",
+      "offset": 3540756,
+      "bytes": 7378,
+      "sha256": "0df890e77c1f1a0eb965c344f425fed7ae420906ddcb418cb97281c6e7104320",
+      "frames": 3667,
+      "sample_rate": 22050
+    },
+    "quiksand": {
+      "pack": "game",
+      "offset": 3548136,
+      "bytes": 103252,
+      "sha256": "c3cd226eeb4dd33ac890fcdb8eed41df93b4a3f2f16d99c43bd45dd7032872b0",
+      "frames": 51604,
+      "sample_rate": 22050
+    },
+    "revback": {
+      "pack": "game",
+      "offset": 3651388,
+      "bytes": 13374,
+      "sha256": "ea472bc967f887095b9a891bb60ca8ff30df09452cdf37ffc8297437eed3cbf8",
+      "frames": 6612,
+      "sample_rate": 22050
+    },
+    "robcrash": {
+      "pack": "game",
+      "offset": 3664764,
+      "bytes": 35112,
+      "sha256": "f50428c8dcc30923cbc72cdc29138069137b4e541bafd8663ce16d0d9239788e",
+      "frames": 17508,
+      "sample_rate": 22050
+    },
+    "rock": {
+      "pack": "game",
+      "offset": 3699876,
+      "bytes": 77862,
+      "sha256": "91501fa809b508089b15dd4867c01cc6997fbc80198de994fa347fd6d8ae350e",
+      "frames": 38909,
+      "sample_rate": 22050
+    },
+    "rockfall": {
+      "pack": "game",
+      "offset": 3777740,
+      "bytes": 39862,
+      "sha256": "33dd4a600a32d3156ab30f56e45a8b9376bb3a90c859b5cd00c431bc8555fac0",
+      "frames": 19909,
+      "sample_rate": 22050
+    },
+    "sea": {
+      "pack": "game",
+      "offset": 3817604,
+      "bytes": 112026,
+      "sha256": "8302f905c7c7c39b3f97da552b6fa0b492ec3a63bcb20515d95e35e352ad823d",
+      "frames": 55991,
+      "sample_rate": 22050
+    },
+    "seagull": {
+      "pack": "game",
+      "offset": 3929632,
+      "bytes": 41442,
+      "sha256": "3e21a7a2e1a2356bebf8275d612a5251b20dd48a1fd7182c55f089026eb513af",
+      "frames": 20699,
+      "sample_rate": 22050
+    },
+    "selfx2": {
+      "pack": "game",
+      "offset": 3971076,
+      "bytes": 53074,
+      "sha256": "f06671e810f50400b61838f77c03331635273c2c023d90193d5ec52438c54e55",
+      "frames": 26489,
+      "sample_rate": 22050
+    },
+    "sheep": {
+      "pack": "game",
+      "offset": 4024152,
+      "bytes": 26650,
+      "sha256": "6de82fbc8217b66f17735f00021272ec8e89b7a461add41534af4c35a411efe0",
+      "frames": 13303,
+      "sample_rate": 22050
+    },
+    "shell4-1": {
+      "pack": "game",
+      "offset": 4050804,
+      "bytes": 68404,
+      "sha256": "3e66506c7de43792499d0a433595b4faf0e031b03bb74228d6435ad350b2a566",
+      "frames": 34154,
+      "sample_rate": 22050
+    },
+    "shield1": {
+      "pack": "game",
+      "offset": 4119208,
+      "bytes": 53896,
+      "sha256": "e642ab13f4c16ebc73fc3fb20dda6b0182f0c0df616cbd839f1a1918c2e13e8c",
+      "frames": 26926,
+      "sample_rate": 22050
+    },
+    "shpcreak": {
+      "pack": "game",
+      "offset": 4173104,
+      "bytes": 81616,
+      "sha256": "a480f56f25ad6db1e7f637748b58b625537de78a9a83cf829b3858206ec2ac8e",
+      "frames": 40786,
+      "sample_rate": 22050
+    },
+    "space": {
+      "pack": "game",
+      "offset": 4254720,
+      "bytes": 43784,
+      "sha256": "953c8f683a2e10bdebd03052898f1f5f571e03baedc456a19bc917a2bf86a73b",
+      "frames": 21870,
+      "sample_rate": 22050
+    },
+    "splash1": {
+      "pack": "game",
+      "offset": 4298504,
+      "bytes": 57066,
+      "sha256": "384e63f3c7f22fdd8ba91319c79838d0457f368c208505cf4a2332ac3a83351a",
+      "frames": 28511,
+      "sample_rate": 22050
+    },
+    "stream1": {
+      "pack": "game",
+      "offset": 4355572,
+      "bytes": 43426,
+      "sha256": "34248ee99a51ffc7ac93377a6f7913dec1aa75442d58906f5c5ced753f039365",
+      "frames": 21691,
+      "sample_rate": 22050
+    },
+    "strtbeep": {
+      "pack": "game",
+      "offset": 4399000,
+      "bytes": 39648,
+      "sha256": "dd806144a67908c8e49fa2536b9b48b5cd568a692024739ddc0750caf26bf8dc",
+      "frames": 19802,
+      "sample_rate": 22050
+    },
+    "suspdown": {
+      "pack": "game",
+      "offset": 4438648,
+      "bytes": 47382,
+      "sha256": "0bcc3b62f81ea8fea90ca12f92b48cc0a551ec4050c8423669fadb231a6bd7d8",
+      "frames": 23669,
+      "sample_rate": 22050
+    },
+    "tankgrnd": {
+      "pack": "game",
+      "offset": 4486032,
+      "bytes": 38742,
+      "sha256": "524f6f5748c03eb32db2d56b4691b01cd50596d4ee3ea9203ccec50291ddacfe",
+      "frames": 19323,
+      "sample_rate": 22050
+    },
+    "thunder": {
+      "pack": "game",
+      "offset": 4524776,
+      "bytes": 61026,
+      "sha256": "55a8efd6f3a5ad6da150f07e2760a870594eab31cdcd2abe41798d83e5f9a4d9",
+      "frames": 30491,
+      "sample_rate": 22050
+    },
+    "toot": {
+      "pack": "game",
+      "offset": 4585804,
+      "bytes": 65030,
+      "sha256": "825148cf810c3cbeb9aaffeba7fcf57e757e630abf592ab4ad6517b724ed2ffb",
+      "frames": 32493,
+      "sample_rate": 22050
+    },
+    "traffic": {
+      "pack": "game",
+      "offset": 4650836,
+      "bytes": 149392,
+      "sha256": "955d381fab251009c725968b72df767e358f1d3acef9351414eeff6b78261b6c",
+      "frames": 74674,
+      "sample_rate": 22050
+    },
+    "train1": {
+      "pack": "game",
+      "offset": 4800228,
+      "bytes": 70882,
+      "sha256": "dbadfc170387a07e2f9f07da3290c78ab0e079dc3901ec00c82a876af4092d54",
+      "frames": 35419,
+      "sample_rate": 22050
+    },
+    "turrloop": {
+      "pack": "game",
+      "offset": 4871112,
+      "bytes": 15556,
+      "sha256": "2af7f8e86ae454438298778f41738e14d5e3d685591273db635b3634dd028bfd",
+      "frames": 7756,
+      "sample_rate": 22050
+    },
+    "tv": {
+      "pack": "game",
+      "offset": 4886668,
+      "bytes": 39022,
+      "sha256": "8885996fb3998ee551e71af2a4227460a7a8627d6c05741bff800c38daac7944",
+      "frames": 19489,
+      "sample_rate": 22050
+    },
+    "ufo": {
+      "pack": "game",
+      "offset": 4925692,
+      "bytes": 40898,
+      "sha256": "05447cd6a5ec784d69dbd39477f4473af5291a69c08b529f3b83c00a0252b983",
+      "frames": 20427,
+      "sample_rate": 22050
+    },
+    "wood": {
+      "pack": "game",
+      "offset": 4966592,
+      "bytes": 62792,
+      "sha256": "ff4b8e7deac52cab17b8ccd381d35b9cf862a8c1ca14f36f0e8d215ce464f875",
+      "frames": 31321,
+      "sample_rate": 22050
+    },
+    "wood2": {
+      "pack": "game",
+      "offset": 5029384,
+      "bytes": 45568,
+      "sha256": "348c0234fa90645da2b4596e0bf2a06772d5a5b67c3f8b07b03ba707330ae598",
+      "frames": 22762,
+      "sample_rate": 22050
+    },
+    "yacht1": {
+      "pack": "game",
+      "offset": 5074952,
+      "bytes": 85322,
+      "sha256": "9bd550c73b0ac674573230b1ced155f8a699fa59453c428701201e5d0617bf1a",
+      "frames": 42639,
+      "sample_rate": 22050
+    }
+  },
+  "sound_packs": {
+    "menu": {
+      "path": "sounds/menu.bin",
+      "format": "TSND1",
+      "samples": 10,
+      "bytes": 271476,
+      "sha256": "c5b83babb903dc5506eff657b49d3d5bcfd73c1fd52c6b796b6484ac48179399"
+    },
+    "game": {
+      "path": "sounds/game.bin",
+      "format": "TSND1",
+      "samples": 107,
+      "bytes": 5160274,
+      "sha256": "a5cd8b3097c24a2c777a7f561faeea3138ab40dcf77eb9d60cf9082cf903bf0e"
+    }
+  },
+  "menu_sounds": [
+    "select15",
+    "select7",
+    "select8",
+    "select12",
+    "select9",
+    "slider",
+    "select13",
+    "select14",
+    "select1",
+    "engine1"
+  ],
+  "audio_resources": {
+    "1": "enloopb2",
+    "2": "enloops2",
+    "3": "enloopg3",
+    "5497928": "nuskid1",
+    "5497936": "fire1",
+    "5497940": "expldshl",
+    "5497944": "nuwater1",
+    "5497948": "strtbeep",
+    "5497952": "gobeep",
+    "5497956": "clang3",
+    "5497960": "shell4-1",
+    "5497964": "homing",
+    "5497968": "selfx2",
+    "5497972": "shield1",
+    "5497976": "tankgrnd",
+    "5497980": "crash9",
+    "5497984": "collide",
+    "5497988": "crash4",
+    "5497992": "robcrash",
+    "5497996": "thunder",
+    "5498000": "clunk7",
+    "5498004": "revback",
+    "5498008": "rock",
+    "5833968": "pickup10",
+    "5833972": "splash1",
+    "5833976": "turrloop",
+    "3174242238": "engine1",
+    "285654548": "select1",
+    "4087174610": "select12",
+    "4103952229": "select13",
+    "3986508896": "select14",
+    "4003286515": "select15",
+    "252099310": "select7",
+    "168211215": "select8",
+    "151433596": "select9",
+    "1856792572": "slider",
+    "2878351035": "alarm_lp",
+    "1271620033": "bats",
+    "515127368": "beeps2",
+    "2370485943": "belch",
+    "387617279": "big_w",
+    "2695743900": "blowhorn",
+    "1228371904": "break8",
+    "4137151579": "chick",
+    "1032729896": "chrcbell",
+    "485395078": "churbel2",
+    "3342199118": "clang",
+    "366906932": "clang2",
+    "383684551": "clang3",
+    "363073373": "clock",
+    "331288963": "clunk7",
+    "2574882461": "collide",
+    "357690547": "cow1",
+    "1404977796": "crash4",
+    "1220423987": "crash9",
+    "2272102196": "crowd2",
+    "2288879815": "crowd3",
+    "3298993364": "crush",
+    "3140629368": "duck",
+    "1320286447": "eagle",
+    "284169716": "enloopb2",
+    "2449218042": "enloopg3",
+    "2060081401": "enloops2",
+    "3787455157": "expldshl",
+    "2136280888": "fire1",
+    "3404381518": "flap",
+    "1584771086": "foghorn",
+    "2613938663": "frog",
+    "1115544789": "genrator",
+    "2017461200": "ghost",
+    "1310309463": "gobeep",
+    "4273979696": "gsel15",
+    "3053679780": "gustwind",
+    "1499066905": "homing",
+    "3812777955": "horn1",
+    "3829555574": "horn2",
+    "3846333193": "horn3",
+    "3863110812": "horn4",
+    "3879888431": "horn5",
+    "2270800967": "humcl3",
+    "437527109": "humcol2",
+    "3960723931": "humcoll",
+    "3641654980": "humconc",
+    "476398243": "humeng",
+    "2687310660": "humexpld",
+    "1988213013": "humfire",
+    "1133298467": "humhom",
+    "2710511692": "humhorn",
+    "3149878708": "humpick",
+    "2878091624": "humrock",
+    "2213766879": "humshdo",
+    "2750503592": "humshgo",
+    "2669572711": "humshup",
+    "1085459258": "humskid",
+    "4036981233": "humspla",
+    "3687026830": "humsstop",
+    "3258229626": "humsusp",
+    "1726655916": "humtgrnd",
+    "2858435658": "humthun",
+    "1300360263": "humturbo",
+    "783352770": "humturr",
+    "652376487": "humwat",
+    "3663272301": "jjet3",
+    "804733345": "mining",
+    "1799170174": "motrbike",
+    "1925768266": "nuskid1",
+    "516509939": "nuspdown",
+    "2707489582": "nuwater1",
+    "1100520196": "pickup10",
+    "1150853053": "pickup13",
+    "2382557205": "pickup2",
+    "1749089167": "pig",
+    "1497424882": "pit",
+    "2921902371": "plastic",
+    "3333816574": "prop2",
+    "1770735981": "quiksand",
+    "1815193329": "revback",
+    "480938031": "robcrash",
+    "974867124": "rock",
+    "3631635957": "rockfall",
+    "3106337420": "sea",
+    "1830424932": "seagull",
+    "1693366909": "selfx2",
+    "130819572": "sheep",
+    "4038874741": "shell4-1",
+    "2186749459": "shield1",
+    "439829566": "shpcreak",
+    "894689925": "space",
+    "3732369909": "splash1",
+    "2422807356": "stream1",
+    "498879080": "strtbeep",
+    "401014958": "suspdown",
+    "1683252034": "tankgrnd",
+    "2468249745": "thunder",
+    "963963135": "toot",
+    "830603974": "traffic",
+    "3329855112": "train1",
+    "3284054172": "turrloop",
+    "1262835279": "tv",
+    "834725719": "ufo",
+    "2226448744": "wood",
+    "1120622766": "wood2",
+    "808824115": "yacht1"
+  }
+}

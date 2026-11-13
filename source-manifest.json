@@ -1,0 +1,1005 @@
+{
+  "project": "Tank Racer CUP",
+  "exported": "2026-11-13",
+  "baseline_wasm_sha256": "8e5df41a4acca702c231cdd7befc7ab47f2e694cde3d5af1753f46db50176b54",
+  "unchanged_files": {
+    "src/frame_menu_draw.h": {
+      "source": "c_frame/frame_menu_draw.h",
+      "sha256": "c3135d2cf2d4580ca406365ebdb9cf63907ba504068169dc7ab6f951f0a0df3d"
+    },
+    "src/frame_menu.h": {
+      "source": "c_frame/frame_menu.h",
+      "sha256": "57a170efc63d7d4d7cede838a1e762fad92ef2d3b85533862f0d2a7ea2678f6e"
+    },
+    "src/frame_commands.h": {
+      "source": "c_frame/frame_commands.h",
+      "sha256": "cd1833e2c4845ac11efe2bd66447010ce41377599350e8b336569fb4b26aedda"
+    },
+    "src/frame_data.h": {
+      "source": "c_frame/frame_data.h",
+      "sha256": "321f4a04c124e510bffbf69d9a68ccf6f125fad462317ebeb4f1afb7373a358a"
+    },
+    "src/frame_menu_draw.c": {
+      "source": "c_frame/frame_menu_draw.c",
+      "sha256": "dfd712cee0f2800f9a46ff8e7145a1ef80491fe766eba10972e979f29bfd4e56"
+    },
+    "src/frame_menu_tables.h": {
+      "source": "c_frame/frame_menu_tables.h",
+      "sha256": "5b1e25609b2709df2c4222502530d659e3efc199e46dceed5a9673bd9b983ae6"
+    },
+    "src/physics_memory.h": {
+      "source": "c_frame/physics_memory.h",
+      "sha256": "07c93b9c5becc75fa2e75e0e11219340b732526d55830201d2cea9f65d3553e8"
+    },
+    "src/physics_geometry.h": {
+      "source": "c_frame/physics_geometry.h",
+      "sha256": "296a19b34cd72fcd0c62d1f459ca5193603b6f6abd0484ab931388da0b3982d5"
+    },
+    "src/physics_terrain.h": {
+      "source": "c_frame/physics_terrain.h",
+      "sha256": "cec638bc29a37fb4dd4625ed1c1c9d44ba9d42b3d4957f06de0a6301b92329b5"
+    },
+    "src/frame_menu.c": {
+      "source": "c_frame/frame_menu.c",
+      "sha256": "f894db4dc11bd162fcfc0c8c023a7cca9fb2c2fa8c98791de4da8852faa96fd2"
+    },
+    "src/frame_results.h": {
+      "source": "c_frame/frame_results.h",
+      "sha256": "a85e7342788cdea8340bf8cee6518acdd5e40d711c54d879a4b2f96fddb02907"
+    },
+    "src/frame_audio.h": {
+      "source": "c_frame/frame_audio.h",
+      "sha256": "a5c94fb3cea13ea4f681a802af483c5759d9635db78d12e7b7fe745ad550e642"
+    },
+    "src/frame_audio.c": {
+      "source": "c_frame/frame_audio.c",
+      "sha256": "e0668b2fbcdcab833c3c3e2641e039e3728337a64eb48d906cac0088aff8cb82"
+    },
+    "src/frame_ai.h": {
+      "source": "c_frame/frame_ai.h",
+      "sha256": "1e44c8f5f23108728160dfe5a9f5376511ac92b327bdf97e304ce0ecf6d2a0c3"
+    },
+    "src/frame_shatter.h": {
+      "source": "c_frame/frame_shatter.h",
+      "sha256": "8fdd092195dfbf364ad43400ebd18d4ec8ed0efa7ec5f8533facf037cd1e0adc"
+    },
+    "src/frame_feedback.h": {
+      "source": "c_frame/frame_feedback.h",
+      "sha256": "eced638d2b4ff96fb4902461395a10311c8ce15e33330e27836eaa577087fcb0"
+    },
+    "src/frame_object_parameters.h": {
+      "source": "c_frame/frame_object_parameters.h",
+      "sha256": "a1d260f5c5c0073fa6ac1dc9805968ca0b5fb4a36f8f0aec4a6f20eab4f03874"
+    },
+    "src/physics_attitude.h": {
+      "source": "c_frame/physics_attitude.h",
+      "sha256": "82b647ac8d8bb1350a030042d61464499b6b6d97211db551bd94d323b65ca29b"
+    },
+    "src/frame_shape.h": {
+      "source": "c_frame/frame_shape.h",
+      "sha256": "8a0063a2e1caa477d5e69df70f2784690ff993e798e32632949c79a7c9aa5a38"
+    },
+    "src/frame_entity_factory.h": {
+      "source": "c_frame/frame_entity_factory.h",
+      "sha256": "d4b7763b1e60f60c8b827b1248e17fa8e0b86010b98ee6ebc7cc76d4f738e79c"
+    },
+    "src/frame_entities.h": {
+      "source": "c_frame/frame_entities.h",
+      "sha256": "c706062fd8948297527d668e8861320631bd1b53778d8ee30f2130cff1e4ce00"
+    },
+    "src/frame_pool.h": {
+      "source": "c_frame/frame_pool.h",
+      "sha256": "31691a55953f93e4a1e4bde76c9a88b52cddc7e0a6f84e881e513cc2ed2a456f"
+    },
+    "src/frame_objects.h": {
+      "source": "c_frame/frame_objects.h",
+      "sha256": "a3e96fb88746eb001104227ec3300bd91a7f248a9739747fe7221d2eb7f9622d"
+    },
+    "src/frame_ai.c": {
+      "source": "c_frame/frame_ai.c",
+      "sha256": "d9f05ce93af63f679ac2cfb1613b0001091d4ac3012d79243d422ace56226447"
+    },
+    "src/frame_ai_config_schema.h": {
+      "source": "c_frame/frame_ai_config_schema.h",
+      "sha256": "1e707774938317b428f12dba0632179d93f4a1ba763e0328309621fad8206a91"
+    },
+    "src/frame_tank_model.h": {
+      "source": "c_frame/frame_tank_model.h",
+      "sha256": "a3c02cee6e4a0e3f939af101bfb02bfd39706393bfa2e5d6b5f546afb4692dc0"
+    },
+    "src/frame_tank_config.h": {
+      "source": "c_frame/frame_tank_config.h",
+      "sha256": "55d27a82dbd10265b210dc52a3f5724809df5f226c42d3ec18485ab482700134"
+    },
+    "src/frame_file.h": {
+      "source": "c_frame/frame_file.h",
+      "sha256": "92ebe750d7abeb80f1d896cd4fb1192dc8ea2afb29ad6ca1e57f39e5c3ca4f94"
+    },
+    "src/physics_pose.h": {
+      "source": "c_frame/physics_pose.h",
+      "sha256": "5fd901bf5af3ff2ae1bd6a653c927165a0c55fa2e017a31548af17aff04cb6d2"
+    },
+    "src/frame_scene_effects.h": {
+      "source": "c_frame/frame_scene_effects.h",
+      "sha256": "62038e9d2c19a62085debba5b4046be06472ba4f20b216fdd55352aacacf3c3a"
+    },
+    "src/frame_lap_events.h": {
+      "source": "c_frame/frame_lap_events.h",
+      "sha256": "c5f5dad44114cb77b124a2ac3c09466fd7d8e3b26aff1960b1b555a312a9da99"
+    },
+    "src/frame_mine.h": {
+      "source": "c_frame/frame_mine.h",
+      "sha256": "a96a069ed32f56c75b90588ae444d3bdc6c159656e3fbb59f5941dda5cef120a"
+    },
+    "src/frame_explosion.h": {
+      "source": "c_frame/frame_explosion.h",
+      "sha256": "d626a6d00c2b781770239f045a8a496641eeaccdeb4bce7a16dae0db12cb0a7f"
+    },
+    "src/frame_blast_pool.h": {
+      "source": "c_frame/frame_blast_pool.h",
+      "sha256": "8fe1ecd6e24c59945328e6b38ddcea9980e593d3e381db24dcac80ece64b585b"
+    },
+    "src/frame_actors.h": {
+      "source": "c_frame/frame_actors.h",
+      "sha256": "f004f2a369e3a3227cc60c1e1c160f1086ca7633aebfe83bb8e0fb606c57f249"
+    },
+    "src/frame_classes.h": {
+      "source": "c_frame/frame_classes.h",
+      "sha256": "a6ac63e497035c7a1b8db603a7b7b93a84ada05ce5c16f76c9638984c3cf1e28"
+    },
+    "src/frame_progress.h": {
+      "source": "c_frame/frame_progress.h",
+      "sha256": "2ab1c2732065c1e2ed37433c5c100405276b468e473f88d99065881acf4ae121"
+    },
+    "src/physics_vector.h": {
+      "source": "c_frame/physics_vector.h",
+      "sha256": "f628308630a1a3c787f9c7283461af6a51236327b24a2ca02e5057a0e8b96990"
+    },
+    "src/frame_player_lifecycle.h": {
+      "source": "c_frame/frame_player_lifecycle.h",
+      "sha256": "1336a86e62ac896d6baccb99b6652d13b9f993d0c5f998928a2cfeea07a54ba0"
+    },
+    "src/frame_camera.h": {
+      "source": "c_frame/frame_camera.h",
+      "sha256": "154187ae9ae0e07f0fc4ced846df021947d3a2b3a439d4acf7e84cfe97393c5b"
+    },
+    "src/frame_render_geometry.h": {
+      "source": "c_frame/frame_render_geometry.h",
+      "sha256": "2608d819905944573841cf4b545ec2d71c52ddbd413c14fbbdd0ccabb9bcfa28"
+    },
+    "src/frame_render_geometry.c": {
+      "source": "c_frame/frame_render_geometry.c",
+      "sha256": "ce8f5af22809113e405d3d2e506f3e7c053d99f19604579b0070d2a81566bf45"
+    },
+    "src/frame_scenery_render.h": {
+      "source": "c_frame/frame_scenery_render.h",
+      "sha256": "c0d7a815097a814988eb2bcbb88249096da70f8e47051f2087893e7bf4a6b0e2"
+    },
+    "src/frame_scenery_render.c": {
+      "source": "c_frame/frame_scenery_render.c",
+      "sha256": "5f0c6ac4ecb653caf1d686797ccc81d85bb31de4780993f897a7727839e117ad"
+    },
+    "src/frame_math.h": {
+      "source": "c_frame/frame_math.h",
+      "sha256": "a15882d2be155ad79331eaf4e3bf485e48807f4ed13ba18a3d9e1e8a04f0dd68"
+    },
+    "src/frame_vehicle_render.h": {
+      "source": "c_frame/frame_vehicle_render.h",
+      "sha256": "1be18225b41e1e2d4702ac964f90d83b6641845c419ce37f2c7ae29216e50931"
+    },
+    "src/frame_vehicle_render.c": {
+      "source": "c_frame/frame_vehicle_render.c",
+      "sha256": "d4efe7990a3d832476d2cd30140f22b7556a6c59ea7f1a83a1c925473b22b83a"
+    },
+    "src/frame_io.h": {
+      "source": "c_frame/frame_io.h",
+      "sha256": "479cb021e69f9017cd2d3af9e6542c0830a87af6aab7433737045ceeffb8b163"
+    },
+    "src/frame_io.c": {
+      "source": "c_frame/frame_io.c",
+      "sha256": "1a78468556ca32f972e4420faa431a14d58474cb014394070339c322a4b73f73"
+    },
+    "src/frame_host.h": {
+      "source": "c_frame/frame_host.h",
+      "sha256": "40a16d4842cb45e0783dfce1e518b83f2a8aee1d88024b94bfc6ba6ffa34c50a"
+    },
+    "src/frame_host.c": {
+      "source": "c_frame/frame_host.c",
+      "sha256": "c9b6f3f56d75f3c4974d90087a7dfdd764076249b2c5991f8577d28b6bdb9e6a"
+    },
+    "src/physics_geometry.c": {
+      "source": "c_frame/physics_geometry.c",
+      "sha256": "5c6db52a7ed739bfcfc7d55e8365c0585e66eac99dc3dae74c4270b56919a157"
+    },
+    "src/physics_terrain.c": {
+      "source": "c_frame/physics_terrain.c",
+      "sha256": "35d3906d52d3c468ac4d37266d7dd38953b80a31586bd08dd01cfe6d92a1d6e9"
+    },
+    "src/physics_vector.c": {
+      "source": "c_frame/physics_vector.c",
+      "sha256": "e7dda04dd68eba9ab055f2aeefd01692b977c21f8fe538f2a2381ce6dcf40e73"
+    },
+    "src/physics_attitude.c": {
+      "source": "c_frame/physics_attitude.c",
+      "sha256": "0db7d428f943fd366ce7f01b771938d98516c59e77ffaf5892a3d9f4b31be7bb"
+    },
+    "src/physics_obstacle.h": {
+      "source": "c_frame/physics_obstacle.h",
+      "sha256": "25b6ff730439bee1efb8b9874128cadfb3c30a5b1e87ea0403ef0391ecb7d415"
+    },
+    "src/physics_collision.h": {
+      "source": "c_frame/physics_collision.h",
+      "sha256": "2374c58f19c2b9d259f9908f5a6af6240e91d3b4bb594f8b92018a5400277e2a"
+    },
+    "src/physics_obstacle.c": {
+      "source": "c_frame/physics_obstacle.c",
+      "sha256": "c969dc69d18fc2b27a8db60be8c736482bdda63953ddddb31d070a0531f90d19"
+    },
+    "src/physics_objects.h": {
+      "source": "c_frame/physics_objects.h",
+      "sha256": "b96a9efa017c3350b994c2d354082925c33d29663d8a04491479b2b41d9d908e"
+    },
+    "src/physics_effects.h": {
+      "source": "c_frame/physics_effects.h",
+      "sha256": "59e7928d57c3449025af06a173e79a56dfe98eac6be8b32771d57c2a1d98015c"
+    },
+    "src/physics_effects.c": {
+      "source": "c_frame/physics_effects.c",
+      "sha256": "82c51cc526f515642966c141ac536dd6d30dd7086e077be6dee01f1dbd74c583"
+    },
+    "src/physics_collision.c": {
+      "source": "c_frame/physics_collision.c",
+      "sha256": "16d8e6b6333a8836663946fc168b0610447103ab1459224ffca6de43429a27a7"
+    },
+    "src/physics_body.h": {
+      "source": "c_frame/physics_body.h",
+      "sha256": "7a8013ad2c14bc812068155b31fd31bec0a055c0ce474cf796be37a69df9b03a"
+    },
+    "src/physics_body.c": {
+      "source": "c_frame/physics_body.c",
+      "sha256": "1c0333a132db86725f4844085b036b4f90db32213a33dc86fb1e9d405d8c0976"
+    },
+    "src/physics_objects.c": {
+      "source": "c_frame/physics_objects.c",
+      "sha256": "b5815b16b401e9dda2533070071ee4396bcae949e0a5dc37cdf6048127f9a053"
+    },
+    "src/physics_pose.c": {
+      "source": "c_frame/physics_pose.c",
+      "sha256": "bf0024f28cd5123df481893e4a16c4cc0877630983222c4eb2f835608bad195e"
+    },
+    "src/physics_suspension.h": {
+      "source": "c_frame/physics_suspension.h",
+      "sha256": "af675aa87d1892fe565173f5c6a6644e556195e81c553740107433c69a27a0a6"
+    },
+    "src/physics_contact.h": {
+      "source": "c_frame/physics_contact.h",
+      "sha256": "0942c4150818aa7fe44bd262e9c94f0ade523ba239c7c4b4c4973f186b0d426e"
+    },
+    "src/physics_suspension.c": {
+      "source": "c_frame/physics_suspension.c",
+      "sha256": "de0420cdcf27bb71c1639a8a7f7bce48ac920767778fb9b855a012136b0a1946"
+    },
+    "src/physics_contact.c": {
+      "source": "c_frame/physics_contact.c",
+      "sha256": "92c39e54ec323a2c4aa8a3823d52157e94f071dcaa97599bede9110baee2843f"
+    },
+    "src/physics_sampling.h": {
+      "source": "c_frame/physics_sampling.h",
+      "sha256": "c0dfd5739cda86208e83776485153f6507cddd233988600f5174f53ede06cffb"
+    },
+    "src/physics_sampling.c": {
+      "source": "c_frame/physics_sampling.c",
+      "sha256": "ddd31a341ecbaf6444baaa26468518a9e20e403d5cb623beb7b8be134406400d"
+    },
+    "src/physics_velocity.h": {
+      "source": "c_frame/physics_velocity.h",
+      "sha256": "ea54260c2120ffe7a2a35ee4664a7ee2cefee16b622074a78e1a102c4833a429"
+    },
+    "src/physics_velocity.c": {
+      "source": "c_frame/physics_velocity.c",
+      "sha256": "488ad020e0e26ac0d845ed8f6066507323c1218927f1110984fc3e6c7daf6a32"
+    },
+    "src/physics_drive.h": {
+      "source": "c_frame/physics_drive.h",
+      "sha256": "d8d6e7033e6e47379c120748223cd942b139800065c00631053bf720989dbca4"
+    },
+    "src/physics_drive.c": {
+      "source": "c_frame/physics_drive.c",
+      "sha256": "398bd26bd0847194660a50b1fec66803a24378a932577c6914dec7f1c3e58569"
+    },
+    "src/physics_vehicle.h": {
+      "source": "c_frame/physics_vehicle.h",
+      "sha256": "dcd358bd7673c460cf1e0dbac70a2c38c2b686d766e39ddc9a176f35ef3ea1f2"
+    },
+    "src/physics_vehicle.c": {
+      "source": "c_frame/physics_vehicle.c",
+      "sha256": "7bbad2acab6edbce97ffc242cdf35d670655f42784465c48f842ee0e36a17654"
+    },
+    "src/physics_entities.h": {
+      "source": "c_frame/physics_entities.h",
+      "sha256": "38b245cd266b7813f488d1cdafed466b545bb73ff7f5fa75912e26b4244174bb"
+    },
+    "src/physics_step.h": {
+      "source": "c_frame/physics_step.h",
+      "sha256": "13668a735459a7f0b20379608f41e27fa7b9b8989069428c75a67ec38b6d7518"
+    },
+    "src/physics_entities.c": {
+      "source": "c_frame/physics_entities.c",
+      "sha256": "cf427dcec4341de5cc7c71e437a8965bb456f75d1bbda23e40b29d23d5477b53"
+    },
+    "src/frame_deformable.h": {
+      "source": "c_frame/frame_deformable.h",
+      "sha256": "d9b899a84c9a930dffd027f9f9b51222f558c3e88a0b181b53d1839c30801226"
+    },
+    "src/physics_inactive.h": {
+      "source": "c_frame/physics_inactive.h",
+      "sha256": "d04d96b938f1471ec7c5ba82ab1d55c3b60394ee299b249ac11fc7f85dc3dc6c"
+    },
+    "src/physics_inactive.c": {
+      "source": "c_frame/physics_inactive.c",
+      "sha256": "4ee035631d70b6cd67ed3e9256007ec0fc53da943378940bef542e57e99aeebf"
+    },
+    "src/frame_weapon_spin.h": {
+      "source": "c_frame/frame_weapon_spin.h",
+      "sha256": "060acfce5ce94567f6dc3e7f0c0bb39a4b9b51a60524cee8e0ebfd817fbd07e3"
+    },
+    "src/physics_step.c": {
+      "source": "c_frame/physics_step.c",
+      "sha256": "9d7eedeb57bf2953af61b72b207ca098769386cfb9bebdba8db1f6c54ef1b558"
+    },
+    "src/frame_environment.h": {
+      "source": "c_frame/frame_environment.h",
+      "sha256": "e9ee25a68809a84bfbcd169f267352676b0c4569770786c6a6f0693b8a1bb209"
+    },
+    "src/frame_ability_boost.h": {
+      "source": "c_frame/frame_ability_boost.h",
+      "sha256": "46e2ffaeba57035b9fbe6daab63b2d25a96e7f298afcc9c54a45ffc9be3cc0cb"
+    },
+    "src/frame_object_config.h": {
+      "source": "c_frame/frame_object_config.h",
+      "sha256": "1222a99e2140bdb38da2b27480ac3588b08368fc3f433dd8e6cc130c7695ab33"
+    },
+    "src/frame_object_config.c": {
+      "source": "c_frame/frame_object_config.c",
+      "sha256": "4b8a3614c5439660471a065995f0e66abb81fad2a4c66188b8b4beda4453f704"
+    },
+    "src/frame_object_config_schema.h": {
+      "source": "c_frame/frame_object_config_schema.h",
+      "sha256": "b3842f498c855269c9c817b5c521197b11f55ecacf2867bbedbb070d91888c2f"
+    },
+    "src/frame_surface_config.h": {
+      "source": "c_frame/frame_surface_config.h",
+      "sha256": "873746527329dcde0fb506632593b714f5c4a8f1d61b60a31b63471ec94f2ffa"
+    },
+    "src/frame_surface_config.c": {
+      "source": "c_frame/frame_surface_config.c",
+      "sha256": "5a8bef7df63e7cb88cfce758d10179c98f3f5b986906a170ccca33a946621581"
+    },
+    "src/frame_tank_hit.h": {
+      "source": "c_frame/frame_tank_hit.h",
+      "sha256": "a2e3e2c75e2ee4658765f0063b9edf377070c93f3843d35daaeac7fa9d0f9dd4"
+    },
+    "src/frame_tank_hit.c": {
+      "source": "c_frame/frame_tank_hit.c",
+      "sha256": "489567535ac0fbc255ff49aa24ee80ebaa4612ca695eb95a74db7e0af118ee46"
+    },
+    "src/frame_tank_model.c": {
+      "source": "c_frame/frame_tank_model.c",
+      "sha256": "5c2acec371f62f32a0bc2cdad07cb8ab154c034d055739c4c1ee6a9d57a457ce"
+    },
+    "src/frame_tank_config.c": {
+      "source": "c_frame/frame_tank_config.c",
+      "sha256": "fb361a271684a7186dc47e68ba0e6c4638cf174db88aefd1fdb2f3a8e7b7762d"
+    },
+    "src/frame_tank_config_schema.h": {
+      "source": "c_frame/frame_tank_config_schema.h",
+      "sha256": "95cc9ccf271a3bb87002f6fc561f46e3538100f58e087a4e415db65d9a2be41e"
+    },
+    "src/frame_hud.h": {
+      "source": "c_frame/frame_hud.h",
+      "sha256": "99b9825d8a118511360f6e7aeb56c1116be18d2ee0ec6c35e3b6517746343412"
+    },
+    "src/frame_hud.c": {
+      "source": "c_frame/frame_hud.c",
+      "sha256": "4e9a89a602416fbe961cf0eb062f057a9012bb3fb6e6b253449cc9e2e29982de"
+    },
+    "src/frame_hud_tables.h": {
+      "source": "c_frame/frame_hud_tables.h",
+      "sha256": "6089905dd5aadc1107c83551a32406e6adcab024f79dbff6b320b31d24ee98af"
+    },
+    "src/frame_present.h": {
+      "source": "c_frame/frame_present.h",
+      "sha256": "42928a85fd7bac8358bef8e7fb8af490b39c2a6462fa1b8e247c24dfc5d9bf13"
+    },
+    "src/frame_present.c": {
+      "source": "c_frame/frame_present.c",
+      "sha256": "d77f8d58318eb809f4dea06d668a3f86f4b5fedb936e41b5d6b7ab13e7a1d04a"
+    },
+    "src/frame_lamps.h": {
+      "source": "c_frame/frame_lamps.h",
+      "sha256": "1d2071fdb0aec855da65529f0ba3420b9c00f203c7b16ace25b025bcc89412ed"
+    },
+    "src/frame_vehicle_scene.h": {
+      "source": "c_frame/frame_vehicle_scene.h",
+      "sha256": "6172ade490f84b04217a327471ba6ede4f0552e66e35046c797fab482cf70ca5"
+    },
+    "src/frame_commands.c": {
+      "source": "c_frame/frame_commands.c",
+      "sha256": "f03026bb730f6ad364c6ab08eafa77b2baef653dd881fcf9c60ab7e98d10a603"
+    },
+    "src/frame_profile.h": {
+      "source": "c_frame/frame_profile.h",
+      "sha256": "6ccac2d51e611b71f0e345a2402ce43726f0da2e0549d9ccdc1ba615b7b7103c"
+    },
+    "src/frame_profile.c": {
+      "source": "c_frame/frame_profile.c",
+      "sha256": "b31497b4a9ffe5c013cc1ed34de2bae11d81792cd929ea948a8b304b679ada57"
+    },
+    "src/frame_game.h": {
+      "source": "c_frame/frame_game.h",
+      "sha256": "3046a981bd92bb9a4c18820a7640e1dc3a6e89474a5c0957c8f9f3f3d8f61780"
+    },
+    "src/frame_session.h": {
+      "source": "c_frame/frame_session.h",
+      "sha256": "bf24fcd36b0d4a4f3bb8acdcd38b32adc9e8b9fb455b7432a6ea6db3a8cdb7c9"
+    },
+    "src/frame_texture.h": {
+      "source": "c_frame/frame_texture.h",
+      "sha256": "3fe77cdb2d7063d71ab2e1774eb74ae0d793fa8674e4a0c39a30c1027230fc3e"
+    },
+    "src/frame_time.h": {
+      "source": "c_frame/frame_time.h",
+      "sha256": "f89b266fa841ec814865a9ab8d2768a94482ba0e616aa80d25855d9a33988603"
+    },
+    "src/frame_native.h": {
+      "source": "c_frame/frame_native.h",
+      "sha256": "7c6e2dcc93ee70976cbbc5a1640cde0aedb288aaab2ca827e279c3e39028322d"
+    },
+    "src/frame_player_lap.h": {
+      "source": "c_frame/frame_player_lap.h",
+      "sha256": "feb3049e7fc6b86467d7cfdd60f8562b101e39dabacd4d72ec6f5d984bba5c05"
+    },
+    "src/frame_network.h": {
+      "source": "c_frame/frame_network.h",
+      "sha256": "d514a0ba4920c905aa62c4b4194b1c730b3aa4a2fd5ec7f075c7f9bc3886b41a"
+    },
+    "src/frame_world.h": {
+      "source": "c_frame/frame_world.h",
+      "sha256": "2bc24e8175bb3fef70927a34ba7f23db3bee8cfdf35b8b8d17ef44cac1622449"
+    },
+    "src/frame_mesh_break.h": {
+      "source": "c_frame/frame_mesh_break.h",
+      "sha256": "175e85069218adb5798337ce571b59c4fd4e4202d1b4ce38990c5e1fab93d632"
+    },
+    "src/frame_game.c": {
+      "source": "c_frame/frame_game.c",
+      "sha256": "b1f4faf6bc9c601eb39cd171e222f1f8a1da9ac2369970e45912a97916be6170"
+    },
+    "src/frame_race.h": {
+      "source": "c_frame/frame_race.h",
+      "sha256": "b4fc0289da70e97af9448cfb51ad6a0063f2e7ede06ec4f98b225b2e9310aab8"
+    },
+    "src/frame_spatial.h": {
+      "source": "c_frame/frame_spatial.h",
+      "sha256": "75d7e1fe13818c67e2c634a7ad5edd9469352138da369abaf3a0ca73645cacc5"
+    },
+    "src/frame_projectile.h": {
+      "source": "c_frame/frame_projectile.h",
+      "sha256": "d42e77cb548d1a839118e62b622d8fb432700ad69377e872d67e9282d27d7fde"
+    },
+    "src/frame_powerup.h": {
+      "source": "c_frame/frame_powerup.h",
+      "sha256": "3dd4060705b02343acac498818833c9befb6e50a869c8da5eebb49117eacd14c"
+    },
+    "src/frame_bootstrap.h": {
+      "source": "c_frame/frame_bootstrap.h",
+      "sha256": "662d424b206362cf108781c537f2f393c755cb4b258ea06ec12670c771933329"
+    },
+    "src/frame_results.c": {
+      "source": "c_frame/frame_results.c",
+      "sha256": "50b2c1bb3f121b424f430c2ad37d00f0f2ba4ac2ffac7a577c0a514e6cd4e5da"
+    },
+    "src/frame_session.c": {
+      "source": "c_frame/frame_session.c",
+      "sha256": "203642b53c0191308b4335772ac81d29a1107a1a8f27cd0e238f49261587eecc"
+    },
+    "src/frame_overlay.h": {
+      "source": "c_frame/frame_overlay.h",
+      "sha256": "96dc97850f18c9f158863fe186ee955c33f3c45010879db95e09807d6100d5e1"
+    },
+    "src/frame_controls.h": {
+      "source": "c_frame/frame_controls.h",
+      "sha256": "cd625c322f269193f8a89d0ec101084169b516ede40d64a644bd7981ffa8c7bb"
+    },
+    "src/frame_spin.h": {
+      "source": "c_frame/frame_spin.h",
+      "sha256": "18721238d4d1cda48e157ab841d211788d8d6f6fd7604ced78ed2a5cba3574e4"
+    },
+    "src/frame_spin.c": {
+      "source": "c_frame/frame_spin.c",
+      "sha256": "23402f3b404990c86078f4ff6f95dadaba10dbcf9ec66237a431eda0e510ad8d"
+    },
+    "src/frame_text.h": {
+      "source": "c_frame/frame_text.h",
+      "sha256": "81d7619db8f45c0a546d73c860c1251e509a346908b210c10e95e48a86c26a63"
+    },
+    "src/frame_mover.h": {
+      "source": "c_frame/frame_mover.h",
+      "sha256": "3833dc1edd0783447a75642314d4b4467eb115fddaf6807baf143ba934761c96"
+    },
+    "src/frame_mover.c": {
+      "source": "c_frame/frame_mover.c",
+      "sha256": "452086b5385996c61268a6dadd3b7452c607e001b760e0b532d784318ab4dc35"
+    },
+    "src/frame_lamps.c": {
+      "source": "c_frame/frame_lamps.c",
+      "sha256": "99130a30a4dc0ffcd67bc1924a37b8ea20a1a2220e7cf76adafc513984b22f6a"
+    },
+    "src/frame_flock.h": {
+      "source": "c_frame/frame_flock.h",
+      "sha256": "df5b83f35703849d98174188b67a4c4e56fe89f1f5d2b4abdae5926805b4b5f8"
+    },
+    "src/frame_flock.c": {
+      "source": "c_frame/frame_flock.c",
+      "sha256": "670b620ea895a3423d6f6fdaa04cddc03ac4f6c589a68a55bc6b053ff8cb9acc"
+    },
+    "src/frame_train.h": {
+      "source": "c_frame/frame_train.h",
+      "sha256": "df960e091a5015e93e901596dd0bdfb106574d3d995aef4ac9ad00fd83a7c0fe"
+    },
+    "src/frame_train.c": {
+      "source": "c_frame/frame_train.c",
+      "sha256": "ac3dccb9c5662c2a12637ec076725f40975a00755e7acb2d22a0f02ffebd2ea6"
+    },
+    "src/frame_player_collision.h": {
+      "source": "c_frame/frame_player_collision.h",
+      "sha256": "2f24744ab7f625a03ec6a53f54cb1cd189cc2e14f20f9c8453d16527d0f056a0"
+    },
+    "src/frame_player.h": {
+      "source": "c_frame/frame_player.h",
+      "sha256": "3c8ac299b0b2b3347cface428e89665446ecb579073cc800c8cfc239358699dc"
+    },
+    "src/frame_player.c": {
+      "source": "c_frame/frame_player.c",
+      "sha256": "c059d55eabfea80baa37e36385cd605ab674b7254da92e265d88200e1d30ea57"
+    },
+    "src/frame_turret.h": {
+      "source": "c_frame/frame_turret.h",
+      "sha256": "7f357d123403914afa031790b3e6e22242eea18eb1203b06c570aac04ea08da1"
+    },
+    "src/frame_player_state.h": {
+      "source": "c_frame/frame_player_state.h",
+      "sha256": "b028700219d44e4d7c5051a21811614d2efdf77978f41528cc2016f3810bd730"
+    },
+    "src/frame_player_input.h": {
+      "source": "c_frame/frame_player_input.h",
+      "sha256": "fb97ca04c41947df1a1863ca85f568a9e0b00c0e4536eb63461d57c1fa38c3ce"
+    },
+    "src/frame_ufo.h": {
+      "source": "c_frame/frame_ufo.h",
+      "sha256": "6a175e08774771b2673acee3856e0dd17ac827cef1c8a7984ca25889327610b6"
+    },
+    "src/frame_ufo.c": {
+      "source": "c_frame/frame_ufo.c",
+      "sha256": "368d9d92c4feecc1eed92f6df7244ea9e59eccc124d9d2549048938cd441b2f0"
+    },
+    "src/frame_projectile.c": {
+      "source": "c_frame/frame_projectile.c",
+      "sha256": "96896e4e1e38925fc8a3695e93118d162599b9bed9c76ca38ef90ce7ecd87b03"
+    },
+    "src/frame_explosion.c": {
+      "source": "c_frame/frame_explosion.c",
+      "sha256": "53bb7388de69b2e48377c1ce5338caadca0654305bf51a6b8508a179defd04e4"
+    },
+    "src/frame_blast_pool.c": {
+      "source": "c_frame/frame_blast_pool.c",
+      "sha256": "6a7c040aca9b3362b9b2140c8742e90423620b0f7ae1b6499c1e8214c5321ddb"
+    },
+    "src/frame_mine.c": {
+      "source": "c_frame/frame_mine.c",
+      "sha256": "3f0aed964de3d52a5aed047f72566060109aadf8a17b390b8e3ef9eeb59737f0"
+    },
+    "src/frame_powerup.c": {
+      "source": "c_frame/frame_powerup.c",
+      "sha256": "5cda7c1225f50d13f71f13a962e912d43ad5a5d40744b2a5c679f86fd4d158a2"
+    },
+    "src/frame_closer.h": {
+      "source": "c_frame/frame_closer.h",
+      "sha256": "a112b53d8dcc2bf3fe0fe3cce22e39e7fd36fbe367f9b1c21a54104b0f579a82"
+    },
+    "src/frame_closer.c": {
+      "source": "c_frame/frame_closer.c",
+      "sha256": "21e423dbcdad9e7e0ce1e4a3eaabc1cb99c306db5afa2d1b3ae6791cfd66924a"
+    },
+    "src/frame_bounce.h": {
+      "source": "c_frame/frame_bounce.h",
+      "sha256": "a4cfa692ef01bf76f14eeb0993b57ac56ed3c772dc30e5ef0e70ebd607cfac8d"
+    },
+    "src/frame_bounce.c": {
+      "source": "c_frame/frame_bounce.c",
+      "sha256": "ea0c03b118a2517424ad3b35a5a2add1f92939d75e4875362c2da20c0ac84d80"
+    },
+    "src/frame_fall.h": {
+      "source": "c_frame/frame_fall.h",
+      "sha256": "d4b8051c88b3a1b9302c9848011d0208012cea5bc2009c2ad856c4f807a8d608"
+    },
+    "src/frame_fall.c": {
+      "source": "c_frame/frame_fall.c",
+      "sha256": "c6c4591ab7897e8224a53d0ce4a97535c6a55c37a4bd92513e790906f1b4ae09"
+    },
+    "src/frame_file.c": {
+      "source": "c_frame/frame_file.c",
+      "sha256": "e7b350b6ed70bf2c670bf7f2613235dbfeecc4d940ce7c0c9c98127bc3e07279"
+    },
+    "src/frame_math.c": {
+      "source": "c_frame/frame_math.c",
+      "sha256": "5fa9150a19d1d84bc1b863940bd7386e8bcfe99eaced2b0d68b4f994ca4300d0"
+    },
+    "src/frame_math_tables.h": {
+      "source": "c_frame/frame_math_tables.h",
+      "sha256": "ce231072b15b138e4335bfafa7b358fc4aeffa9417e1b96846822d7ba153707f"
+    },
+    "src/frame_actors.c": {
+      "source": "c_frame/frame_actors.c",
+      "sha256": "c5fb41a506f67847c1aa6aa6de13581f918918a22ed8926bbb081e61f76069dd"
+    },
+    "src/frame_bootstrap.c": {
+      "source": "c_frame/frame_bootstrap.c",
+      "sha256": "b984fa91db6384dca6a49ed77ffc84f0904888a76e82395b3721b09f45ac9100"
+    },
+    "src/frame_vehicle_defaults.h": {
+      "source": "c_frame/frame_vehicle_defaults.h",
+      "sha256": "a08554219fc98058c220183d88d7922aaacadb7dbf1979ce4249d5eb3145f510"
+    },
+    "src/frame_parameter_names.h": {
+      "source": "c_frame/frame_parameter_names.h",
+      "sha256": "c08d12d6f01e2f38a59013bbc4317bc24db30d9d6bf23d9592498eb23dab85f0"
+    },
+    "src/frame_class_catalog.h": {
+      "source": "c_frame/frame_class_catalog.h",
+      "sha256": "6a6ed9ea58d7ee782353845fea66f0ce57cc1a3e5c218b0f4c03acebc6d261ef"
+    },
+    "src/frame_classes.c": {
+      "source": "c_frame/frame_classes.c",
+      "sha256": "9cfad74355101ad70e17d08aecc1c331a1ca97a514bedead56ebc996c4098dab"
+    },
+    "src/frame_texture.c": {
+      "source": "c_frame/frame_texture.c",
+      "sha256": "d03ee22c5ab70d3cfa01a598606b39b2c4c9e450c9082634168e2f4bdd802de3"
+    },
+    "src/frame_surface.h": {
+      "source": "c_frame/frame_surface.h",
+      "sha256": "c5e6bcd7b386455f98b4aeaa722741abf729c975ba6ee631825a08b42b68a540"
+    },
+    "src/frame_surface.c": {
+      "source": "c_frame/frame_surface.c",
+      "sha256": "152f2b091e36455ebe611a8ed70bb1876316e1bbdf494d04d20bb114dcf695db"
+    },
+    "src/frame_material.h": {
+      "source": "c_frame/frame_material.h",
+      "sha256": "a6ace15a72c2ba9e654aec57ff6bfa8a556dce77a9a307d5cab04998372b550f"
+    },
+    "src/frame_material.c": {
+      "source": "c_frame/frame_material.c",
+      "sha256": "73e38203bd953d49de4305d4c8aa09dbf26d6d36df4c192ba0b7bb67ed0cf9bd"
+    },
+    "src/frame_native.c": {
+      "source": "c_frame/frame_native.c",
+      "sha256": "3fbf76d04fe5cf847e1010b15e4738136c1a294b2e2727e767d72bac4adee844"
+    },
+    "src/frame_world.c": {
+      "source": "c_frame/frame_world.c",
+      "sha256": "85da7e0488cf88f928c0636f653a8c2ccb07874839782f49eaab4985c629de48"
+    },
+    "src/frame_world_text.h": {
+      "source": "c_frame/frame_world_text.h",
+      "sha256": "82154686e33be78c5a4b851bb0dcc4f22d6b81f868335aa21acdf1cc9e1bb022"
+    },
+    "src/frame_world_text.c": {
+      "source": "c_frame/frame_world_text.c",
+      "sha256": "8ccd85af038ac852296f8d442d15d14064515b2c89f921edd9e206ac3fda9029"
+    },
+    "src/frame_mesh_break.c": {
+      "source": "c_frame/frame_mesh_break.c",
+      "sha256": "45f4cff10f1594cb42c876c9f5f401d30ab6717668d0b2d33ad63ae9782bbd81"
+    },
+    "src/frame_shatter.c": {
+      "source": "c_frame/frame_shatter.c",
+      "sha256": "ad1ad63385f50354fac5b7432fa8fd1356b7167557d2884075f5199807bc3def"
+    },
+    "src/frame_object_parameters.c": {
+      "source": "c_frame/frame_object_parameters.c",
+      "sha256": "af09822b3ba9e0c2dfa99303a9ea35b27938b95152d5c17346e3e719f94e2994"
+    },
+    "src/frame_objects.c": {
+      "source": "c_frame/frame_objects.c",
+      "sha256": "d3a332edd2cfcddfcc1ba98389038db3ee55e915085ff5e62483e1cfa328324a"
+    },
+    "src/frame_shape.c": {
+      "source": "c_frame/frame_shape.c",
+      "sha256": "07d5a2f087d91b6ce20ebb4379563a97975eba9368effec01496e3cf8d58cfd0"
+    },
+    "src/frame_text.c": {
+      "source": "c_frame/frame_text.c",
+      "sha256": "13386082867b7578554011cddd92de5b5ccd2b83146128a2c77f8e14ab70f8b0"
+    },
+    "src/frame_deformable.c": {
+      "source": "c_frame/frame_deformable.c",
+      "sha256": "623fae42905b007122e4ed3294e7954e4a8619b0b1d47189be2415e282852466"
+    },
+    "src/frame_vehicle_scene.c": {
+      "source": "c_frame/frame_vehicle_scene.c",
+      "sha256": "c46f5492cab3f28e2c71b37c40ca8e853b383a9f166e39873ca432515fe619ac"
+    },
+    "src/frame_scene_effects.c": {
+      "source": "c_frame/frame_scene_effects.c",
+      "sha256": "f9f70eaabf639d7eb54ccf838bec6f01c3dd55b272c05c188b28418d942abd33"
+    },
+    "src/frame_ability_boost.c": {
+      "source": "c_frame/frame_ability_boost.c",
+      "sha256": "53a1c63f93f6c951e13d110be21c53e9816fcfe6d4882fb720772603b0d6c6f9"
+    },
+    "src/frame_weapon_spin.c": {
+      "source": "c_frame/frame_weapon_spin.c",
+      "sha256": "15ae90a6e6ce84887a9b8d4b5b2947b0310ec04bb398c701e6548f5cf11da0da"
+    },
+    "src/frame_player_lifecycle.c": {
+      "source": "c_frame/frame_player_lifecycle.c",
+      "sha256": "8c561699151ed8ed2eb1f83638144c59ee17a6e1f516c99784ef5617a0d33351"
+    },
+    "src/frame_camera.c": {
+      "source": "c_frame/frame_camera.c",
+      "sha256": "9b075e1dd6b5fdba33282dad4a725a82b8d828b5947e5c8ad992f672eaf405c9"
+    },
+    "src/frame_entity_factory.c": {
+      "source": "c_frame/frame_entity_factory.c",
+      "sha256": "a809718045ef24ae2c4ea69b293d13711442168878828dfbd77bc6965c2688e5"
+    },
+    "src/frame_player_lap.c": {
+      "source": "c_frame/frame_player_lap.c",
+      "sha256": "ab57d512acf22beb09051caf68d3ca8b1fcf976bfebe02b195591d424892ec34"
+    },
+    "src/frame_network.c": {
+      "source": "c_frame/frame_network.c",
+      "sha256": "65527b4bbae0b1dfcd9f6f21462cbf036e70fb9f17b6bbfd7a376f54006be4e9"
+    },
+    "src/frame_spatial.c": {
+      "source": "c_frame/frame_spatial.c",
+      "sha256": "73df1bd7fe5fbad0a1a800727652f1e3f2cc5d7b4f4ba86975b4aa64bb36f64c"
+    },
+    "src/frame_lap_events.c": {
+      "source": "c_frame/frame_lap_events.c",
+      "sha256": "b6072c3e43c82e6c2e3dfebd822a6ef971c08feb5fbb1113ee62c9575089884b"
+    },
+    "src/frame_pool.c": {
+      "source": "c_frame/frame_pool.c",
+      "sha256": "8b0f0cd252e493f9abb9f6068418d053eaa61c4fac41644bae2e88ca1cba7999"
+    },
+    "src/frame_environment.c": {
+      "source": "c_frame/frame_environment.c",
+      "sha256": "5eaa2c4da4c46aaa10819b2313c75755ddc454dd79243c142a65a1a0bded8c0a"
+    },
+    "src/frame_feedback.c": {
+      "source": "c_frame/frame_feedback.c",
+      "sha256": "a76d79ab750551adfae503e527b08796c06c98a645bc514fee8574af1ad59329"
+    },
+    "src/frame_entities.c": {
+      "source": "c_frame/frame_entities.c",
+      "sha256": "9ebe15b44054eaae3c95f902a7016d3934b8176dd0daaa77bdc7a718fc1578ef"
+    },
+    "src/frame_player_state.c": {
+      "source": "c_frame/frame_player_state.c",
+      "sha256": "4542399007af9e4d03e10747479840c4540f5790bd70d930eadad6db2e50ba20"
+    },
+    "src/frame_turret.c": {
+      "source": "c_frame/frame_turret.c",
+      "sha256": "47f65469f399749fcf4350792011d2c840f9de12c5e5b2fd21ecc2b18290bccc"
+    },
+    "src/frame_time.c": {
+      "source": "c_frame/frame_time.c",
+      "sha256": "e5b66327196b7ee8b5c4de4c51d2b7cb2ec5e733b19f32f091bb14e5fa194c71"
+    },
+    "src/frame_progress.c": {
+      "source": "c_frame/frame_progress.c",
+      "sha256": "f9c81a60c56bd55653ded2aaac08a2680e5bc32e4aec4e0a70cd841808ad42e5"
+    },
+    "src/frame_player_collision.c": {
+      "source": "c_frame/frame_player_collision.c",
+      "sha256": "d27e65d131f4c5ec7d5d20254b0b27d7ecd84d5db51c1048b9a394a398e69f69"
+    },
+    "src/frame_player_input.c": {
+      "source": "c_frame/frame_player_input.c",
+      "sha256": "31f2023a87303b097f8187b914fb434d228868b477a1156d19bd830f7dba25af"
+    },
+    "src/frame_controls.c": {
+      "source": "c_frame/frame_controls.c",
+      "sha256": "e35f39b941683395888af108185ba4df9513bf8e7cec18c8938cce70f4adb235"
+    },
+    "src/frame_overlay.c": {
+      "source": "c_frame/frame_overlay.c",
+      "sha256": "708c1aa3f0246883409beb1c9a61b970d5cea2f97cff7ad86c29e5ed86c340b0"
+    },
+    "src/frame_race.c": {
+      "source": "c_frame/frame_race.c",
+      "sha256": "64a3c16da806ea5572aee7b80c6ad660c4d17ffaf161619c14155e0be07d5849"
+    },
+    "web/src/command-buffer.js": {
+      "source": "web/src/command-buffer.js",
+      "sha256": "295361f169868420f4564c342b8b8a3ce679e00be04bd821dffa94f7f5568420"
+    },
+    "web/src/font-atlas.js": {
+      "source": "web/src/font-atlas.js",
+      "sha256": "c1984d76bdc7c6a82190e44102c46f21d2e760bbf00c7b5cbd5a582047bb9ec2"
+    },
+    "web/src/game-audio.js": {
+      "source": "web/src/game-audio.js",
+      "sha256": "a1cd0f947b965828a0c0934ade539e5709807cc813c805b8fae3d278b27fe34b"
+    },
+    "web/src/game-tools.js": {
+      "source": "web/src/game-tools.js",
+      "sha256": "363f7e1cfe6e3ce84c5a3caa5ebdb53f50d63de0244ccf7922938071c2e086d3"
+    },
+    "web/src/gl-state.js": {
+      "source": "web/src/gl-state.js",
+      "sha256": "8467d3d1dadff5930be3ba0feb2b7cb1060ab3a9ff60be958b5535f4cf69a6cd"
+    },
+    "web/src/keyboard.js": {
+      "source": "web/src/keyboard.js",
+      "sha256": "846915f034c757c604242569b75e2eb9c5c8dc84b1237fe39337ec6ccc9b94d4"
+    },
+    "web/src/loading.js": {
+      "source": "web/src/loading.js",
+      "sha256": "3348d83bc6bf499d2522a004131a20cd2c80cd4262db20e0e53c7cae55baa39c"
+    },
+    "web/src/native-packet.js": {
+      "source": "web/src/native-packet.js",
+      "sha256": "52b2e950a646a437c6a4948c82ea90527c531c2a184cb40a6f1a5d44b2fa70f7"
+    },
+    "web/src/native-renderer.js": {
+      "source": "web/src/native-renderer.js",
+      "sha256": "5f5e8f4cd03529aa7f61042793cd9c79b80fcc24008d05c9c73dcb56207343b7"
+    },
+    "web/src/reconstruction.css": {
+      "source": "web/src/reconstruction.css",
+      "sha256": "53f32bceef0971e094e922376e4379f3f5d87031cd717a21cbdb72eb6e517df9"
+    },
+    "web/src/reconstruction.js": {
+      "source": "web/src/reconstruction.js",
+      "sha256": "6d735b8ad1cf4217ea37d05b46ef8fcaacd2cdf647cfce9bdda0c3ddb29290e5"
+    },
+    "web/src/viewport-quad.js": {
+      "source": "web/src/viewport-quad.js",
+      "sha256": "5e74037005534d78a63ddeb8cf38755f542cdff482479ee05fb892611b9ac9c6"
+    },
+    "web/src/wasm-engine.js": {
+      "source": "web/src/wasm-engine.js",
+      "sha256": "3b1cd2d281918dbb2af2db632745e18560741c439c24a2622885c879004f1b40"
+    },
+    "web/src/wasm-session.js": {
+      "source": "web/src/wasm-session.js",
+      "sha256": "e2eaa35e405b13b117bb06e8d3a014a4cb473413c07ad80dc5f2f724b490cdad"
+    },
+    "web/src/wasm-worker.js": {
+      "source": "web/src/wasm-worker.js",
+      "sha256": "d9a5560b7b7fde56f8213129a29af829880ca997f130bfc54dbd5c0dae02735e"
+    },
+    "web/vendor/bootstrap.bundle.min.js": {
+      "source": "web/vendor/bootstrap.bundle.min.js",
+      "sha256": "4ad2ad30a7df1fa0a615c4cfeb1aeffbe92019a8dff0262c99464acbd56dca5c"
+    },
+    "web/vendor/bootstrap.min.css": {
+      "source": "web/vendor/bootstrap.min.css",
+      "sha256": "9caac977a0af0c2229abd397eee3345899c4020da2a1a0b711c1cc543fe3719d"
+    },
+    "web/vendor/LICENSE.bootstrap": {
+      "source": "web/vendor/LICENSE.bootstrap",
+      "sha256": "bc0cd18d94c028f1c0b62ec9fdaddcb9921c1e07c29cf52dc7df8cca9daf2488"
+    },
+    "web/vendor/LICENSE.popper": {
+      "source": "web/vendor/LICENSE.popper",
+      "sha256": "bf67e2c9b7974543bb18ced3a0b37f53729aaff953b442dd89a3adaf90fd93e8"
+    },
+    "web/vendor/README.md": {
+      "source": "web/vendor/README.md",
+      "sha256": "99110d0ec5d55c599562ddfddc531db8247eee466e192f5bbff9d2d693393297"
+    },
+    "web/index.html": {
+      "source": "web/index.html",
+      "sha256": "0c70b6ec31f7f8fb6fdcfa034c80069d455b896cc9cd64a88fcb8143987313b8"
+    },
+    "assets/game/DATA/FASTFILE.DAT": {
+      "source": "web/wasm/assets/DATA/FASTFILE.DAT",
+      "sha256": "6876b03467812d400e46272a51a557b0775ecbf9f869c6e33b61c2b7ee3c808c"
+    },
+    "assets/game/TANKS/BRONZE/FASTFILE.DAT": {
+      "source": "web/wasm/assets/TANKS/BRONZE/FASTFILE.DAT",
+      "sha256": "42b80c19bac485467cf2c7b4da787d4bb4c9e1217442238ea2531b042e83034e"
+    },
+    "assets/game/TANKS/SILVER/FASTFILE.DAT": {
+      "source": "web/wasm/assets/TANKS/SILVER/FASTFILE.DAT",
+      "sha256": "9e14bc3ec34ba0558d3eb92e8ebfd3aeb90cb3a9d858721b113b218372ca63e8"
+    },
+    "assets/game/TANKS/GOLD/FASTFILE.DAT": {
+      "source": "web/wasm/assets/TANKS/GOLD/FASTFILE.DAT",
+      "sha256": "59bab5c4ce014f407e1ba2bcf48246d1a413f7fc2704be0f1ddbc0a65f3c1206"
+    },
+    "assets/game/INGAME/FASTFILE.DAT": {
+      "source": "web/wasm/assets/INGAME/FASTFILE.DAT",
+      "sha256": "89a654e074d074a9ec6c8bbf059df88aed6a185c8edcec7948d6f2b268fb6d1a"
+    },
+    "assets/game/COMMON/FASTFILE.DAT": {
+      "source": "web/wasm/assets/COMMON/FASTFILE.DAT",
+      "sha256": "1e5e5556e7770ed074cdf39da87851d86aec2402bd9a2e26562abc8c7498f614"
+    },
+    "assets/game/GUI/FASTFILE.DAT": {
+      "source": "web/wasm/assets/GUI/FASTFILE.DAT",
+      "sha256": "9d24a9ec5700498aa58ca886c3de3923399bcd7c377efc2ef65196cab3cc525d"
+    },
+    "assets/game/LEVELS/ENGLAND/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/ENGLAND/FASTFILE.DAT",
+      "sha256": "c0615c0683d17aa4b2f1753ad4be5ea5f9db291f8a37981edcaf38dfba151b76"
+    },
+    "assets/game/LEVELS/MEXICO/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/MEXICO/FASTFILE.DAT",
+      "sha256": "1d65b9c1ad2d93332da36a5f9d06e6bbb281058ef4535b3c7d5e1742b6811e81"
+    },
+    "assets/game/LEVELS/SWAMP/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/SWAMP/FASTFILE.DAT",
+      "sha256": "8599ed8df59b9d5382ff2da37222af02ecf9a9ec038cc290b6020707d5c11598"
+    },
+    "assets/game/LEVELS/EAST/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/EAST/FASTFILE.DAT",
+      "sha256": "b679aa3e4a4c584f65b9882cd9468e78c3baed6b260ec2df390f163ec3f9b3d8"
+    },
+    "assets/game/LEVELS/THEME/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/THEME/FASTFILE.DAT",
+      "sha256": "e753a17c499ee65fab19980debe2f36beef1b929b163d69342e04ae0db528e86"
+    },
+    "assets/game/LEVELS/BIO/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/BIO/FASTFILE.DAT",
+      "sha256": "941ae25e86323e2aed91544ecefdb99d00739c7bb0ebbf01e75821e79dd97d84"
+    },
+    "assets/game/LEVELS/MONACO/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/MONACO/FASTFILE.DAT",
+      "sha256": "62507eaa41c20f0fde43dfbed8aea97e36b14e4aadfa4667a276097c17168fc3"
+    },
+    "assets/game/LEVELS/CIRCUIT/FASTFILE.DAT": {
+      "source": "web/wasm/assets/LEVELS/CIRCUIT/FASTFILE.DAT",
+      "sha256": "6fcd3d944aa458650554ee98971a6191f1e05ce04ac7e8d157e94b28da5049d6"
+    },
+    "assets/sounds/menu.bin": {
+      "source": "web/wasm/sounds/menu.bin",
+      "sha256": "c5b83babb903dc5506eff657b49d3d5bcfd73c1fd52c6b796b6484ac48179399"
+    },
+    "assets/sounds/game.bin": {
+      "source": "web/wasm/sounds/game.bin",
+      "sha256": "a5cd8b3097c24a2c777a7f561faeea3138ab40dcf77eb9d60cf9082cf903bf0e"
+    },
+    "tools/static_response.mjs": {
+      "source": "tools/static_response.mjs",
+      "sha256": "495907ef82c0383e04a7cf940582bccb1d5ea7ea8661be1f65bb832af23520d3"
+    }
+  },
+  "host_extraction": {
+    "runtime.inc": "Production services extracted from c_frame/frame_level_test.c; recording, touched-byte tracking, scene counters and test/CLI entry points removed.",
+    "game_host.c": "tools/wasm_host.c with explicit production includes replacing the test-file inclusion; fog adapter renamed.",
+    "frontend.inc": "tools/wasm_menu.h with its include changed to the local production header."
+  },
+  "extracted_files": {
+    "host/runtime.inc": {
+      "source": "c_frame/frame_level_test.c",
+      "source_sha256": "da10dc5a34c69e045652005c05b67f0aa26d44a4d9adf180548335f6e6a5557c",
+      "sha256": "db1af1a3dd95a510bdea1719f06f827c98176c90d0aa9a977cea9836b8de7885"
+    },
+    "host/game_host.c": {
+      "source": "tools/wasm_host.c",
+      "source_sha256": "e3093bac8b84a53a3cd423271b3138cc931e3f43d4a10a3a94c5b6ee847e7094",
+      "sha256": "51f9d13fa4d9678965ad021dc53652c8b2d95f4af422ce20e9f9be1976e9e45c"
+    },
+    "host/frontend.inc": {
+      "source": "tools/wasm_menu.h",
+      "source_sha256": "1acaba6cbc964a22f057ddbb2793f4075bf745c2c699306b9d69d587376ae3c5",
+      "sha256": "0bace9c3e92a7219d9596142d1c4a7b21e5e1675f8fbd610785e199761d53267"
+    }
+  }
+}

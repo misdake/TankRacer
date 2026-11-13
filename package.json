@@ -1,0 +1,11 @@
+{
+  "name": "tank-racer-cup",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python tools/build.py",
+    "start": "node tools/serve.mjs",
+    "test": "node tests/parity.mjs && node tests/cup.mjs && node tests/site.mjs",
+    "verify": "python tools/verify_sources.py"
+  }
+}
