@@ -1249,3 +1249,76 @@ $env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_referenc
 $env:TANKRACER_MEMBERSHIP_REFERENCE=(Resolve-Path build/native/membership_reference.exe).Path
 cargo test -p tankracer-game --test lifecycle_reference --test symbols_reference --test breakable_reference --test membership_reference --locked -- --ignored --nocapture
 ```
+
+## Entity identity, factory and shared dispatch context
+
+`entities::Entities<T>` owns typed class records and Copy component handles.
+ID zero is reserved; automatic allocation follows the native free chain, release
+prepends IDs, and requested IDs unlink their first free occurrence. There are no
+generation counters: an old reference observes a reused ID. Requested occupied
+IDs replace their table binding and still increase the original record counter;
+dropping a Copy handle does not implicitly clean up class-owned components.
+Record accounting happens after both destruction methods succeed, independently
+of ID release. Same-capacity reset retains record bindings and resets free links;
+the session owner must perform the original teardown before reinitialization.
+
+Growth preserves the native 128-slot policy. If the old free chain is nonempty,
+the new free chain is not appended to it. Those new slots remain available to
+explicit requests, while exhausting the old chain causes another growth. The
+free-head/high-water behavior, stale free-link words and sequential requested-ID
+advance are qualified, including failed constructors. No original addresses or
+raw memory arena initialize Rust records.
+
+`entity_factory::State` owns entities, symbols, tick/queue state and current
+method slot. Its borrowed `Context` is shared by synchronous recursive class
+calls. Creation writes class then dispatches allocation and initialization;
+reserved filling rejects missing/in-use records before writing class. Failure
+retains prior writes and the exceptional current slot. Destruction dispatches
+destructor then ID-release before decrementing the record count. Tick/drain call
+these same class tables, with callbacks mutating the live scheduler. Neither
+allocation nor generic destruction invents a default component or removes
+class-owned memberships/resources implicitly.
+
+Eight real common bindings are exposed as `BaseMethod`: identity, zero, one,
+enable/disable tick, queue destruction, release ID and detach record. These map
+to the native base routines; a future class catalogue maps logical MethodIds to
+them. Component allocation, initialization and specific class behavior still
+need their actual Rust implementations.
+
+**155 scenarios / 1,718 operations / 599,859 words match production C**, with
+1,292 class callbacks and 256 error prefixes. The oracle executes real entity
+table, factory, dispatch, tick/queue and native base routines. It covers free-ID
+reuse, multiple growths, requested overwrite, unlink traversal limits, same/new
+capacity reset, reserved/duplicate fill, null/out-of-range methods, positive and
+negative callback failures, recursive construction, live tick changes and
+destruction-phase notifications. Snapshots compare every logical record/free
+link, counters, flags, queues, cursor, slots, component identities and callback
+trace. Class allocation/initialization callbacks are scripted boundaries here;
+this does not qualify actual Obstacle/Crush/Tank class startup.
+
+`Context::define` connects names to the same factory: publish after successful
+allocation/initialization, reuse only a blank reserved record, reject ordinary
+duplicate definitions, and keep nil anonymous. Unit tests cover forward names,
+reserved fill, duplicates, nil, binding visibility after ID reuse and failed
+constructor/release prefixes. These definition tests are source-guided; the full
+native world reader/class catalogue and authored attachment reader remain open.
+
+Qualification assumes valid records/class handles and a functioning host
+allocator. Raw C table-copy interruption/OOM/memory-fault prefixes and invalid
+signed IDs are outside this typed simulation boundary. Rust retains requested
+growth/unlink traversal budgets but does not recreate partially copied guest
+memory. C's operational copy guard is not an original game timestep rule.
+
+Workspace tests, all-target/native and Wasm game Clippy, source verification,
+the lifecycle/symbol/breakable C regressions and release browser build pass.
+No renderer changes or new GPU/whole-frame performance claims. No map
+precomputation added; entity/component state is dynamic memory. The browser is
+still static, and the moving Rust vehicle is not running. Next: concrete common
+Obstacle/Crush lifecycle and record retirement, authored class/attachment
+factories, then complete vehicle prefix/after-pose and independent world ticks.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_entity_factory.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/entity_factory_reference.exe
+$env:TANKRACER_ENTITY_FACTORY_REFERENCE=(Resolve-Path build/native/entity_factory_reference.exe).Path
+cargo test -p tankracer-game --test entity_factory_reference --locked -- --ignored --nocapture
+```

@@ -13,6 +13,8 @@ pub mod deformation;
 pub mod dispatch;
 pub mod drive;
 pub mod effect_pool;
+pub mod entities;
+pub mod entity_factory;
 mod fixed;
 pub mod geometry;
 pub mod ground_collision;
