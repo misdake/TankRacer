@@ -51,7 +51,6 @@ $env:TANKRACER_SURFACE_REFERENCE=(Resolve-Path build/native/surface_reference.ex
 cargo test -p tankracer-assets --test surface_reference -- --ignored --nocapture
 ```
 
-These are **M2 import increments**, not a completed scene importer. Next:
-coordinate/unit convention, material/sampler classification, atlas handling and
-actual ENGLAND geometry in the renderer. Placed scenery and optional-module
-ownership remain subsequent work.
+The decoded BSM/SUR data now feeds the actual ENGLAND static scene, material
+classification and atlas described in `rust-renderer.md`. Placed scenery and
+optional-module lifecycle remain subsequent work.

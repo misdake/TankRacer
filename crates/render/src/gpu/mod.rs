@@ -10,7 +10,7 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext as Gl, WebGlUniformLocat
 
 use crate::{
     geometry::MeshData,
-    material::{Material, Pipeline},
+    material::{AlphaEncoding, Material, Pipeline},
 };
 use resources::Program;
 
@@ -19,6 +19,7 @@ pub struct FrameStats {
     pub draws: u32,
     pub triangles: u32,
     pub pipeline_changes: u32,
+    pub index_upload_bytes: u32,
 }
 
 pub struct Renderer {
@@ -28,11 +29,16 @@ pub struct Renderer {
     color: WebGlUniformLocation,
     cutoff: WebGlUniformLocation,
     textured: WebGlUniformLocation,
+    texture_premultiplied: WebGlUniformLocation,
+    output_premultiplied: WebGlUniformLocation,
+    geometry_culling: WebGlUniformLocation,
+    billboard_right: WebGlUniformLocation,
     fallback: Texture,
     pipeline: Option<Pipeline>,
     mesh: Option<web_sys::WebGlVertexArrayObject>,
     texture: Option<web_sys::WebGlTexture>,
     stats: FrameStats,
+    pending_upload_bytes: u32,
 }
 
 /// A live frame exclusively borrows the renderer. Resource uploads cannot
@@ -42,6 +48,11 @@ pub struct Frame<'a> {
 }
 
 impl Frame<'_> {
+    pub fn set_billboard_right(&mut self, right: [f32; 2]) {
+        self.renderer
+            .gl
+            .uniform2f(Some(&self.renderer.billboard_right), right[0], right[1]);
+    }
     pub fn draw(
         &mut self,
         mesh: &GpuMesh,
@@ -86,6 +97,10 @@ impl Renderer {
         let color = uniform("uColor")?;
         let cutoff = uniform("uCutoff")?;
         let textured = uniform("uTextured")?;
+        let texture_premultiplied = uniform("uTexturePremultiplied")?;
+        let output_premultiplied = uniform("uOutputPremultiplied")?;
+        let geometry_culling = uniform("uGeometryCulling")?;
+        let billboard_right = uniform("uBillboardRight")?;
         let fallback = Texture::rgba(&gl, 1, 1, &[255; 4])?;
         gl.use_program(Some(&program.raw));
         gl.uniform1i(Some(&uniform("uTexture")?), 0);
@@ -96,11 +111,16 @@ impl Renderer {
             color,
             cutoff,
             textured,
+            texture_premultiplied,
+            output_premultiplied,
+            geometry_culling,
+            billboard_right,
             fallback,
             pipeline: None,
             mesh: None,
             texture: None,
             stats: FrameStats::default(),
+            pending_upload_bytes: 0,
         })
     }
 
@@ -114,6 +134,14 @@ impl Renderer {
 
     pub fn target(&self, width: u32, height: u32) -> Result<RenderTarget, JsValue> {
         RenderTarget::new(&self.gl, width, height)
+    }
+
+    pub fn update_indices(&mut self, mesh: &mut GpuMesh, indices: &[u32]) -> Result<(), JsValue> {
+        mesh.update_indices(indices)?;
+        self.pending_upload_bytes = self
+            .pending_upload_bytes
+            .saturating_add(std::mem::size_of_val(indices) as u32);
+        Ok(())
     }
 
     pub fn begin_frame<'a>(
@@ -140,12 +168,16 @@ impl Renderer {
         gl.front_face(Gl::CCW);
         gl.active_texture(Gl::TEXTURE0);
         gl.use_program(Some(&self.program.raw));
+        gl.uniform2f(Some(&self.billboard_right), 1., 0.);
         // Clearing overrides depth/color masks. Force a complete first pipeline.
         // Upload helpers can also change bindings between frames.
         self.pipeline = None;
         self.mesh = None;
         self.texture = None;
-        self.stats = FrameStats::default();
+        self.stats = FrameStats {
+            index_upload_bytes: std::mem::take(&mut self.pending_upload_bytes),
+            ..FrameStats::default()
+        };
         Frame { renderer: self }
     }
 
@@ -171,6 +203,24 @@ impl Renderer {
         gl.uniform4fv_with_f32_array(Some(&self.color), &material.color);
         gl.uniform1f(Some(&self.cutoff), material.alpha_cutoff.unwrap_or(-1.));
         gl.uniform1i(Some(&self.textured), i32::from(texture.is_some()));
+        gl.uniform1i(
+            Some(&self.texture_premultiplied),
+            i32::from(matches!(
+                material.texture_alpha,
+                AlphaEncoding::Premultiplied
+            )),
+        );
+        gl.uniform1i(
+            Some(&self.output_premultiplied),
+            i32::from(matches!(
+                material.output_alpha,
+                AlphaEncoding::Premultiplied
+            )),
+        );
+        gl.uniform1i(
+            Some(&self.geometry_culling),
+            i32::from(material.geometry_culling),
+        );
         gl.draw_elements_with_i32(Gl::TRIANGLES, mesh.count, Gl::UNSIGNED_INT, 0);
         self.stats.draws += 1;
         self.stats.triangles += mesh.count as u32 / 3;

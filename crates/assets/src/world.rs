@@ -37,6 +37,13 @@ pub struct SourceMaterial {
 }
 
 #[derive(Debug)]
+pub struct Billboard {
+    pub center: [i16; 2],
+    pub half_width: u16,
+    pub positive_vertices: u8,
+}
+
+#[derive(Debug)]
 pub struct Triangle {
     pub source_offset: u32,
     pub normal: [i16; 3],
@@ -47,6 +54,7 @@ pub struct Triangle {
     pub flags: u16,
     pub material: Option<MaterialId>,
     pub material_source_offset: u32,
+    pub billboard: Option<Billboard>,
 }
 
 #[derive(Debug)]
@@ -196,6 +204,24 @@ impl World {
                     flags: data.u16(at + 18)?,
                     material,
                     material_source_offset: material_offset,
+                    billboard: if data.u16(at + 18)? & 30 == 0 {
+                        None
+                    } else {
+                        let x = data.u32(node + 16)? as usize;
+                        let z = data.u32(node + 24)? as usize;
+                        if x == 0 || z == 0 {
+                            return Err(Error::InvalidMesh {
+                                offset: node,
+                                reason: "missing billboard centers",
+                            });
+                        }
+                        let flags = data.u16(at + 18)?;
+                        Some(Billboard {
+                            center: [data.i16(x + i * 2)?, data.i16(z + i * 2)?],
+                            half_width: ((flags & 30) >> 1) * 64,
+                            positive_vertices: if flags & 32 == 0 { 6 } else { 2 },
+                        })
+                    },
                 });
             }
             world.meshes.push(WorldMesh {

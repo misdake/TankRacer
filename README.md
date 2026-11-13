@@ -10,8 +10,9 @@ node tools/build_rust.mjs
 node tools/serve.mjs 8133 build/rust/site
 ```
 
-Open http://127.0.0.1:8133. This first Rust milestone displays a 3D renderer
-test scene; game content and physics are subsequent milestones. Rust 1.95,
+Open http://127.0.0.1:8133. The current Rust build displays the actual ENGLAND
+static world with a free camera: drag to look, WASD to move, Q/E down/up, Shift
+to move faster. Vehicles, physics and race rules are subsequent milestones. Rust 1.95,
 Node.js 22+ and `wasm-pack` are required. `Cargo.lock` fixes crate versions.
 Run `npm run test:rust` for native resource tests, lint checks and actual browser
 GPU pixel tests (set `CHROME` if Chromium is not in a standard location).

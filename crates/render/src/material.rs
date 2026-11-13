@@ -101,10 +101,19 @@ impl Pipeline {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum AlphaEncoding {
+    Straight,
+    Premultiplied,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Material {
     pub pipeline: Pipeline,
     pub color: [f32; 4],
     pub alpha_cutoff: Option<f32>,
+    pub texture_alpha: AlphaEncoding,
+    pub output_alpha: AlphaEncoding,
+    pub geometry_culling: bool,
 }
 
 impl Material {
@@ -113,6 +122,9 @@ impl Material {
             pipeline: Pipeline::OPAQUE,
             color,
             alpha_cutoff: None,
+            texture_alpha: AlphaEncoding::Straight,
+            output_alpha: AlphaEncoding::Straight,
+            geometry_culling: false,
         }
     }
 }

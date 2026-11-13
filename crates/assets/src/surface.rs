@@ -316,4 +316,35 @@ mod tests {
         assert_eq!(device_rgba([255, 0, 255, 0], 1), [0, 0, 0, 0]);
         assert_eq!(device_rgba([17, 34, 51, 64], 2), [51, 34, 17, 68]);
     }
+
+    #[test]
+    fn selected_mip_skips_complete_planar_levels_and_preserves_consumed_length() {
+        let mut bytes = vec![0; 342];
+        bytes[..8].copy_from_slice(b"SSURFACE");
+        for (at, value) in [
+            (8, 3_u16),
+            (26, 2),
+            (28, 2),
+            (30, 1),
+            (32, 1),
+            (34, 1),
+            (256, 0),
+            (320, 2),
+            (322, 32),
+        ] {
+            bytes[at..at + 2].copy_from_slice(&value.to_le_bytes());
+        }
+        bytes[36..40].copy_from_slice(&2_u32.to_le_bytes());
+        bytes[258..262].copy_from_slice(&320_u32.to_le_bytes());
+        bytes.extend([
+            1, 2, 3, 4, 17, 34, 51, 68, 85, 102, 119, 136, 0, 64, 128, 255,
+        ]);
+        bytes.extend([17, 34, 51, 68]);
+        let surface = Surface::open(&bytes).unwrap();
+        let mip = surface.decode(1).unwrap();
+        assert_eq!((mip.width, mip.height), (1, 1));
+        assert_eq!(mip.rgba, [51, 34, 17, 68]);
+        assert_eq!(mip.consumed, 362);
+        assert_eq!(surface.decode(2).unwrap_err(), Error::InvalidMip);
+    }
 }

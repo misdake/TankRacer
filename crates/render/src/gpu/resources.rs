@@ -11,6 +11,8 @@ pub struct GpuMesh {
     vertices: Option<WebGlBuffer>,
     indices: Option<WebGlBuffer>,
     pub(super) count: i32,
+    vertex_count: usize,
+    index_capacity: usize,
 }
 
 impl GpuMesh {
@@ -30,6 +32,8 @@ impl GpuMesh {
             vertices: None,
             indices: None,
             count: mesh.indices.len() as i32,
+            vertex_count: mesh.vertices.len(),
+            index_capacity: mesh.indices.len(),
         };
         result.vao = Some(gl.create_vertex_array().ok_or("Cannot allocate mesh VAO")?);
         result.vertices = Some(gl.create_buffer().ok_or("Cannot allocate vertex buffer")?);
@@ -37,12 +41,24 @@ impl GpuMesh {
         gl.bind_vertex_array(result.vao.as_ref());
         gl.bind_buffer(Gl::ARRAY_BUFFER, result.vertices.as_ref());
         // Copy only during resource upload; no unsafe views across memory growth.
-        let vertices = js_sys::Uint8Array::from(bytemuck::cast_slice::<Vertex, u8>(&mesh.vertices));
-        gl.buffer_data_with_array_buffer_view(Gl::ARRAY_BUFFER, &vertices, Gl::STATIC_DRAW);
+        gl.buffer_data_with_u8_array(
+            Gl::ARRAY_BUFFER,
+            bytemuck::cast_slice::<Vertex, u8>(&mesh.vertices),
+            Gl::STATIC_DRAW,
+        );
         gl.bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, result.indices.as_ref());
-        let indices = js_sys::Uint32Array::from(mesh.indices.as_slice());
-        gl.buffer_data_with_array_buffer_view(Gl::ELEMENT_ARRAY_BUFFER, &indices, Gl::STATIC_DRAW);
-        for (slot, size, offset) in [(0, 3, 0), (1, 4, 12), (2, 2, 28)] {
+        gl.buffer_data_with_u8_array(
+            Gl::ELEMENT_ARRAY_BUFFER,
+            bytemuck::cast_slice::<u32, u8>(&mesh.indices),
+            Gl::DYNAMIC_DRAW,
+        );
+        for (slot, size, offset) in [
+            (0, 3, std::mem::offset_of!(Vertex, position)),
+            (1, 4, std::mem::offset_of!(Vertex, color)),
+            (2, 2, std::mem::offset_of!(Vertex, uv)),
+            (3, 1, std::mem::offset_of!(Vertex, billboard_offset)),
+            (4, 1, std::mem::offset_of!(Vertex, double_sided)),
+        ] {
             gl.enable_vertex_attrib_array(slot);
             gl.vertex_attrib_pointer_with_i32(
                 slot,
@@ -50,11 +66,30 @@ impl GpuMesh {
                 Gl::FLOAT,
                 false,
                 std::mem::size_of::<Vertex>() as i32,
-                offset,
+                offset as i32,
             );
         }
         gl.bind_vertex_array(None);
         Ok(result)
+    }
+
+    pub(super) fn update_indices(&mut self, indices: &[u32]) -> Result<(), JsValue> {
+        if indices.len() > self.index_capacity
+            || !indices.len().is_multiple_of(3)
+            || indices.iter().any(|&i| i as usize >= self.vertex_count)
+        {
+            return Err("Invalid mesh index update".into());
+        }
+        self.gl.bind_vertex_array(self.vao.as_ref());
+        self.gl
+            .bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, self.indices.as_ref());
+        self.gl.buffer_sub_data_with_i32_and_u8_array(
+            Gl::ELEMENT_ARRAY_BUFFER,
+            0,
+            bytemuck::cast_slice(indices),
+        );
+        self.count = indices.len() as i32;
+        Ok(())
     }
 }
 

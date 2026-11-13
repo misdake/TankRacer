@@ -4,6 +4,8 @@
 mod app;
 #[cfg(all(target_arch = "wasm32", feature = "gpu-tests"))]
 mod checks;
+#[cfg(target_arch = "wasm32")]
+mod world;
 
 #[cfg(target_arch = "wasm32")]
 pub use app::App;

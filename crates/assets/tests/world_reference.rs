@@ -99,6 +99,18 @@ fn static_geometry_matches_composed_c_loader_on_all_maps() {
                     assert_eq!(&ram[at + 12 + i * 2..at + 14 + i * 2], &triangle.uv[i]);
                 }
                 assert_eq!(i16_at(ram, at + 18) as u16, triangle.flags);
+                if let Some(billboard) = &triangle.billboard {
+                    let mesh_at = base + mesh.source_offset as usize;
+                    let face = (triangle.source_offset as usize
+                        - (u32_at(ram, mesh_at + 8) as usize - base))
+                        / 24;
+                    let x = u32_at(ram, mesh_at + 16) as usize;
+                    let z = u32_at(ram, mesh_at + 24) as usize;
+                    assert_eq!(
+                        billboard.center,
+                        [i16_at(ram, x + face * 2), i16_at(ram, z + face * 2)]
+                    );
+                }
                 let material = u32_at(ram, at + 20) as usize;
                 if let Some(id) = triangle.material {
                     let name = &world.materials[id.index()].name;

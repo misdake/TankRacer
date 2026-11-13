@@ -1,9 +1,4 @@
-use glam::{Mat4, Vec3};
-use tankracer_render::{
-    geometry::MeshData,
-    gpu::{GpuMesh, Renderer, Texture},
-    material::Material,
-};
+use tankracer_render::gpu::Renderer;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -11,8 +6,7 @@ use web_sys::HtmlCanvasElement;
 pub struct App {
     pub(crate) renderer: Renderer,
     canvas: HtmlCanvasElement,
-    cube: GpuMesh,
-    checker: Texture,
+    world: Option<crate::world::WorldView>,
 }
 
 #[wasm_bindgen]
@@ -20,59 +14,61 @@ impl App {
     #[wasm_bindgen(constructor)]
     pub fn new(canvas: HtmlCanvasElement) -> Result<Self, JsValue> {
         let renderer = Renderer::new(&canvas)?;
-        let cube = renderer.upload_mesh(&MeshData::cube())?;
-        let checker = renderer.upload_rgba(
-            2,
-            2,
-            &[
-                210, 210, 190, 255, 130, 140, 120, 255, 130, 140, 120, 255, 210, 210, 190, 255,
-            ],
-        )?;
         Ok(Self {
             renderer,
             canvas,
-            cube,
-            checker,
+            world: None,
         })
     }
 
-    pub fn render(&mut self, seconds: f64) {
+    pub fn render(&mut self) -> Result<(), JsValue> {
         let size = [self.canvas.width(), self.canvas.height()];
         if size.contains(&0) {
-            return;
+            return Ok(());
         }
-        let mut frame = self
-            .renderer
-            .begin_frame(None, size, [0.48, 0.62, 0.72, 1.]);
-        let projection = Mat4::perspective_rh_gl(
-            50_f32.to_radians(),
-            size[0] as f32 / size[1] as f32,
-            0.1,
-            100.,
-        );
-        let view = Mat4::look_at_rh(Vec3::new(8., 6., 10.), Vec3::new(0., 0.5, 0.), Vec3::Y);
-        let vp = projection * view;
-        let ground = Mat4::from_translation(Vec3::new(0., -0.3, 0.))
-            * Mat4::from_scale(Vec3::new(6., 0.15, 6.));
-        frame.draw(
-            &self.cube,
-            &Material::opaque([0.7, 0.8, 0.6, 1.]),
-            Some(&self.checker),
-            vp * ground,
-        );
-        for (i, color) in [
-            [0.75, 0.32, 0.15, 1.],
-            [0.25, 0.45, 0.65, 1.],
-            [0.65, 0.6, 0.2, 1.],
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let model = Mat4::from_translation(Vec3::new((i as f32 - 1.) * 2.6, 0.8, 0.))
-                * Mat4::from_rotation_y(seconds as f32 * 0.2 + i as f32 * 0.4)
-                * Mat4::from_scale(Vec3::new(0.8, 1., 0.8));
-            frame.draw(&self.cube, &Material::opaque(color), None, vp * model);
+        if let Some(world) = &mut self.world {
+            return world.draw(&mut self.renderer, size);
         }
+        self.renderer.begin_frame(None, size, [0., 0., 0., 1.]);
+        Ok(())
+    }
+
+    pub fn load_world(&mut self, bytes: &[u8]) -> Result<String, JsValue> {
+        let world = crate::world::WorldView::load(&self.renderer, bytes)?;
+        let stats = world.stats();
+        self.world = Some(world);
+        Ok(stats)
+    }
+
+    pub fn move_camera(&mut self, seconds: f32, x: f32, y: f32, z: f32, fast: bool) {
+        if let Some(world) = &mut self.world {
+            world.move_camera(seconds, x, y, z, fast);
+        }
+    }
+
+    pub fn look(&mut self, dx: f32, dy: f32) {
+        if let Some(world) = &mut self.world {
+            world.camera.look(dx, dy);
+        }
+    }
+
+    pub fn camera_position(&self) -> Vec<f32> {
+        self.world
+            .as_ref()
+            .map_or_else(|| vec![0.; 3], |w| w.camera.position.to_array().to_vec())
+    }
+
+    pub fn camera_forward(&self) -> Vec<f32> {
+        self.world.as_ref().map_or_else(
+            || vec![0., 0., -1.],
+            |w| w.camera.forward().to_array().to_vec(),
+        )
+    }
+
+    pub fn scene_stats(&self) -> String {
+        self.world
+            .as_ref()
+            .map_or_else(|| "{}".into(), |w| w.stats())
     }
 
     #[cfg(feature = "gpu-tests")]
@@ -83,8 +79,8 @@ impl App {
     pub fn frame_stats(&self) -> String {
         let s = self.renderer.stats();
         format!(
-            "{{\"draws\":{},\"triangles\":{},\"pipeline_changes\":{}}}",
-            s.draws, s.triangles, s.pipeline_changes
+            "{{\"draws\":{},\"triangles\":{},\"pipeline_changes\":{},\"index_upload_bytes\":{}}}",
+            s.draws, s.triangles, s.pipeline_changes, s.index_upload_bytes
         )
     }
 }

@@ -1,6 +1,6 @@
 // Rust toolchain + wasm-pack generate the browser ABI. No C or Python involved.
 import {spawnSync} from 'node:child_process';
-import {cp,mkdir,stat} from 'node:fs/promises';
+import {cp,copyFile,mkdir,stat} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -18,6 +18,8 @@ if(testing)args.push('--features','gpu-tests');
 args.push('--locked');
 run('wasm-pack',args);
 await cp(path.join(root,'browser'),output,{recursive:true});
+await mkdir(path.join(output,'assets'),{recursive:true});
+await copyFile(path.join(root,'assets/game/LEVELS/ENGLAND/FASTFILE.DAT'),path.join(output,'assets/ENGLAND.DAT'));
 console.log(`Rust site: ${output}`);
 console.log(`Wasm: ${(await stat(path.join(output,'pkg/tankracer_bg.wasm'))).size} bytes`);
 console.log(`Serve: node tools/serve.mjs 8133 build/rust/${testing?'test-site':'site'}`);

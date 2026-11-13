@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {existsSync} from 'node:fs';
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createWebServer} from '../tools/serve.mjs';
@@ -18,7 +18,7 @@ assert.ok(executable,'Set CHROME to a Chromium executable');
 const server=createWebServer(path.join(root,'build/rust/test-site'));
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}`;
-const profile=path.join(output,'chrome-'+process.pid);
+const profile=await mkdtemp(path.join(output,'chrome-'));
 const chrome=spawn(executable,['--headless=new','--use-angle=swiftshader','--enable-unsafe-swiftshader',
  '--no-first-run',`--user-data-dir=${profile}`,'--remote-debugging-port=0','--window-size=1280,900','about:blank'],
  {stdio:'ignore',windowsHide:true});
@@ -44,10 +44,13 @@ async function evaluate(expression){
  return result.result.value;
 }
 try{
- const port=await wait(async()=>{
-  try{return Number((await readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);}catch{return null;}
- },'Chromium debug port');
- const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+ const targets=await wait(async()=>{
+  try{
+   const port=Number((await readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);
+   const response=await fetch(`http://127.0.0.1:${port}/json/list`);
+   return response.ok?await response.json():null;
+  }catch{return null;}
+ },'Chromium debug endpoint');
  socket=new WebSocket(targets.find(t=>t.type==='page').webSocketDebuggerUrl);
  socket.onmessage=event=>{
   const message=JSON.parse(event.data);
@@ -62,11 +65,34 @@ try{
   const error=await evaluate('document.body?.dataset.error');if(error)throw Error(error);
   return evaluate('document.body?.dataset.ready==="true"');
  },'Rust engine initialization');
+ const initialPosition=await evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()))`);
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+ await wait(()=>evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()).some((p,i)=>Math.abs(p-${JSON.stringify(initialPosition)}[i])>.05))`),'keyboard camera motion');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+ const initialForward=await evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_forward()))`);
+ const point=await evaluate('(()=>{const r=document.getElementById("game").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
+ await send('Input.dispatchMouseEvent',{type:'mouseMoved',...point});
+ await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,...point});
+ await send('Input.dispatchMouseEvent',{type:'mouseMoved',buttons:1,x:point.x+40,y:point.y+15});
+ await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:point.x+40,y:point.y+15});
+ const turned=await evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_forward()))`);
+ assert.notDeepEqual(turned,initialForward);
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const gpu=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.run_gpu_checks()))`);
  assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=100);assert.equal(gpu.blend_transitions,81);
- const frame=await evaluate(`import('/main.js').then(m=>{m.app.render(0);return JSON.parse(m.app.frame_stats());})`);
- assert.equal(frame.draws,4);assert.equal(frame.triangles,48);
+ const frame=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
+ const scene=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.scene_stats()))`);
+ assert.equal(scene.source_meshes,612);assert.equal(scene.source_triangles,8881);
+ assert.equal(frame.triangles,scene.rendered_triangles);assert.ok(frame.draws>0&&frame.draws<=5);
+ assert.equal(scene.billboard_triangles,542);assert.ok(scene.acceleration_bytes<1_000_000);
+ const before=await evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()))`);
+ await evaluate(`import('/main.js').then(m=>{m.app.move_camera(.1,1,0,1,false);m.app.look(20,-10);m.app.render();})`);
+ const after=await evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()))`);
+ assert.notDeepEqual(after,before);
+ const moved=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.frame_stats()))`);
+ assert.ok(moved.index_upload_bytes>0);
+ const stationary=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
+ assert.equal(stationary.index_upload_bytes,0);
  await writeFile(path.join(output,'shell.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  for(const [width,height]of [[1280,900],[600,900],[1600,700]]){
   await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
@@ -75,7 +101,7 @@ try{
  }
  assert.deepEqual(errors,[]);assert.equal(requests.filter(url=>new URL(url).pathname.startsWith('/api/')).length,0);
  assert.ok(requests.some(url=>url.endsWith('/pkg/tankracer_bg.wasm')));
- Object.assign(report,{passed:true,...gpu,frame,aspect_ratios:3,rust_wasm:true,raw_webgl2:true});
+ Object.assign(report,{passed:true,...gpu,frame,scene,free_camera:true,keyboard_motion:true,pointer_look:true,stationary_upload_bytes:0,aspect_ratios:3,rust_wasm:true,raw_webgl2:true});
  console.log('RUST BROWSER: PASS',report);
 }catch(error){report.error=error.stack;throw error;}
 finally{

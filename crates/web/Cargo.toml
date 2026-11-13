@@ -13,6 +13,8 @@ gpu-tests = []
 
 [dependencies]
 tankracer-render = { path = "../render" }
+tankracer-scene = { path = "../scene" }
+tankracer-assets = { path = "../assets" }
 glam.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -6,9 +6,11 @@ pub struct Vertex {
     pub position: [f32; 3],
     pub color: [f32; 4],
     pub uv: [f32; 2],
+    pub billboard_offset: f32,
+    pub double_sided: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MeshData {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -25,6 +27,8 @@ impl MeshData {
                     position,
                     color: [1.; 4],
                     uv: [[0., 0.], [1., 0.], [1., 1.], [0., 1.]][i],
+                    billboard_offset: 0.,
+                    double_sided: 0.,
                 })
                 .collect(),
             indices: vec![0, 1, 2, 0, 2, 3],
@@ -80,6 +84,8 @@ impl MeshData {
                 position,
                 color: [shade, shade, shade, 1.],
                 uv: [[0., 0.], [1., 0.], [1., 1.], [0., 1.]][i],
+                billboard_offset: 0.,
+                double_sided: 0.,
             }));
             indices.extend([0, 1, 2, 0, 2, 3].map(|i| i + first));
         }

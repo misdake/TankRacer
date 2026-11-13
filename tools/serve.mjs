@@ -15,5 +15,5 @@ export function createWebServer(directory=defaultRoot){const root=path.resolve(d
  }catch(e){res.writeHead(e.code==='ENOENT'?404:400).end(e.message);}
  });}
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const server=createWebServer(process.argv[3]);server.listen(Number(process.argv[2]||8124),'127.0.0.1',()=>console.log(`Static Wasm → TCB1 → WebGL: http://127.0.0.1:${server.address().port}`));
+ const server=createWebServer(process.argv[3]);server.listen(Number(process.argv[2]||8124),'127.0.0.1',()=>console.log(`Static site: http://127.0.0.1:${server.address().port}`));
 }

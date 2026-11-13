@@ -2,20 +2,25 @@
 
 ## Current checkpoint
 
-- Active: **M2 — static world**; first geometry import increment verified.
+- Active: **M3 — physics**, beginning with terrain-query data/arithmetic.
 - C reference committed; source-byte preservation fixed (`052ba81`).
 - M1 implementation commit: `38841c4`.
-- M1 verified: 3 native tests (all 15 archives and budget bounds), native/Wasm
-  Clippy without warnings, 114 browser GPU pixel cases and 3 canvas layouts.
-  Production Wasm is 85,660 bytes and omits GPU probes; C hashes remain exact.
 - M2 geometry (`50b4d38`): direct BSM decoder matches the complete C loader on all eight
   maps, 80,439 triangles (vertices/origins/normals/colors/indices/UV/flags/materials).
   Native inspector: `cargo run -p tankracer-assets --bin inspect-world --
   assets/game/LEVELS/ENGLAND/FASTFILE.DAT`. Details: `rust-assets.md`.
-- M2 SUR: 1,007 images/mips, 5,931,008 pixels exactly match C; one invalid BIO
+- M2 SUR (`e86657a`): 1,007 images/mips, 5,931,008 pixels exactly match C; one invalid BIO
   resource explicitly rejected. Build/run the optional oracle per `rust-assets.md`.
-- Next: coordinate/unit convention; material/sampler classification; atlas edges;
-  display actual ENGLAND geometry with a free camera. M2 is not done.
+- M2 scene verified: actual ENGLAND static BSM content, 56 materials/one atlas,
+  5 draws/8,762 visible triangles, 542 GPU billboard triangles; free camera.
+  11 native checks, 2 optional C oracles and 133 GPU pixel cases pass. Inspector
+  uploads 20,508 index bytes on camera change, zero when stationary.
+- Per-map retained acceleration/metadata currently **376,808 bytes in Wasm**;
+  physics must share the remaining budget. GPU asset storage is separately
+  listed in `rust-renderer.md`. Actors/sky/layers are subsequent milestones.
+- Next: inspect `src/physics_terrain.c`; decode its existing 8x8/node/triangle
+  graph into typed Rust, preserving candidate order and wrapping arithmetic;
+  add C query oracles/boundary tests before any query acceleration.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
 
@@ -23,7 +28,7 @@
 
 - [x] **M1 Foundation:** Rust build, Wasm/browser shell, explicit render state,
   indexed geometry, resource loading foundation, GPU correctness tests.
-- [ ] **M2 Static world:** ENGLAND meshes/materials, resource provenance, free
+- [x] **M2 Static world:** ENGLAND meshes/materials, resource provenance, free
   camera, atlas/texture classification and static batches.
 - [ ] **M3 Physics:** simple vehicle proxy; terrain → contact/suspension → drive
   and pose → collision. Compare each module and short sequence against C.

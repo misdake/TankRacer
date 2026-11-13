@@ -3,7 +3,7 @@ use glam::Mat4;
 use tankracer_render::{
     geometry::MeshData,
     gpu::{Frame, Renderer},
-    material::{Blend, Compare, Cull, Equation, Factor, Material, Pipeline},
+    material::{AlphaEncoding, Blend, Compare, Cull, Equation, Factor, Material, Pipeline},
 };
 use wasm_bindgen::JsValue;
 
@@ -11,7 +11,16 @@ const BACKGROUND: [f32; 4] = [0.2, 0.4, 0.6, 128. / 255.];
 const SOURCE: [f32; 4] = [0.6, 0.2, 0.8, 0.25];
 
 fn expect(frame: &Frame<'_>, label: &str, expected: [f32; 4]) -> Result<(), JsValue> {
-    let pixel = frame.read_pixel(2, 2)?;
+    expect_at(frame, label, [2, 2], expected)
+}
+
+fn expect_at(
+    frame: &Frame<'_>,
+    label: &str,
+    point: [i32; 2],
+    expected: [f32; 4],
+) -> Result<(), JsValue> {
+    let pixel = frame.read_pixel(point[0], point[1])?;
     for i in 0..4 {
         let wanted = (expected[i].clamp(0., 1.) * 255.).round() as i32;
         if (i32::from(pixel[i]) - wanted).abs() > 2 {
@@ -39,16 +48,11 @@ enum Mode {
 
 impl Mode {
     fn material(self) -> Material {
-        let mut color = SOURCE;
+        let color = SOURCE;
         let blend = match self {
             Self::Opaque => None,
             Self::Alpha => Some(Blend::STRAIGHT_ALPHA),
-            Self::Premultiplied => {
-                for i in 0..3 {
-                    color[i] *= color[3];
-                }
-                Some(Blend::PREMULTIPLIED_ALPHA)
-            }
+            Self::Premultiplied => Some(Blend::PREMULTIPLIED_ALPHA),
             Self::Additive => Some(Blend::ADDITIVE),
             Self::AlphaAdditive => Some(Blend::ADDITIVE_ALPHA),
             Self::Multiply => Some(Blend {
@@ -79,6 +83,12 @@ impl Mode {
                 ..Pipeline::OVERLAY
             },
             alpha_cutoff: None,
+            output_alpha: if matches!(self, Self::Premultiplied) {
+                AlphaEncoding::Premultiplied
+            } else {
+                AlphaEncoding::Straight
+            },
+            ..Material::opaque(color)
         }
     }
 
@@ -311,6 +321,178 @@ pub fn run(renderer: &mut Renderer) -> Result<String, JsValue> {
     );
     expect(&frame, "frame clear and mask restoration", green.color)?;
     cases += 1;
+
+    // Premultiplication is an explicit input/output convention. All four
+    // combinations must produce the same correctly filtered white silhouette.
+    for input in [AlphaEncoding::Straight, AlphaEncoding::Premultiplied] {
+        let invisible = if matches!(input, AlphaEncoding::Straight) {
+            [255, 255, 255, 0]
+        } else {
+            [0, 0, 0, 0]
+        };
+        let texture = renderer.upload_rgba(
+            2,
+            1,
+            &[
+                255,
+                255,
+                255,
+                255,
+                invisible[0],
+                invisible[1],
+                invisible[2],
+                invisible[3],
+            ],
+        )?;
+        for output in [AlphaEncoding::Straight, AlphaEncoding::Premultiplied] {
+            let material = Material {
+                pipeline: Pipeline {
+                    blend: Some(if matches!(output, AlphaEncoding::Straight) {
+                        Blend::STRAIGHT_ALPHA
+                    } else {
+                        Blend::PREMULTIPLIED_ALPHA
+                    }),
+                    ..Pipeline::OVERLAY
+                },
+                texture_alpha: input,
+                output_alpha: output,
+                ..Material::opaque([1.; 4])
+            };
+            let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+            frame.draw(&quad, &material, Some(&texture), Mat4::IDENTITY);
+            expect(
+                &frame,
+                "filtered silhouette encoding",
+                [
+                    0.25 + BACKGROUND[0] * 0.75,
+                    0.25 + BACKGROUND[1] * 0.75,
+                    0.25 + BACKGROUND[2] * 0.75,
+                    0.25 + BACKGROUND[3] * 0.75,
+                ],
+            )?;
+            cases += 1;
+        }
+    }
+
+    let images =
+        [[255, 0, 0, 255], [0, 255, 0, 255]].map(|rgba| tankracer_assets::surface::Image {
+            width: 1,
+            height: 1,
+            flags: 4,
+            rgba: rgba.to_vec(),
+            consumed: 0,
+        });
+    let atlas = tankracer_scene::atlas::Atlas::pack(&images).map_err(JsValue::from_str)?;
+    let texture = renderer.upload_rgba(atlas.width, atlas.height, &atlas.premultiplied_rgba)?;
+    let atlas_material = Material {
+        pipeline: Pipeline {
+            blend: None,
+            ..Pipeline::OVERLAY
+        },
+        texture_alpha: AlphaEncoding::Premultiplied,
+        ..Material::opaque([1.; 4])
+    };
+    for (index, region) in atlas.regions.iter().enumerate() {
+        let mut data = MeshData::quad(0.);
+        for (v, uv) in data
+            .vertices
+            .iter_mut()
+            .zip([[0, 0], [255, 0], [255, 255], [0, 255]])
+        {
+            v.uv = atlas.uv(*region, uv);
+        }
+        let mesh = renderer.upload_mesh(&data)?;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&mesh, &atlas_material, Some(&texture), Mat4::IDENTITY);
+        for point in [[0, 0], [3, 0], [3, 3], [0, 3]] {
+            expect_at(
+                &frame,
+                "atlas filtered border",
+                point,
+                if index == 0 {
+                    [1., 0., 0., 1.]
+                } else {
+                    [0., 1., 0., 1.]
+                },
+            )?;
+            cases += 1;
+        }
+    }
+
+    for double_sided in [false, true] {
+        let mut data = MeshData::quad(0.);
+        for vertex in &mut data.vertices {
+            vertex.double_sided = f32::from(u8::from(double_sided));
+        }
+        let mesh = renderer.upload_mesh(&data)?;
+        let material = Material {
+            pipeline: Pipeline {
+                blend: None,
+                ..Pipeline::OVERLAY
+            },
+            geometry_culling: true,
+            ..red
+        };
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(
+            &mesh,
+            &material,
+            None,
+            Mat4::from_scale(glam::Vec3::new(-1., 1., 1.)),
+        );
+        expect(
+            &frame,
+            "mixed transparent geometry culling",
+            if double_sided { red.color } else { BACKGROUND },
+        )?;
+        cases += 1;
+    }
+
+    let mut billboard = MeshData::quad(0.);
+    for vertex in &mut billboard.vertices {
+        vertex.billboard_offset = 1.5;
+    }
+    let mesh = renderer.upload_mesh(&billboard)?;
+    let material = Material {
+        pipeline: Pipeline {
+            blend: None,
+            ..Pipeline::OVERLAY
+        },
+        ..red
+    };
+    for (right, point, expected) in [
+        ([1., 0.], [3, 2], red.color),
+        ([-1., 0.], [3, 2], BACKGROUND),
+        ([-1., 0.], [0, 2], red.color),
+    ] {
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.set_billboard_right(right);
+        frame.draw(&mesh, &material, None, Mat4::IDENTITY);
+        expect_at(&frame, "GPU billboard basis", point, expected)?;
+        cases += 1;
+    }
+
+    let mut mesh = renderer.upload_mesh(&MeshData::quad(0.))?;
+    for (indices, expected) in [
+        ([0, 2, 1, 0, 3, 2], BACKGROUND),
+        ([0, 1, 2, 0, 2, 3], red.color),
+    ] {
+        renderer.update_indices(&mut mesh, &indices)?;
+        let material = Material {
+            pipeline: Pipeline {
+                cull: Cull::Back,
+                ..red.pipeline
+            },
+            ..red
+        };
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&mesh, &material, None, Mat4::IDENTITY);
+        expect(&frame, "index-only mesh update", expected)?;
+        cases += 1;
+    }
+    if renderer.update_indices(&mut mesh, &[0, 1, 999]).is_ok() {
+        return Err("Out-of-range index update accepted".into());
+    }
     renderer.check_error()?;
     Ok(format!(
         "{{\"passed\":true,\"pixel_cases\":{cases},\"depth_comparisons\":8,\"blend_transitions\":81}}"

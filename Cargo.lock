@@ -138,11 +138,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tankracer-scene"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "tankracer-assets",
+ "tankracer-render",
+]
+
+[[package]]
 name = "tankracer-web"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "tankracer-assets",
  "tankracer-render",
+ "tankracer-scene",
  "wasm-bindgen",
  "web-sys",
 ]
