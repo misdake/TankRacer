@@ -1861,3 +1861,10 @@ cargo test -p tankracer-game --test mesh_break_reference --locked -- --include-i
 ```
 
 Rebuild `reference_model.c` for SM02 before running the updated assets model suite.
+
+Execution priority after mesh-break integration: the common collision/effect
+owner is now connected, so the next slice prioritizes real vehicle construction,
+prefix/after-pose and scheduler wiring into the independent moving proxy.
+Remaining readers are brought forward when that slice requires them; other
+actors/Pickup capture stay explicit later-stage work. This changes delivery
+order, not the final single-player CUP scope or physics/RNG requirements.
