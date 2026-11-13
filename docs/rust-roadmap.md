@@ -9,22 +9,15 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`13fcd5d`**. Real OBPARAMS presets and common Obstacle
-  parent components are implemented: 19 presets match C; 2,937 parent outputs
-  across 22 nonempty map/CUP files match, including 837 parts, 58 animations and
-  1,949 grid placements. Workspace/native/Wasm lint, record/Crush regressions
-  and unchanged-C checks pass. Parent callbacks/subclass methods are still open.
-- Previous: all authored input (50 files / 4,392 records), 154 Crush constructions
-  and shared/private mesh ownership qualify. Connected physics matches 1,254
-  records / 8,716,157 words (37 mesh changes, 33 later sampling borrows). Detailed
-  contracts and test commands are in the linked docs; no original-memory arena.
-- Original NONE/SUB/ADD constants were missing in the C bootstrap. Rust uses
-  verified EXE definitions; only the constructor oracle supplies those constants
-  to C. New animation data is qualified; Rust GPU rendering of it is pending.
-- Qualification limits: constructor RNG/subclass defaults and material results
-  are boundary inputs from C. Named entity resolution, concrete subclass methods,
-  complete startup/RNG replay, timer/ability prefix and full after-pose effects
-  remain pending. Data construction/placement is not a running independent game.
+- Last verified code: **`13fcd5d`**. Authored resources, common Obstacle/Crush
+  construction and connected physics have C boundary comparisons. Latest parent
+  suite: 2,937 outputs / 22 map/CUP files. Workspace tests, native/Wasm lint and
+  unchanged-C checks pass. Counts, commands and original-EXE corrections belong
+  in [physics evidence](rust-physics.md), not in this short plan.
+- Still missing: concrete subclass callbacks, named references, complete startup
+  and shared RNG replay, scheduler, vehicle timer/ability prefix and after-pose
+  effects. Constructor tests still supply some boundary inputs from C; they do
+  not prove independent startup. New fragment/animation rendering is pending.
 - **Next runnable increment:** concrete subclass initialization and lifecycle/
   method bindings, named entity resolution and complete world membership/ticks;
   connect vehicle prefix/after-pose and scheduler -> independent moving proxy.
@@ -52,6 +45,8 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 Each increment must leave a runnable build. Small changes get focused checks;
 large changes get broader checks. Prefer branches and short sequences; extend
 sequence length when a delayed failure or an actual dependency justifies it.
+Split each stage into small usable slices; finish and verify one slice before
+expanding it. Keep the existing static browser runnable while M3 is incomplete.
 
 ## Design constraints
 
@@ -79,6 +74,7 @@ Before starting/resuming, read this file and inspect Git status against the last
 verified commit. At each completed increment:
 
 1. Re-read the stages and constraints; confirm the increment still serves them.
+   Check exact state handling, plugin ownership and the aggregate map budget.
 2. Record **what runs, what passed, what is missing, and the next runnable step**.
 3. Put detailed contracts/test counts/commands in the linked specialist docs.
 4. Commit verified work, update this checkpoint with the code commit, and re-read
