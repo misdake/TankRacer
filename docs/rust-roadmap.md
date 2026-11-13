@@ -22,9 +22,12 @@ as needed to reach the next playable slice.
   RNG counts. Startup requires the original 180-draw shield initialization.
   Fresh-player, prefix, quad/light/mark and connected-physics regressions plus
   workspace/native/Wasm/build checks pass. These are qualified parts, not a car.
-- **Next runnable increment:** remaining after-pose kernels (track spray,
-  damage smoke, shared debris and pickup fade) -> complete after-pose coordinator ->
-  bind the fresh player/prefix into scene identity/scheduler -> moving browser proxy.
+- **Uncommitted, not qualified:** track spray and damage smoke implementations
+  and their C comparison fixture. Inspect the actual diff and finish verification
+  before treating these as complete; they are not part of `2d21bed`.
+- **Next runnable increment:** finish those particle checks, then shared debris
+  and pickup fade -> complete after-pose coordinator -> bind the fresh player/prefix
+  into scene identity/scheduler -> moving browser proxy.
   M3 stays open until this runs without C or test snapshots. Bring additional
   readers forward only when required by that slice.
 - Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
@@ -50,10 +53,8 @@ as needed to reach the next playable slice.
 | M8 | Profile and optimize CPU/GPU/query/upload/draw work; full-content regression and standalone package. |
 
 Each increment must leave a runnable build. Small changes get focused checks;
-large changes get broader checks. Prefer branches and short sequences; extend
-sequence length when a delayed failure or an actual dependency justifies it.
-Split each stage into small usable slices; finish and verify one slice before
-expanding it. Keep the existing static browser runnable while M3 is incomplete.
+large changes get broader checks. Prefer branches and short sequences. Finish
+one usable slice before expanding it; keep the static browser runnable during M3.
 
 ## Design constraints
 
@@ -90,4 +91,5 @@ verified commit. At each completed increment:
    never completes a stage.
 
 After context recovery, resume the pending slice above rather than rebuilding a
-plan from chat history. If scope/order changes, update this file first.
+plan from chat history. If scope/order changes, update this file first. Do not
+let isolated module parity replace progress toward the runnable stage exit.
