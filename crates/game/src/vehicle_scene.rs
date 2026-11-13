@@ -3,6 +3,7 @@
 pub mod debris;
 pub mod lights;
 pub mod marks;
+pub mod pickup;
 pub mod shield;
 pub mod smoke;
 pub mod spray;

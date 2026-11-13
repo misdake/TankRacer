@@ -2150,3 +2150,30 @@ or rendering change; browser movement remains pending.
 $env:TANKRACER_VEHICLE_DEBRIS_REFERENCE=(Resolve-Path build/native/vehicle_debris_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_debris_reference --locked -- --ignored --nocapture
 ```
+
+## Shared pickup fade (2026-11-14)
+
+`vehicle_scene::pickup` provides typed ray/ring banks and the complete
+`frame_vehicle_shared_fade` operation. It preserves target/active gates and the
+whole-call return for a bank created this frame, normalized follow motion,
+SAR-based growth, old-life color scaling, palette cycling, strict radius gates
+and ordered pool retirement with partial state retained on failure. Ray state
+colors change here; actual pool projection/activation is separate later work.
+The immutable palette and both growth constants are compared with production
+bootstrap data. Flare growth remains an explicit externally supplied parameter.
+
+**VF01: 96 scenarios / 768 operations / 2,622,816 words** match production C,
+including 43 error prefixes, 265 state changes, 75 bank expirations and 96 calls
+that retire allocated records. Tests include same-frame/target gates, zero and
+wrapped follow vectors/speed, 16-bit angles, life arithmetic, full palette wrap,
+repeated/released/invalid handles, the complete quad bank, exhausted record and
+line-bank aliases. The operation consumes no RNG. Native/Wasm lint, 65 game unit
+tests, browser build and C preservation pass; no extra map metadata or renderer
+change. Activation, projection and full transient bootstrap remain pending M5
+work; this does not claim a working pickup or a complete after-pose coordinator.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_pickup_fade.c build/native/libtankracer_core.a -lm -o build/native/vehicle_pickup_fade_reference.exe
+$env:TANKRACER_VEHICLE_PICKUP_FADE_REFERENCE=(Resolve-Path build/native/vehicle_pickup_fade_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_pickup_fade_reference --locked -- --ignored --nocapture
+```
