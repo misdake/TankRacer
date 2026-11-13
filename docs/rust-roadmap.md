@@ -4,6 +4,14 @@ This is the short source of truth. Read it before/after each milestone and after
 context recovery; check the actual worktree before resuming. Detailed evidence:
 [assets](rust-assets.md), [physics](rust-physics.md), [renderer](rust-renderer.md).
 
+## Goal
+
+Incrementally replace the C runtime with readable Rust, compiled to Wasm, and a
+small raw WebGL renderer with ordinary world-space meshes/materials. Deliver a
+standalone single-player CUP game, detachable scenery plugins and a measured,
+optimized package. Keep a runnable build at every step; qualify helpers only
+as needed to reach the next playable slice.
+
 ## Current checkpoint
 
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
@@ -15,6 +23,10 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
   Connected vehicle/contact/deformation/parent regressions, workspace tests,
   native/Wasm lint, unchanged-C checks and browser build pass. Detailed contracts
   and earlier entity/physics qualification: [physics](rust-physics.md).
+- **Uncommitted, not qualified:** unified scene-object bindings, direct parent
+  dispatch and component-only startup installation are being implemented. The
+  C lifecycle oracle is drafted; its Rust comparison is not yet implemented.
+  These changes do not advance the verified checkpoint or complete M3.
 - Still missing: common Obstacle/Model parent lifecycle and concrete subclass
   bindings, authored class/attachment factories, complete startup/shared RNG
   replay and vehicle prefix/after-pose effects. Crush enter/destruction expose
@@ -84,3 +96,6 @@ verified commit. At each completed increment:
 4. Commit verified work, update this checkpoint with the code commit, and re-read
    it before continuing. Keep pending changes distinct; a tested helper alone
    never completes a stage.
+
+After context recovery, resume the pending slice above rather than rebuilding a
+plan from chat history. If scope/order changes, update this file first.

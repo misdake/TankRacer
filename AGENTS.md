@@ -3,6 +3,9 @@
 - Read `docs/rust-roadmap.md` before starting a milestone, after completing one,
   and when resuming after context compaction. It is the short source of truth
   for scope, constraints, current checkpoint and next work.
+- Re-read its delivery order and constraints at every completed increment,
+  including a module-sized increment inside an unfinished milestone. Resume
+  from its pending slice; update it before changing scope or order.
 - At each milestone, update that roadmap with actual verification, commit and
   next task. Keep it concise; put detailed design/evidence in separate docs.
 - Before continuing, check the worktree against the checkpoint. Keep verified,
