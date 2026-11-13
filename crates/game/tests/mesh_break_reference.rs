@@ -9,6 +9,7 @@ use tankracer_assets::{
     mesh::{Geometry, Triangle},
     model::Model,
 };
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     dispatch::{ClassId, MethodId},
     entity_factory::{self as factory, Methods},
@@ -373,7 +374,7 @@ fn registry(f: &Fixture) -> Registry {
     }
     r
 }
-fn scene(f: &Fixture, r: &Registry) -> (Scene, factory::State<ObstacleId>) {
+fn scene(f: &Fixture, r: &Registry) -> (Scene, factory::State<Handle>) {
     let mut scene = r.scene(Grid {
         origin: [0; 2],
         shifts: [12; 2],
@@ -401,7 +402,7 @@ fn scene(f: &Fixture, r: &Registry) -> (Scene, factory::State<ObstacleId>) {
         state.entities.new_record(entity, 100).unwrap();
         let record = state.entities.record_mut(entity).unwrap();
         record.class = Some(r.obstacle);
-        record.object = Some(ObstacleId(i));
+        record.object = Some(Handle::Obstacle(ObstacleId(i)));
         scene.world.colliders.push(Collider {
             entity,
             pose: Pose {
@@ -480,7 +481,7 @@ fn scene(f: &Fixture, r: &Registry) -> (Scene, factory::State<ObstacleId>) {
 fn snapshot(
     out: &mut Vec<u32>,
     scene: &mut Scene,
-    state: &factory::State<ObstacleId>,
+    state: &factory::State<Handle>,
     inputs: &Inputs,
     outcome: (i32, u32),
     seed: u32,

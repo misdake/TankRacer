@@ -1,5 +1,6 @@
 //! Ordered scene-object lifecycle on the same components used by collision.
 //! Class tables stay immutable; parent calls and nested activation are immediate.
+use crate::scene_entity::Handle;
 pub mod collision;
 mod falling;
 mod fragments;
@@ -342,21 +343,21 @@ fn value(payload: Option<Payload>) -> Result<u32, i32> {
         _ => Err(-1),
     }
 }
-impl Methods<ObstacleId> for Scene {
+impl Methods<Handle> for Scene {
     fn invoke(
         &mut self,
         method: MethodId,
-        call: Invocation<'_, ObstacleId>,
+        call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         self.view().invoke(method, call, env)
     }
 }
-impl Methods<ObstacleId> for View<'_> {
+impl Methods<Handle> for View<'_> {
     fn invoke(
         &mut self,
         method: MethodId,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         let base = match method {
@@ -375,7 +376,8 @@ impl Methods<ObstacleId> for View<'_> {
                 .context
                 .entities
                 .record(call.entity)
-                .and_then(|r| r.object);
+                .and_then(|r| r.object)
+                .and_then(Handle::obstacle);
             let retiring = matches!(method, DETACH | RELEASE_ID);
             base.invoke(call, env)?;
             if retiring && let Some(id) = target {
@@ -393,7 +395,12 @@ impl Methods<ObstacleId> for View<'_> {
             return Ok(());
         }
         let entity = call.entity;
-        let target = call.context.entities.record(entity).and_then(|r| r.object);
+        let target = call
+            .context
+            .entities
+            .record(entity)
+            .and_then(|r| r.object)
+            .and_then(Handle::obstacle);
         if method == RELEASE_OBJECT {
             *call.result = u32::from(
                 target.is_some()

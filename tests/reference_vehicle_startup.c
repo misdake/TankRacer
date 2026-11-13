@@ -10,6 +10,12 @@ static uint32_t word(uint32_t at){return reference_game_word(at,4);}
 static void emit(uint32_t at,unsigned n){unsigned i;for(i=0;i<n;i++)oracle_put(word(at+i*4u));}
 static void narrow(uint32_t at,unsigned n)
 {uint32_t v=reference_game_word(at,n);oracle_put(n==2&&v>32767?v|0xffff0000u:v);}
+static uint32_t membership(uint32_t global,uint32_t entity)
+{
+    uint32_t head=word(global),node=word(head),n=0,used=0;
+    while(node!=head){if(used++==65536)exit(8);if(word(node+8)==entity)n++;node=word(node);}
+    return n;
+}
 #include "reference_motion_io.h"
 static void snapshot(void)
 {
@@ -74,6 +80,9 @@ int physics_pose_update(physics_world_read read,physics_world_write write,void *
     narrow(object+0xdf1,1);narrow(object+0xdf2,1);narrow(object+0xdf3,1);narrow(object+0xdf4,1);
     emit(object+0x988,2);
     emit(object+0xc92,2);narrow(object+0xdef,1);
+    emit(object+16,1);oracle_put(word(word(word(0x55c694)+entity*8u))==word(0x544f98));
+    oracle_put(membership(0x55b6a8,entity));oracle_put(membership(0x54b488,entity));oracle_put(membership(0x54b48c,entity));
+    narrow(object+0xdf0,1);
     if(variant){
         unsigned char bytes[4];uint32_t at[3]={0x545ffc,0x58e7ac,0x59054c};
         for(i=0;i<3;i++){oracle_set(bytes,saved_environment[i],4);if(!write(ctx,at[i],bytes,4))return -1;}
@@ -83,7 +92,7 @@ int physics_pose_update(physics_world_read read,physics_world_write write,void *
 int main(int argc,char **argv)
 {
     int status;if(argc!=7)return 2;variant=(uint32_t)strtoul(argv[6],0,10);if(variant>3)return 2;
-    oracle_binary();fwrite("VS04",1,4,stdout);
+    oracle_binary();fwrite("VS05",1,4,stdout);
     status=reference_game_start_cup(argv[1],(uint32_t)strtoul(argv[2],0,10),(uint32_t)strtoul(argv[3],0,10),
         (uint32_t)strtoul(argv[4],0,10),(uint32_t)strtoul(argv[5],0,10),0);
     if(status)return status;

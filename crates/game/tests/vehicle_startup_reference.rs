@@ -8,9 +8,12 @@ use tankracer_assets::{
     parameters::Parameters,
 };
 use tankracer_game::{
-    dispatch::ClassId,
+    entity_factory,
     object_query::EntityId,
     pose,
+    scene_entity::Handle,
+    scene_loading::Registry,
+    vehicle_loading::{self, Store},
     vehicle_model::{BuildContext, Bundles, ModelBank, VehicleModel},
     vehicle_startup::{Environment, Player},
 };
@@ -261,7 +264,7 @@ fn authored_spawns_and_fifteen_resource_profiles_construct_without_snapshots() {
             "map={map} cup={cup} vehicle={vehicle} mode={mode}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"VS04");
+        assert_eq!(&output.stdout[..4], b"VS05");
         let mut r = Reader {
             words: output.stdout[4..]
                 .chunks_exact(4)
@@ -322,19 +325,34 @@ fn authored_spawns_and_fifteen_resource_profiles_construct_without_snapshots() {
                 },
             )
             .unwrap();
-            let player = Player::construct(
-                entity,
-                ClassId(6),
-                model,
-                spawn,
-                Environment {
-                    ambient_wobble,
-                    session_active,
-                    ambient_phase,
-                    gun_pivot,
-                },
-            )
-            .unwrap();
+            let registry = Registry::default();
+            let mut identity = entity_factory::State::<Handle>::new(128).unwrap();
+            identity.entities.sequential = true;
+            identity.entities.next_requested = entity;
+            let mut store = Store::default();
+            let (created, id) = store
+                .create_single_player(
+                    &mut identity,
+                    &registry,
+                    vehicle_loading::Request {
+                        model,
+                        spawn,
+                        static_allocation: true,
+                        environment: Environment {
+                            ambient_wobble,
+                            session_active,
+                            ambient_phase,
+                            gun_pivot,
+                        },
+                    },
+                    100000,
+                )
+                .unwrap();
+            assert_eq!(created, entity);
+            let record = identity.entities.record(entity).unwrap();
+            assert_eq!(record.object, Some(Handle::Vehicle(id)));
+            assert_eq!(record.object.unwrap().obstacle(), None);
+            let player = store.entries[id.0].as_ref().unwrap();
             if variant == 1 || variant == 3 {
                 assert_ne!(
                     player.physics.motion.poses.physical_position[1],
@@ -348,7 +366,20 @@ fn authored_spawns_and_fifteen_resource_profiles_construct_without_snapshots() {
                 );
                 suppressed += 1;
             }
-            let expected = encode(&player);
+            let mut expected = encode(player);
+            expected.extend([
+                identity.ticks.flags[entity.0 as usize],
+                u32::from(record.class == Some(registry.player)),
+                identity
+                    .ticks
+                    .order
+                    .iter()
+                    .filter(|&&e| e == entity)
+                    .count() as u32,
+                store.visible.iter().filter(|&&v| v == id).count() as u32,
+                store.hidden.iter().filter(|&&v| v == id).count() as u32,
+                0,
+            ]);
             let actual = &r.words[r.at..r.at + expected.len()];
             for (word, (a, e)) in actual.iter().zip(&expected).enumerate() {
                 assert_eq!(

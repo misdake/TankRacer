@@ -1,5 +1,6 @@
 //! Fresh scene-object loading through the shared factory and real parent
 //! order. Resource construction never installs memberships implicitly.
+use crate::scene_entity::Handle;
 use crate::{
     breakable, crush,
     dispatch::{Class, ClassId, MethodId},
@@ -66,6 +67,7 @@ pub struct Registry {
     pub obstacle: ClassId,
     pub crush: ClassId,
     pub fall: ClassId,
+    pub player: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -144,6 +146,7 @@ impl Default for Registry {
                 Arc::new(obstacle),
                 Arc::new(crush),
                 Arc::new(fall),
+                Arc::new(crate::vehicle_loading::class()),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -151,6 +154,7 @@ impl Default for Registry {
             obstacle: ClassId(3),
             crush: ClassId(4),
             fall: ClassId(5),
+            player: ClassId(6),
         }
     }
 }
@@ -254,7 +258,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
     /// errors until their real initializers/readers have been implemented.
     pub fn load(
         &mut self,
-        state: &mut factory::State<ObstacleId>,
+        state: &mut factory::State<Handle>,
         record: level::Object<'a>,
     ) -> Result<EntityId, Error> {
         let class = if record.class.eq_ignore_ascii_case("Obstacle") {
@@ -290,7 +294,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             -1
         })
     }
-    fn allocate(&mut self, call: Invocation<'_, ObstacleId>) -> Result<(), i32> {
+    fn allocate(&mut self, call: Invocation<'_, Handle>) -> Result<(), i32> {
         let class = call
             .context
             .entities
@@ -350,7 +354,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .entities
             .record_mut(call.entity)
             .ok_or(-1)?
-            .object = Some(id);
+            .object = Some(Handle::Obstacle(id));
         call.context
             .ticks
             .flags
@@ -364,11 +368,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         *call.result = 1;
         Ok(())
     }
-    fn read(
-        &mut self,
-        mut call: Invocation<'_, ObstacleId>,
-        env: Environment<'_>,
-    ) -> Result<(), i32> {
+    fn read(&mut self, mut call: Invocation<'_, Handle>, env: Environment<'_>) -> Result<(), i32> {
         let record = self.record.ok_or(-1)?;
         call.context
             .dispatch(call.entity, BEFORE_READ, None, env, self)
@@ -378,6 +378,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .entities
             .record(call.entity)
             .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
             .ok_or(-1)?;
         let source = if record.shape.eq_ignore_ascii_case("nil") {
             None
@@ -415,7 +416,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
     }
     fn construct_generic(
         &mut self,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         let record = self.record.ok_or(-1)?;
@@ -424,6 +425,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .entities
             .record(call.entity)
             .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
             .ok_or(-1)?;
         call.context
             .class_dispatch(self.registry.render_world, call.entity, None, env, self)
@@ -486,7 +488,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
     }
     fn construct_obstacle(
         &mut self,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         call.context
@@ -497,6 +499,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .entities
             .record(call.entity)
             .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
             .ok_or(-1)?;
         let record = self.record.ok_or(-1)?;
         let data = &self.scene.components.object(id)?.data;
@@ -549,7 +552,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
     }
     fn construct_crush(
         &mut self,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         call.context
@@ -560,6 +563,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .entities
             .record(call.entity)
             .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
             .ok_or(-1)?;
         let data = &self.scene.components.object(id)?.data;
         let parent = scene_startup::CrushParent {
@@ -633,7 +637,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
     }
     fn construct_fall(
         &mut self,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         call.context
@@ -644,6 +648,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .entities
             .record(call.entity)
             .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
             .ok_or(-1)?;
         self.scene.world.objects[id.0].activity = 0;
         let special = self
@@ -685,11 +690,11 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         Ok(())
     }
 }
-impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
+impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
     fn invoke(
         &mut self,
         method: MethodId,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         if env.work_limit == 0 {
@@ -716,6 +721,7 @@ impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
                     .entities
                     .record(call.entity)
                     .and_then(|r| r.object)
+                    .and_then(Handle::obstacle)
                     .ok_or(-1)?;
                 let data = &mut self.scene.components.object_mut(id)?.data;
                 data.visibility.distance = self.visibility_distance;

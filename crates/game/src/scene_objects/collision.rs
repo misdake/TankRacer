@@ -1,6 +1,7 @@
 //! Collision callbacks borrow the very components and factory used by updates.
 //! Traversal owns the world/vehicle/globals borrow; no flags, queues or RNG mirror.
 use super::{Components, Execution, View};
+use crate::scene_entity::Handle;
 use crate::{
     breakable::{self, Environment as HitEnvironment, Metadata, Motion, Owner},
     dispatch::MethodId,
@@ -15,7 +16,7 @@ use std::sync::Arc;
 
 pub struct Collision<'a> {
     pub components: &'a mut Components,
-    pub lifecycle: Lifecycle<'a, ObstacleId>,
+    pub lifecycle: Lifecycle<'a, Handle>,
     pub environment: factory::Environment<'a>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -269,7 +270,12 @@ impl<S: Services> Owner for Adapter<'_, '_, S> {
     }
     fn resolve(&self, binding: Binding, _: &World) -> Option<ObstacleId> {
         let entity = binding.resolve(self.scene.lifecycle.symbols)?;
-        self.scene.lifecycle.entities.record(entity)?.object
+        self.scene
+            .lifecycle
+            .entities
+            .record(entity)?
+            .object?
+            .obstacle()
     }
     fn method(
         &mut self,

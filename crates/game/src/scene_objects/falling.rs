@@ -1,5 +1,6 @@
 //! Fall bindings borrow the scene's terrain, memberships and shared scheduler.
 use super::{View, dispatch_code, spatial_code, valid_limit};
+use crate::scene_entity::Handle;
 use crate::{
     crush,
     entity_factory::{Environment, Invocation},
@@ -14,7 +15,7 @@ impl View<'_> {
     pub(super) fn destroy_fall(
         &mut self,
         id: ObstacleId,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         let entity = call.entity;
@@ -41,7 +42,7 @@ impl View<'_> {
     pub(super) fn tick_fall(
         &mut self,
         id: ObstacleId,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         let entity = call.entity;
@@ -58,6 +59,7 @@ impl View<'_> {
                 let peer = peer
                     .and_then(|p| call.context.entities.record(p))
                     .and_then(|r| r.object)
+                    .and_then(Handle::obstacle)
                     .ok_or(-1)?;
                 self.world.colliders.get(peer.0).ok_or(-1)?.pose.matrix
             } else {

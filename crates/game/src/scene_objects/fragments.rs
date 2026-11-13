@@ -1,5 +1,6 @@
 //! Fragment updates share the caller's random stream and real deactivation.
 use super::{Execution, View, dispatch_code, valid_limit};
+use crate::scene_entity::Handle;
 use crate::{
     entity_factory::{Environment, Invocation},
     object_query::ObstacleId,
@@ -9,7 +10,7 @@ impl View<'_> {
     pub(super) fn tick_debris(
         &mut self,
         id: ObstacleId,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         valid_limit(env.work_limit)?;

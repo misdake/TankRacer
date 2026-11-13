@@ -1,5 +1,6 @@
 //! Actual authored factory -> hit -> motion, checked against the native owner.
 use super::{Reader, check_list};
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     breakable,
     dispatch::ClassId,
@@ -25,7 +26,7 @@ impl Services for Devices {
 pub fn check(
     r: &mut Reader<'_>,
     scene: &mut Scene,
-    state: &mut factory::State<ObstacleId>,
+    state: &mut factory::State<Handle>,
     registry: &Registry,
     id: ObstacleId,
     seed: u32,
@@ -53,7 +54,7 @@ pub fn check(
     }
     let record = state.entities.record_mut(EntityId(1)).unwrap();
     record.class = Some(ClassId(0));
-    record.object = Some(peer_id);
+    record.object = Some(Handle::Obstacle(peer_id));
     let mut vehicle = collision::State {
         entity: EntityId(1),
         class: registry.world,

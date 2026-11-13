@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 use tankracer_assets::{mesh::Geometry, model::Model};
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     crush, deformable_hit, deformation,
     dispatch::{Class, ClassId, MethodId},
@@ -83,11 +84,11 @@ fn error_code(error: factory::Error) -> i32 {
         v => panic!("invalid fixture {v:?}"),
     }
 }
-impl Methods<ObstacleId> for Scene {
+impl Methods<Handle> for Scene {
     fn invoke(
         &mut self,
         method: MethodId,
-        call: Invocation<'_, ObstacleId>,
+        call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         let kind = match method {
@@ -119,7 +120,7 @@ impl Methods<ObstacleId> for Scene {
         }
     }
 }
-fn make(f: &Fixture) -> (factory::State<ObstacleId>, Scene) {
+fn make(f: &Fixture) -> (factory::State<Handle>, Scene) {
     let model = Model {
         geometry: Geometry {
             vertices: vec![[0, 200, 0], [10, 150, 10], [20, 100, 20]],
@@ -145,7 +146,7 @@ fn make(f: &Fixture) -> (factory::State<ObstacleId>, Scene) {
         state.entities.new_record(EntityId(id), 1000).unwrap();
         let record = state.entities.record_mut(EntityId(id)).unwrap();
         record.class = Some(ClassId(0));
-        record.object = Some(ObstacleId(id as usize - 1));
+        record.object = Some(Handle::Obstacle(ObstacleId(id as usize - 1)));
         state.ticks.flags[id as usize] = f.flags[id as usize - 1];
     }
     state.ticks.order = f.lists[2].iter().copied().map(EntityId).collect();
@@ -198,7 +199,7 @@ fn make(f: &Fixture) -> (factory::State<ObstacleId>, Scene) {
     )
 }
 fn operation(
-    state: &mut factory::State<ObstacleId>,
+    state: &mut factory::State<Handle>,
     scene: &mut Scene,
     classes: &[Arc<Class>],
     step: [u32; 5],
@@ -352,7 +353,7 @@ fn encode(out: &mut Vec<u32>, f: &Fixture) {
 }
 fn snapshot(
     out: &mut Vec<u32>,
-    state: &factory::State<ObstacleId>,
+    state: &factory::State<Handle>,
     scene: &Scene,
     status: i32,
     result: u32,

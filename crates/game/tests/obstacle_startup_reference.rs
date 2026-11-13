@@ -426,7 +426,14 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     assert_eq!(loaded, entity);
                     assert_eq!(live_requests.cursor, live_requests.expected.len());
                     assert_eq!(live_random, random, "{label} live RNG");
-                    let id = live_state.entities.record(entity).unwrap().object.unwrap();
+                    let id = live_state
+                        .entities
+                        .record(entity)
+                        .unwrap()
+                        .object
+                        .unwrap()
+                        .obstacle()
+                        .unwrap();
                     let collider = &live_scene.world.colliders[id.0];
                     let object = live_scene.components.objects[id.0].as_ref().unwrap();
                     let properties = &live_scene.world.objects[id.0];

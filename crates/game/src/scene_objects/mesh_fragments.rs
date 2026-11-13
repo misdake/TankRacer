@@ -4,6 +4,7 @@ use super::{
     collision::{Collision, Services},
     dispatch_code, spatial_code, valid_limit,
 };
+use crate::scene_entity::Handle;
 use crate::{
     entity_factory::{Environment, Invocation},
     mesh_break,
@@ -93,7 +94,7 @@ impl View<'_> {
     pub(super) fn tick_mesh_fragments(
         &mut self,
         id: ObstacleId,
-        mut call: Invocation<'_, ObstacleId>,
+        mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
         valid_limit(env.work_limit)?;

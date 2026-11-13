@@ -2,6 +2,7 @@
 //! Fixture conversion happens once per short sequence, never between callbacks.
 use super::*;
 use tankracer_assets::config::Gain;
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     entity_factory as factory, fall,
     obstacle_startup::{Auxiliary, Debris, PlacedObstacle},
@@ -15,7 +16,7 @@ use tankracer_game::{
 
 pub struct SceneCase {
     pub scene: Scene,
-    pub factory: factory::State<ObstacleId>,
+    pub factory: factory::State<Handle>,
     pub random: u32,
     pub vehicle: State,
     pub probe: Probe,
@@ -63,7 +64,7 @@ impl SceneCase {
                 factory.entities.new_record(id, 100).unwrap();
                 let record = factory.entities.record_mut(id).unwrap();
                 record.class = Some(ClassId(i));
-                record.object = Some(ObstacleId(i));
+                record.object = Some(Handle::Obstacle(ObstacleId(i)));
             }
             factory.ticks.flags[i + 2] = methods.store.ticks.flags[i];
             scene.components.falls.push(Some(fall::State {

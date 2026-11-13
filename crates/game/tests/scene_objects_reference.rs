@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 use tankracer_assets::{config::Gain, mesh::Geometry, model::Model};
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     breakable, crush, deformable_hit, deformation,
     dispatch::{self, Class, ClassId},
@@ -158,7 +159,7 @@ fn classes(parent_max: i32) -> Vec<Arc<Class>> {
         Arc::new(crush),
     ]
 }
-fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Scene) {
+fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<Handle>, Scene) {
     let model = Model {
         geometry: Geometry {
             vertices: vec![[0; 3]],
@@ -227,7 +228,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
         state.entities.new_record(EntityId(id), 1000).unwrap();
         let record = state.entities.record_mut(EntityId(id)).unwrap();
         record.class = Some(class);
-        record.object = Some(target);
+        record.object = Some(Handle::Obstacle(target));
         state.ticks.flags[id as usize] = f.flags[id as usize - 1];
         let pose = if first {
             f.pose
@@ -345,7 +346,7 @@ fn code(error: factory::Error) -> i32 {
     }
 }
 fn operation(
-    state: &mut factory::State<ObstacleId>,
+    state: &mut factory::State<Handle>,
     scene: &mut Scene,
     classes: &[Arc<Class>],
     op: [u32; 5],
@@ -455,7 +456,7 @@ fn encode(out: &mut Vec<u32>, f: &Fixture) {
 }
 fn snapshot(
     out: &mut Vec<u32>,
-    state: &factory::State<ObstacleId>,
+    state: &factory::State<Handle>,
     scene: &Scene,
     status: i32,
     value: u32,
@@ -473,7 +474,7 @@ fn snapshot(
         let Some(record) = record else {
             continue;
         };
-        let target = record.object.unwrap();
+        let target = record.object.unwrap().obstacle().unwrap();
         let object = scene.components.objects[target.0].as_ref().unwrap();
         let collider = &scene.world.colliders[target.0];
         out.extend(collider.pose.position.map(|v| v as u32));

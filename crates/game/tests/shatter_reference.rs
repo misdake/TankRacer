@@ -8,6 +8,7 @@ use tankracer_assets::{
     archive::Archive, level::Level, mesh::Geometry, model::Model, object_catalog::Catalog,
     terrain::TerrainData,
 };
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     entity_factory::{self as factory, Methods},
     math::Matrix,
@@ -417,7 +418,7 @@ fn encode(f: &Fixture, input: &mut Vec<u8>) {
 fn snapshot(
     out: &mut Vec<u32>,
     scene: &Scene,
-    state: &factory::State<ObstacleId>,
+    state: &factory::State<Handle>,
     random: u32,
     outcome: (i32, u32),
     devices: &Devices,
@@ -488,7 +489,7 @@ fn build(
     f: &Fixture,
     terrain: &Arc<TerrainData>,
     registry: &Registry,
-) -> (Scene, factory::State<ObstacleId>) {
+) -> (Scene, factory::State<Handle>) {
     let level = Level::decode(
         b"FSTPC 5 Fall First 0 0 0 0 0 0 nil () Obstacle Peer 0 0 0 0 0 0 nil () Paths ()",
     )

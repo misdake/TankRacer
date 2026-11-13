@@ -1,5 +1,6 @@
 //! Concrete Crush lifecycle (407F70/407790/4077E0/407F00). Contact sampling,
 //! record updates and drawing share the same buffer and mutable mesh handles.
+use crate::scene_entity::Handle;
 use crate::{
     dispatch::MethodId,
     entity_factory::{Environment, Invocation},
@@ -114,7 +115,7 @@ pub fn tick(
 /// Binding for the shared entity method table; no duplicate record/flag state.
 pub fn invoke_tick(
     surface: &mut Deformable,
-    call: Invocation<'_, ObstacleId>,
+    call: Invocation<'_, Handle>,
     env: Environment<'_>,
     dt: i32,
 ) -> Result<(), i32> {

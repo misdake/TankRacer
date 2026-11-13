@@ -3,6 +3,7 @@ use tankracer_assets::{
     archive::Archive, level::Level, model::ShapeArchive, object_catalog::Catalog,
     terrain::TerrainData,
 };
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     crush,
     dispatch::{Class, ClassId},
@@ -326,7 +327,14 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 .unwrap_or_else(|e| panic!("{label} live loader: {e:?}"));
                 assert_eq!(loaded, entity);
                 assert_eq!(live_random, random, "{label} live RNG");
-                let id = live_state.entities.record(entity).unwrap().object.unwrap();
+                let id = live_state
+                    .entities
+                    .record(entity)
+                    .unwrap()
+                    .object
+                    .unwrap()
+                    .obstacle()
+                    .unwrap();
                 let object = live_scene.components.objects[id.0].as_ref().unwrap();
                 let collider = &live_scene.world.colliders[id.0];
                 let surface = live_scene.components.surfaces.entries[id.0]
@@ -683,13 +691,20 @@ fn sample_live(
 }
 fn check_runtime(
     scene: &tankracer_game::scene_objects::Scene,
-    state: &entity_factory::State<tankracer_game::object_query::ObstacleId>,
+    state: &entity_factory::State<Handle>,
     entity: EntityId,
     expected: &Deformable,
     ticks: &Ticks<EntityId>,
     queues: &Queues<EntityId>,
 ) {
-    let id = state.entities.record(entity).unwrap().object.unwrap();
+    let id = state
+        .entities
+        .record(entity)
+        .unwrap()
+        .object
+        .unwrap()
+        .obstacle()
+        .unwrap();
     let surface = scene.components.surfaces.entries[id.0].as_ref().unwrap();
     assert_eq!(
         surface.sampling.state, expected.sampling.state,

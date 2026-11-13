@@ -2254,3 +2254,38 @@ lint and C preservation pass. Next is fresh scene registration and scheduling.
 Rebuild `tests/reference_vehicle.c` with the host/core archives before running
 the existing `TANKRACER_VEHICLE_REFERENCE` test. The oracle now receives a verified
 ground position from the Rust driver in addition to map/car selection.
+
+## Shared identity and fresh player installation (2026-11-14)
+
+`scene_entity::Handle` distinguishes `Obstacle(ObstacleId)` and `Vehicle(TankId)`
+inside one `entity_factory::State`. Scene-object creation, collision callbacks,
+named bindings, fragment updates, cleanup and scheduler interfaces now use
+that domain. Obstacle-only readers explicitly resolve the obstacle variant;
+vehicle indices cannot silently be interpreted as obstacle indices. Existing
+class IDs/methods stay stable, with the player class appended to the registry.
+
+`vehicle_loading::Store::create_single_player` uses that common factory to
+allocate a stable vehicle slot, construct its real dynamics/model/prefix/effects,
+install the class/component binding, prepend the actor drawing membership,
+remove hidden membership and activate through the actual tick interface.
+The store retains an empty slot if construction fails; no successful empty
+vehicle is substituted. Model/resource preparation is an explicit input boundary,
+not an opaque original-memory arena. Remaining frame/destroy/player interfaces
+return an unsupported-method error until their real owner is installed.
+
+**VS05: 122 fresh registrations / 84,668 words**, all eight maps, three valid
+CUP selections, fifteen vehicles, two modes and wobble branches, match native
+construction. In addition to all prior dynamic state, the oracle compares class
+binding, full allocation/tick flags and filtered tick/visible/hidden memberships.
+The entry entity ID still comes from surrounding unported world startup; this
+does not claim complete scene identity allocation order or startup RNG replay.
+
+Eight affected native regression suites pass: common Obstacle/Fall resources
+(2,937 constructions), fresh World loading (24 scripts / 144 objects), authored
+Crush (154), common lifecycle (664 scenarios), Crush updates (178), breakable,
+mesh fragments and shared debris. Workspace tests, native/Wasm lint, browser
+build and C preservation pass. No renderer or extra per-map data changed;
+browser Wasm remains 183,235 B. Native resource-only movement is still pending:
+bind prefix/full physics/after-pose to the shared tick method, then run a fresh
+resource-initialized probe. Avoid per-frame clones of vehicle dynamics when
+projecting the store into the physics API.

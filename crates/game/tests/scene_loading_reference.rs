@@ -6,11 +6,12 @@ use std::{
 use tankracer_assets::{
     archive::Archive, level::Level, object_catalog::Catalog, terrain::TerrainData,
 };
+use tankracer_game::scene_entity::Handle;
 use tankracer_game::{
     entity_factory,
     entity_factory::Payload,
     math::Matrix,
-    object_query::{EntityId, ObstacleId},
+    object_query::EntityId,
     obstacle_collision::Grid,
     obstacle_startup::{MaterialId, Materials},
     scene_loading::{self, Registry},
@@ -37,7 +38,7 @@ fn list(out: &mut Vec<u32>, values: impl IntoIterator<Item = u32>) {
 fn snapshot(
     out: &mut Vec<u32>,
     scene: &Scene,
-    state: &entity_factory::State<ObstacleId>,
+    state: &entity_factory::State<Handle>,
     random: u32,
     result: u32,
     highest: usize,
@@ -49,7 +50,7 @@ fn snapshot(
         let Some(record) = record else {
             continue;
         };
-        let id = record.object.unwrap();
+        let id = record.object.unwrap().obstacle().unwrap();
         let collider = &scene.world.colliders[id.0];
         let data = &scene.components.objects[id.0].as_ref().unwrap().data;
         let properties = &scene.world.objects[id.0];
@@ -193,7 +194,14 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
     let symbol = state.symbols.intern("Broken").unwrap();
     assert_eq!(state.symbols.entity(symbol), Some(EntityId(1)));
     assert_eq!(state.current_slot, scene_loading::READ);
-    let id = state.entities.record(EntityId(1)).unwrap().object.unwrap();
+    let id = state
+        .entities
+        .record(EntityId(1))
+        .unwrap()
+        .object
+        .unwrap()
+        .obstacle()
+        .unwrap();
     assert_eq!(scene.world.colliders[id.0].pose.position, [0; 3]);
     assert_eq!(
         scene.components.objects[id.0]
@@ -244,7 +252,14 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
         ));
     }
     let entity = EntityId(2);
-    let id = state.entities.record(entity).unwrap().object.unwrap();
+    let id = state
+        .entities
+        .record(entity)
+        .unwrap()
+        .object
+        .unwrap()
+        .obstacle()
+        .unwrap();
     let object = scene.components.objects[id.0].as_ref().unwrap();
     assert_eq!(scene.world.objects[id.0].weight, 8);
     assert_eq!(scene.world.colliders[id.0].pose.matrix, Matrix([0; 9]));
