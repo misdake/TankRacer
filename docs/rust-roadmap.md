@@ -9,10 +9,12 @@
 - M3 verified against C: terrain/contact/suspension, drive/fixed-point math,
   vehicle poses/model assembly/damage, ordered object queries and collision
   response, deformable objects, breakable hit chains, spatial/tick membership,
-  impact particles/shared line pool and real synchronous ground-effect bindings.
-- Last verified code: **`1d45e70`**. 4,480 pool/particle/composed ground records
-  match C, including all 15 real vehicle bodies. Existing 9,600 damage records,
-  workspace tests, native/Wasm Clippy and unchanged-C source verification pass.
+  impact particles/shared line pool and real ground-effect bindings; composed
+  post-collision integration, attitude, articulation, poses and contact hull.
+- Last verified code: **`84bdfb2`**. 1,078 actual C update-boundary records match
+  across all 15 cars / eight maps, including 110 failure prefixes. Workspace
+  tests, native/Wasm Clippy and unchanged-C source verification pass.
+  This checks the motion half, not the complete Rust vehicle update.
 - Remaining scene gaps include tank/obstacle particle bindings,
   auxiliary/destruction effects, object motion ticks and the full scheduler;
   probes do not complete them.
@@ -22,8 +24,9 @@
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: vehicle motion and complete per-tick vehicle orchestration, including
-  remaining real collision-effect bindings → browser proxy.
+- Next: connect pre-contact timers/abilities, contact, velocity/drive/yaw and
+  ordered collisions to the motion finalizer; implement real after-pose effects
+  and construct the Rust world → browser proxy.
   No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
