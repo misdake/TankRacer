@@ -47,5 +47,6 @@ pub mod vector;
 pub mod vehicle;
 pub mod vehicle_model;
 pub mod vehicle_prefix;
+pub mod vehicle_scene;
 pub mod vehicle_startup;
 pub mod velocity;

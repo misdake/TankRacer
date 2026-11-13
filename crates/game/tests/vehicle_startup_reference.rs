@@ -108,6 +108,17 @@ fn encode(player: &Player) -> Vec<u32> {
     } else {
         out.extend([0; 10]);
     }
+    out.push(u32::from(player.lights.brake_mode));
+    out.extend(player.lights.active.map(u32::from));
+    out.extend(player.lights.handles.map(|h| h.0));
+    out.extend(player.marks.active.map(u32::from));
+    append(
+        &mut out,
+        player.marks.endpoints.into_iter().flatten().flatten(),
+    );
+    append(&mut out, player.marks.movement);
+    out.extend(player.marks.handles.map(|h| h.0));
+    out.extend([player.marks.count, player.marks.head, player.marks.tail]);
     out
 }
 fn shapes(bytes: &[u8]) -> ShapeArchive<'_> {
@@ -204,7 +215,7 @@ fn authored_spawns_and_fifteen_resource_profiles_construct_without_snapshots() {
             "map={map} cup={cup} vehicle={vehicle} mode={mode}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"VS01");
+        assert_eq!(&output.stdout[..4], b"VS02");
         let mut r = Reader {
             words: output.stdout[4..]
                 .chunks_exact(4)

@@ -1976,3 +1976,57 @@ per-map acceleration data changed. M3 remains open.
 $env:TANKRACER_VEHICLE_STARTUP_REFERENCE=(Resolve-Path build/native/vehicle_startup_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_startup_reference --locked -- --ignored --nocapture
 ```
+
+## After-pose quad pool, ground lights and track marks (2026-11-14)
+
+`effect_pool` now owns the source's quad allocate/update/replace/release flow and
+visible-record iteration, alongside the existing line pool. Normal records stay
+directly typed; two finite exceptional handles retain their observable aliases.
+Quad -1 owns the preceding quad-sized record. Quad 160 aliases the two words
+before line 0, all of line 0 and the position of line 1. Those words are the
+existing exhausted-line color storage, so both directions share one owner.
+Count equality, first-free scanning, no-free/count mismatch, arithmetic >>3,
+idempotent release and reset-with-retained-payload behavior match production C.
+Arbitrary out-of-bank indices and overlapping source-memory copies are not a
+guest-memory API; callers pass typed values and generated/sentinel handles.
+
+`vehicle_scene::lights` implements 4427E0 reverse/brake ground-light quads. It
+preserves visibility/player/disabled/queued gates, strict speed and ground-height
+limits, material checks, external basis, point winding and source style bytes.
+Zero throttle deliberately releases/reallocates even while already braking;
+optimizing that away would change allocation order shared with other effects.
+
+`vehicle_scene::marks` implements 43A930, including pre-rescale lateral/slip
+thresholds, contact/travel classification, retained endpoints across material
+changes, end caps and the 68-handle FIFO. Full-ring retirement precedes new
+allocation; exhausted allocations are not enqueued, while overflow handle 160
+is. Both kernels expose ephemeral views of the canonical `AfterPose` physics
+inputs. Their persistent states belong to the fresh `Player` owner, not a
+separate mutable copy of vehicle pose/terrain/contact data. They consume no RNG.
+
+Evidence:
+
+- **VQ01: 168 scenarios / 1,176 operations / 4,096,176 words / 36 error
+  prefixes** match unchanged production light/mark/pool entries. Includes 229
+  light-state and 161 mark-state changes, 20 full-FIFO retirements, 14 wraps,
+  56 direct normal allocations, 10 overflow and 6 exhausted allocations.
+  Interleaved quad/line operations compare the complete quad and line banks,
+  the preceding record, both aliases, counts, endpoint caches and FIFO state.
+- **VS02** extends fresh construction parity to both newly owned components:
+  **122 constructions / 50,142 words**. Rebuild the startup oracle for VS02.
+- Prefix (1,448 operations) and connected physics (1,254 records / 8,716,157
+  words) remain exact. Workspace/native/Wasm checks, browser build and C source
+  preservation pass. Browser Wasm remains **183,235 B**. No renderer or extra
+  per-map precomputation changed.
+
+Still pending for the complete active after-pose chain: track spray, damage
+smoke, shared debris, pickup shared fade, temporary effects and shield orbit,
+plus their coordinator using the existing real impact-particle kernel. No
+incomplete successful active-scene tick was added. Dynamic GPU extraction and
+whole-frame equivalence remain unclaimed; browser movement is still pending.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_quads.c build/native/libtankracer_core.a -lm -o build/native/vehicle_quads_reference.exe
+$env:TANKRACER_VEHICLE_QUADS_REFERENCE=(Resolve-Path build/native/vehicle_quads_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_quads_reference --locked -- --ignored --nocapture
+```

@@ -1,8 +1,14 @@
 //! Fresh player dynamics from authored spawn and assembled resources.
 //! Identity and scheduling remain the scene factory's responsibility.
 use crate::{
-    body, contact_pipeline, dispatch::ClassId, math, motion, object_query::EntityId, pose,
-    powertrain, vehicle, vehicle_model::VehicleModel, vehicle_prefix,
+    body, contact_pipeline,
+    dispatch::ClassId,
+    math, motion,
+    object_query::EntityId,
+    pose, powertrain, vehicle,
+    vehicle_model::VehicleModel,
+    vehicle_prefix,
+    vehicle_scene::{lights, marks},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -18,6 +24,8 @@ pub struct Player {
     pub physics: vehicle::State,
     pub prefix: vehicle_prefix::State,
     pub model: VehicleModel,
+    pub lights: lights::State,
+    pub marks: marks::State,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -89,6 +97,8 @@ impl Player {
             },
             prefix,
             model,
+            lights: lights::State::default(),
+            marks: marks::State::default(),
         })
     }
 }
