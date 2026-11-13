@@ -17,13 +17,13 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`a5fd531`**. Shared quad/line aliases, vehicle ground
-  lights and 68-handle track marks match C on 168 scenarios / 1,176 operations.
-  Fresh player ownership now includes lights/marks; 122 constructions, prefix
-  and connected physics regressions plus workspace/native/Wasm/build checks pass.
-  These are qualified parts, not a complete running vehicle.
-- **Next runnable increment:** remaining after-pose kernels (temporary effects/
-  shield, spray/smoke/debris/pickup fade) -> complete after-pose coordinator ->
+- Last verified code: **`2d21bed`**. Shared temporary-slot lifecycle and all nine
+  shield strips match C on 160 scenarios / 1,280 operations, including per-call
+  RNG counts. Startup requires the original 180-draw shield initialization.
+  Fresh-player, prefix, quad/light/mark and connected-physics regressions plus
+  workspace/native/Wasm/build checks pass. These are qualified parts, not a car.
+- **Next runnable increment:** remaining after-pose kernels (track spray,
+  damage smoke, shared debris and pickup fade) -> complete after-pose coordinator ->
   bind the fresh player/prefix into scene identity/scheduler -> moving browser proxy.
   M3 stays open until this runs without C or test snapshots. Bring additional
   readers forward only when required by that slice.
