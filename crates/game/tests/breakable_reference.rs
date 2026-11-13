@@ -18,6 +18,7 @@ use tankracer_game::{
     pose::Pose,
     random,
     spatial::Cell,
+    symbols::{Binding, Symbols},
 };
 struct Random(u32);
 impl Random {
@@ -48,6 +49,7 @@ struct Probe {
     fail_status: i32,
     delta: i32,
     actions: u32,
+    rebindings: u32,
 }
 impl Probe {
     fn call(&mut self, tag: u32, store: &mut Store, call: Invocation<'_>) -> Result<(), i32> {
@@ -69,6 +71,13 @@ impl Probe {
         }
         if self.actions & 2 != 0 {
             call.vehicle.player = false;
+        }
+        if self.actions & 4 != 0 {
+            for i in 0..3 {
+                let name = store.symbols.intern(&format!("last{i}")).unwrap();
+                self.rebindings += u32::from(store.symbols.entity(name) != Some(EntityId(4)));
+                store.symbols.bind_entity(name, EntityId(4)).unwrap();
+            }
         }
         if self.calls == self.fail_at && self.fail_status != 0 {
             Err(self.fail_status)
@@ -183,7 +192,11 @@ fn encode(world: &World, vehicle: &State, shared: &Shared, methods: &Methods) ->
             methods.store.ticks.flags[i],
             s.attached.len() as u32,
         ]);
-        out.extend(s.attached.iter().map(|id| id.map_or(0, |id| id.0)));
+        out.extend(
+            s.attached
+                .iter()
+                .map(|id| id.resolve(&methods.store.symbols).map_or(0, |id| id.0)),
+        );
     }
     for c in &world.classes {
         out.push(c.maximum_slot as u32);
@@ -250,7 +263,7 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
     let mut rng = Random(0x91281fa1);
     let (mut input, mut expected, mut records) =
         (Vec::new(), Vec::new(), Vec::<(Range<usize>, String)>::new());
-    let (mut errors, mut callbacks, mut active, mut hits) = (0, 0, 0, 0);
+    let (mut errors, mut callbacks, mut active, mut hits, mut rebindings) = (0, 0, 0, 0, 0);
     for op in 1..=2 {
         for case in 0..512 {
             let colliders = (0..3)
@@ -310,6 +323,14 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                 },
                 deformables: Vec::new(),
             };
+            let mut symbols = Symbols::default();
+            let last: Vec<_> = (0..3)
+                .map(|i| {
+                    let id = symbols.intern(&format!("last{i}")).unwrap();
+                    symbols.bind_entity(id, EntityId(5)).unwrap();
+                    id
+                })
+                .collect();
             let mut store = Store {
                 states: (0..3)
                     .map(|i| {
@@ -334,16 +355,17 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                                 })
                             },
                             attached: vec![
-                                Some(EntityId((i + 1) % 3 + 2)),
-                                None,
-                                Some(EntityId(i + 2)),
-                                Some(EntityId(5)),
+                                Binding::Direct(Some(EntityId((i + 1) % 3 + 2))),
+                                Binding::Direct(None),
+                                Binding::Direct(Some(EntityId(i + 2))),
+                                Binding::Named(last[i as usize]),
                             ]
                             .into(),
                         })
                     })
                     .collect(),
                 live: vec![true, case % 5 != 0, case % 7 != 0],
+                symbols,
                 ticks: Ticks {
                     flags: vec![0; 3],
                     order: Vec::new(),
@@ -386,7 +408,7 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                 s.has_sound = false;
                 s.auxiliary = false;
                 s.effect_flags = None;
-                s.attached = vec![None; 65537].into();
+                s.attached = vec![Binding::Direct(None); 65537].into();
             }
             for cell in &mut world.grid.cells {
                 *cell = (0..(rng.word() % 5))
@@ -409,7 +431,8 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                 fail_at: rng.word() % 7,
                 fail_status: rng.choose(&[-13, 0, 1]),
                 delta: rng.choose(&[-1, 0, 1, 100000, i32::MAX]),
-                actions: rng.word() % 4,
+                actions: rng.word() % 8,
+                rebindings: 0,
             };
             let mut methods = Methods { store, env, probe };
             let mut vehicle = State {
@@ -448,6 +471,7 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
             for tick in 0..4 {
                 methods.probe.calls = 0;
                 methods.probe.trace = 0;
+                methods.probe.rebindings = 0;
                 let mut words = vec![op];
                 words.extend(encode(&world, &vehicle, &shared, &methods));
                 input.extend(words.into_iter().flat_map(u32::to_le_bytes));
@@ -493,6 +517,7 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                     errors += 1;
                 }
                 callbacks += methods.probe.calls;
+                rebindings += methods.probe.rebindings;
                 active += methods.store.ticks.order.len();
                 let start = expected.len();
                 expected.extend(output(&world, &vehicle, &shared, &methods, status, result));
@@ -529,9 +554,9 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
     for (range, label) in &records {
         assert_eq!(words[range.clone()], expected[range.clone()], "{label}");
     }
-    assert!(errors > 0 && callbacks > 0 && active > 0 && hits > 0);
+    assert!(errors > 0 && callbacks > 0 && active > 0 && hits > 0 && rebindings > 0);
     eprintln!(
-        "{} breakable/collision records / {} words exact; errors={errors} callbacks={callbacks} active observations={active} collision hits={hits}",
+        "{} breakable/collision records / {} words exact; errors={errors} callbacks={callbacks} active observations={active} collision hits={hits} name rebindings={rebindings}",
         records.len(),
         words.len()
     );

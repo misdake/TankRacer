@@ -1177,3 +1177,75 @@ its registry entry to capture real map startup. It does not duplicate constructo
 formulas. Next: concrete subclass initialization and lifecycle/method bindings,
 named entity resolution and complete world startup, then remaining vehicle
 prefix/after-pose operations and the independent moving proxy.
+
+## Live scheduler and named attachment bindings
+
+`lifecycle::Ticks` now runs callbacks as well as maintaining membership. The
+same generic implementation accepts dense `ObstacleId` or global `EntityId`;
+existing breakable physics still owns its original flags, without another copy
+for queues. A pass saves the successor before dispatch and follows the live
+cursor afterward. Disabling that successor advances the cursor before removal,
+even if removal then exceeds its work budget. Appending from the final callback
+waits until the next pass. Method failures retain cursor/slot/writes as in C.
+The unchanged-membership path is linear; it repairs its Vec position only when
+callbacks change membership.
+
+`lifecycle::Queues` implements unique LIFO notifications/destruction sharing
+bit 32 in those same flags. In particular, a pending stop suppresses a later
+destroy request. Cancellation clears that bit before its potentially failing
+search. Draining consumes an item before calling stop, then destruction if
+requested; notifications finish before the destruction phase. Notifications
+queued during destruction wait for the next drain. Each terminal empty pop also
+spends work budget. VecDeque gives constant-time head push/pop; class callbacks
+are still responsible for their own flag changes, destructor and ID release.
+
+**585 scheduler scenarios / 243,846 semantic words match production C**, with
+4,070 callbacks, 176 record releases and 2,167 error prefixes. The oracle calls
+real `frame_entities`/`frame_pool` code. Scripts supply callbacks, including
+membership/queue mutations, positive/negative failures and destructor/release
+order; they do not substitute for the pending real Rust class methods. Random
+scripts target live records; stale callbacks after ID release and allocator/I/O
+faults are outside this qualification.
+
+`symbols::Symbols` retains stable logical name handles and separate class/entity
+namespaces. Names fold ASCII case, retain their first spelling, stop at embedded
+NUL, and preserve the anonymous nil symbol. Native equality checks at most 32
+characters and then requires termination: names longer than 32 bytes deliberately
+receive a fresh handle on every intern, including exact repeats. Interning a
+forward reference does **not** reserve an entity ID. Session clearing removes
+entity bindings while retaining handles and classes (unit-qualified).
+
+**224 symbol operations / 823,548 words match C**, including empty/nil names,
+non-ASCII rejection, embedded NUL, casefolding, 31/32/33-byte boundaries and
+1,023-byte names. The oracle calls real symbol initialization/interning; logical
+entity/class values are boundary bindings, not class registration or object
+allocation. Symbols are host-owned data, without a guest memory arena.
+
+Breakable attachments now hold direct IDs or symbol handles, resolving each
+immediately before dispatch. An earlier callback can rebind a later attachment;
+the target is then checked against live collision components. The expanded real
+hit/collision oracle matches **4,096 records / 881,768 words**, including 441
+actual binding changes, 535 callbacks, 2,025 collisions and 132 error prefixes.
+The existing membership oracle also matches 8,192 records / 1,923,606 words.
+Unbound/missing-name and retired-component references remain absent in this
+typed adapter; native invalid-pointer behavior from a malformed unresolved
+attachment is not qualified. Authored attachment parsing, reserved/duplicate
+definition policy and complete factory binding are still pending.
+
+Workspace tests, native/all-target and Wasm game Clippy, unchanged-C verification
+and the release browser build pass. No renderer/state changes or new GPU claims.
+The browser still shows the static world; these modules are not connected to a
+complete live Rust world. No new per-map acceleration data or whole-frame speed
+claim. Next: canonical entity allocation/ID reuse, class methods and authored
+attachments/world ticks, then vehicle prefix/after-pose and the moving proxy.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_lifecycle.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/lifecycle_reference.exe
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_symbols.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/symbols_reference.exe
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_breakable.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/breakable_reference.exe
+$env:TANKRACER_LIFECYCLE_REFERENCE=(Resolve-Path build/native/lifecycle_reference.exe).Path
+$env:TANKRACER_SYMBOLS_REFERENCE=(Resolve-Path build/native/symbols_reference.exe).Path
+$env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_reference.exe).Path
+$env:TANKRACER_MEMBERSHIP_REFERENCE=(Resolve-Path build/native/membership_reference.exe).Path
+cargo test -p tankracer-game --test lifecycle_reference --test symbols_reference --test breakable_reference --test membership_reference --locked -- --ignored --nocapture
+```

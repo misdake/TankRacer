@@ -7,6 +7,7 @@ use crate::{
     object_query::{EntityId, ObstacleId},
     obstacle_collision::{Invocation, World},
     spatial::{self, Cell},
+    symbols::{Binding, Symbols},
 };
 use std::sync::Arc;
 
@@ -22,13 +23,15 @@ pub struct State {
     pub auxiliary: bool,
     pub effect_flags: Option<u8>,
     pub cell: Option<Cell>,
-    /// Immutable level bindings in original order; targets may be retired live.
-    pub attached: Arc<[Option<EntityId>]>,
+    /// Bindings retain original order; resolve names immediately before each
+    /// dispatch so an earlier nested callback can change a later target.
+    pub attached: Arc<[Binding]>,
 }
 pub struct Store {
     pub states: Vec<Option<State>>,
     pub live: Vec<bool>,
     pub ticks: Ticks,
+    pub symbols: Symbols,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Environment {
@@ -261,7 +264,10 @@ fn inner(
         if i == 65536 {
             return Err(-3);
         }
-        if let Some(target) = target.and_then(|target| entity(call.world, store, target)) {
+        if let Some(target) = target
+            .resolve(&store.symbols)
+            .and_then(|target| entity(call.world, store, target))
+        {
             invoke(
                 store,
                 call,

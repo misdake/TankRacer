@@ -32,6 +32,7 @@ pub mod scene_meshes;
 pub mod scene_startup;
 pub mod spatial;
 pub mod suspension;
+pub mod symbols;
 pub mod tank_collision;
 pub mod terrain;
 pub mod vector;

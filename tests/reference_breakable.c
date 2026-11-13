@@ -25,6 +25,13 @@ static int probe(uint32_t tag,uint32_t id)
     set(o+0xea,word(o+0xea)^16u);set(vehicle+0xec,0u-word(vehicle+0xec));
     if(actions&1u&&fx)ram[fx+0x18]^=16u;
     if(actions&2u)ram[vehicle+0xde5]=0;
+    if(actions&4u) {
+        uint32_t i;
+        for(i=0;i<3;i++) {
+            uint32_t head=word(objects[i]+0xfa),last=word(head+4);
+            if(last!=head)set(word(last+8)+4,4);
+        }
+    }
     return calls==fail_at?fail_status:0;
 }
 static int custom(uint32_t fn,uint32_t id,uint32_t has_payload,uint32_t argument,uint32_t *out)
