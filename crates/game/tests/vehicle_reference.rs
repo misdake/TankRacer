@@ -1105,7 +1105,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                     tanks: &mut before.tanks,
                     slots: &slots,
                     peer: &mut before.peer,
-                    shared: &mut shared,
+                    shared: (&mut shared).into(),
                     effects: bank,
                     player_effects: &mut before.player_effects,
                 };

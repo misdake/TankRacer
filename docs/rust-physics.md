@@ -1658,3 +1658,67 @@ cargo test -p tankracer-game --test fall_reference --locked -- --ignored --nocap
 Rebuild `reference_object_catalog.c`, `reference_obstacle_startup.c` and
 `reference_scene_loading.c` with their documented link libraries for the updated
 OC02/OS05/SL02 protocols before rerunning those integration tests.
+
+## Shared collision activation and Fall update ownership
+
+The live scene now separates collision `World` from authoritative `Components`.
+`scene_objects::View` borrows both for the same lifecycle methods; normal Scene
+invocation delegates to that view. The loader and tests name the component owner
+explicitly rather than using field forwarding or hidden interior mutability.
+`entity_factory::State::split` borrows identity/symbols/ticks/queues separately
+from the actual current dispatch slot. Collision and vehicle globals are borrowed
+RNG/slot references, so an eventual runtime can use the real factory slot and
+shared seed without copy-in/copy-out at a callback boundary.
+
+`breakable::hit` contains the one qualified 40A3E0 algorithm. Its owner supplies
+borrowed motion fields and live resource metadata, ordered Arc-backed attachment
+bindings and immediate methods. The former Store is isolated in a qualification
+adapter; it is not copied into the live scene. `scene_objects::collision` instead
+writes the existing Fall motion, object effect flags, mesh/cell memberships and
+factory scheduler. Each named attachment resolves against the live shared symbol
+and entity tables immediately before its call, now with O(1) entity lookup.
+Callbacks can rebind later names and change RNG, flags and vehicle state in place.
+
+Activation uses the real factory BaseMethod::EnableTick with EntityId indexing.
+Physics and entity dispatch retain their distinct result/error/slot behavior.
+The registry has explicit auxiliary/debris contact interfaces as well as update
+interfaces: unported methods return -5, never a successful null method. Host sound
+and feedback remain explicit services. Optional impact sound handles are live
+object components; the preserved C loader disables resource creation and leaves
+these absent. This increment does not claim complete audio loading.
+
+Qualification:
+
+- **4,096 short-sequence records / 881,768 semantic words** run through both the
+  standalone qualification owner and the actual scene/factory owner against C.
+  Includes 132 error prefixes, 535 callbacks, 441 dynamic name rebindings,
+  1,276 active-list observations and 2,025 collision hits. The scene fixture is
+  constructed once per sequence, not synchronized from the other owner after
+  callbacks or frames. Tick flags/order are compared through actual entity IDs;
+  the real factory queues are checked as well.
+- **OS06** extends the real map constructor suite with **22 authored object
+  collision-to-Fall sequences / 132 checkpoints**: native hit dispatch, four
+  updates (16/33/40/1000 time units), then a repeated hit. Matrices, motion,
+  last-vehicle identity, activity, flags, RNG, current slot, ordered ticks,
+  notifications and filtered grid memberships match. Peer vehicle/device values
+  are explicit inputs; terrain is the real shared map graph. These cases select
+  objects without auxiliary/debris/attachments; other hit branches are covered
+  by the owner/error suite above, not claimed as ported effect implementations.
+  Native scratch arenas and Rust state saves/restores exist only in the test.
+- The prior 1,252 Fall/56 ordinary/154 Crush factories, 22 bound Fall stop ticks,
+  302 bound Crush ticks, common lifecycle, factory and connected-vehicle suites
+  pass. Workspace tests, native and Wasm Clippy, source preservation verification
+  and release browser build pass. The C runtime's 244 files remain unchanged.
+
+No renderer state, acceleration data or measured frame-time change. The browser
+remains the static 183,221 B Wasm build; the game crate still needs runtime wiring.
+This completes shared breakable activation, not M3. Next implement actual active
+auxiliary/debris contact/update bindings on this owner, then remaining readers
+and vehicle prefix/after-pose plus scheduler -> independent moving proxy.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
+$env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_startup_reference.exe).Path
+$env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_reference.exe).Path
+cargo test -p tankracer-game --test obstacle_startup_reference --test breakable_reference --locked -- --ignored --nocapture
+```

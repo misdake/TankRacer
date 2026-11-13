@@ -64,6 +64,38 @@ impl<T: Copy> State<T> {
         }
     }
 }
+/// Scheduler/identity borrow held by collision callbacks while the collision
+/// traversal holds the shared dispatch slot. Rejoining borrows never copies it.
+pub struct Lifecycle<'a, T> {
+    pub entities: &'a mut Entities<T>,
+    pub symbols: &'a mut Symbols,
+    pub ticks: &'a mut Ticks<EntityId>,
+    pub queues: &'a mut Queues<EntityId>,
+}
+impl<T: Copy> State<T> {
+    pub fn split(&mut self) -> (Lifecycle<'_, T>, &mut u32) {
+        (
+            Lifecycle {
+                entities: &mut self.entities,
+                symbols: &mut self.symbols,
+                ticks: &mut self.ticks,
+                queues: &mut self.queues,
+            },
+            &mut self.current_slot,
+        )
+    }
+}
+impl<T> Lifecycle<'_, T> {
+    pub fn context<'a>(&'a mut self, current_slot: &'a mut u32) -> Context<'a, T> {
+        Context {
+            entities: self.entities,
+            symbols: self.symbols,
+            ticks: self.ticks,
+            queues: self.queues,
+            current_slot,
+        }
+    }
+}
 /// Borrow the same tables and current slot for nested method calls. No copied
 /// dispatch context or deferred recursion changes constructor/update ordering.
 pub struct Context<'a, T> {

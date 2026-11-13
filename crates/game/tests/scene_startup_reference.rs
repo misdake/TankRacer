@@ -327,9 +327,11 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 assert_eq!(loaded, entity);
                 assert_eq!(live_random, random, "{label} live RNG");
                 let id = live_state.entities.record(entity).unwrap().object.unwrap();
-                let object = live_scene.objects[id.0].as_ref().unwrap();
+                let object = live_scene.components.objects[id.0].as_ref().unwrap();
                 let collider = &live_scene.world.colliders[id.0];
-                let surface = live_scene.surfaces.entries[id.0].as_ref().unwrap();
+                let surface = live_scene.components.surfaces.entries[id.0]
+                    .as_ref()
+                    .unwrap();
                 for &(old_pointer, old_mesh) in &live_aliases {
                     assert_eq!(
                         pointer == old_pointer,
@@ -387,6 +389,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 );
                 assert_eq!(
                     live_scene
+                        .components
                         .surfaces
                         .meshes
                         .get(surface.mesh)
@@ -395,7 +398,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     meshes.get(built.surface.mesh).unwrap().vertices
                 );
                 assert_eq!(
-                    live_scene.surfaces.meshes.hint(surface.mesh),
+                    live_scene.components.surfaces.meshes.hint(surface.mesh),
                     meshes.hint(built.surface.mesh)
                 );
                 r.check(
@@ -407,10 +410,10 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     "live factory cell",
                 );
                 for list in [
-                    &live_scene.ordinary,
-                    &live_scene.special,
+                    &live_scene.components.ordinary,
+                    &live_scene.components.special,
                     &live_scene.world.deformables,
-                    &live_scene.lap_objects,
+                    &live_scene.components.lap_objects,
                 ] {
                     check_list(
                         &mut r,
@@ -478,7 +481,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                         || built.surface.sampling.state.records_attached
                     {
                         runtime_updates += 1;
-                        live_scene.dt = 1500;
+                        live_scene.components.dt = 1500;
                         live_state
                             .context()
                             .dispatch(
@@ -537,7 +540,9 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 detached += usize::from(!built.surface.sampling.state.records_attached);
                 // Preserve constructor-only placement coverage after the independent
                 // short sequence; these small component clones exist only in tests.
-                let live_surface = live_scene.surfaces.entries[id.0].as_mut().unwrap();
+                let live_surface = live_scene.components.surfaces.entries[id.0]
+                    .as_mut()
+                    .unwrap();
                 live_surface.sampling.state = saved_sampling.clone();
                 live_surface.runtime = saved_runtime.clone();
                 live_state.ticks = saved_ticks;
@@ -587,6 +592,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 .map(|c| c.entity)
                 .collect();
             let owned_meshes: Vec<_> = live_scene
+                .components
                 .surfaces
                 .entries
                 .iter()
@@ -634,12 +640,21 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 )
                 .unwrap();
             assert_eq!(live_state.entities.record_count(), 0);
-            assert!(live_scene.objects.iter().all(Option::is_none));
-            assert!(live_scene.surfaces.entries.iter().all(Option::is_none));
-            assert!(live_scene.world.deformables.is_empty() && live_scene.special.is_empty());
+            assert!(live_scene.components.objects.iter().all(Option::is_none));
+            assert!(
+                live_scene
+                    .components
+                    .surfaces
+                    .entries
+                    .iter()
+                    .all(Option::is_none)
+            );
+            assert!(
+                live_scene.world.deformables.is_empty() && live_scene.components.special.is_empty()
+            );
             for (mesh, private) in owned_meshes {
                 assert_eq!(
-                    live_scene.surfaces.meshes.get(mesh).is_none(),
+                    live_scene.components.surfaces.meshes.get(mesh).is_none(),
                     private,
                     "retire only private geometry"
                 );
@@ -658,6 +673,7 @@ fn sample_live(
     world: [i32; 3],
 ) {
     scene
+        .components
         .surfaces
         .with_sampling(Some(entity), &scene.world.colliders, |surface| {
             let surface = surface.unwrap();
@@ -674,7 +690,7 @@ fn check_runtime(
     queues: &Queues<EntityId>,
 ) {
     let id = state.entities.record(entity).unwrap().object.unwrap();
-    let surface = scene.surfaces.entries[id.0].as_ref().unwrap();
+    let surface = scene.components.surfaces.entries[id.0].as_ref().unwrap();
     assert_eq!(
         surface.sampling.state, expected.sampling.state,
         "bound sampler/tick records"

@@ -1,5 +1,6 @@
 //! Ordered scene-object lifecycle on the same components used by collision.
 //! Class tables stay immutable; parent calls and nested activation are immediate.
+pub mod collision;
 mod falling;
 use crate::{
     crush,
@@ -48,6 +49,8 @@ pub const FALL_TICK: MethodId = MethodId(65);
 pub const FALL_DESTROY: MethodId = MethodId(66);
 pub const AUXILIARY_TICK: MethodId = MethodId(68);
 pub const DEBRIS_TICK: MethodId = MethodId(69);
+pub const AUXILIARY_HIT: MethodId = MethodId(70);
+pub const DEBRIS_HIT: MethodId = MethodId(71);
 
 #[derive(Clone, Copy)]
 pub struct Parents {
@@ -62,7 +65,11 @@ pub struct Interfaces {
     pub auxiliary_tick: u32,
     pub debris_tick: u32,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundId(pub u32);
 pub struct Object {
+    /// Optional host-owned sound resource; the disabled C loader creates none.
+    pub impact_sound: Option<SoundId>,
     pub data: PlacedObstacle,
     /// Owned replacement geometry created by mesh break. Its activation/motion
     /// methods are still pending; destruction already respects ownership.
@@ -71,8 +78,17 @@ pub struct Object {
     pub auxiliary_active: i16,
     pub ground_height: Option<i32>,
 }
+/// Collision traversal borrows `world` while callbacks borrow `components`.
+/// Both views write the same owners used by factory updates and rendering.
 pub struct Scene {
     pub world: World,
+    pub components: Components,
+}
+pub struct View<'a> {
+    pub world: &'a mut World,
+    pub components: &'a mut Components,
+}
+pub struct Components {
     pub surfaces: Surfaces,
     pub objects: Vec<Option<Object>>,
     pub ordinary: Vec<ObstacleId>,
@@ -92,31 +108,89 @@ impl Scene {
     pub fn new(world: World, surfaces: Surfaces, parents: Parents, interfaces: Interfaces) -> Self {
         Self {
             world,
-            surfaces,
-            objects: Vec::new(),
-            ordinary: Vec::new(),
-            special: Vec::new(),
-            lap_objects: Vec::new(),
-            signs: Vec::new(),
-            sign_meshes: [None; 2],
-            falls: Vec::new(),
-            fall_tuning: fall::Tuning::default(),
-            terrain: None,
-            pending_crush: Vec::new(),
-            parents,
-            interfaces,
-            dt: 0,
+            components: Components {
+                surfaces,
+                objects: Vec::new(),
+                ordinary: Vec::new(),
+                special: Vec::new(),
+                lap_objects: Vec::new(),
+                signs: Vec::new(),
+                sign_meshes: [None; 2],
+                falls: Vec::new(),
+                fall_tuning: fall::Tuning::default(),
+                terrain: None,
+                pending_crush: Vec::new(),
+                parents,
+                interfaces,
+                dt: 0,
+            },
         }
     }
+    pub fn view(&mut self) -> View<'_> {
+        View {
+            world: &mut self.world,
+            components: &mut self.components,
+        }
+    }
+    pub fn install_obstacle(
+        &mut self,
+        obstacle: Obstacle,
+        class: ClassId,
+    ) -> Result<ObstacleId, scene_startup::Error> {
+        self.view().install_obstacle(obstacle, class)
+    }
+    pub fn install_crush(
+        &mut self,
+        crush: Crush,
+        class: ClassId,
+    ) -> Result<ObstacleId, scene_startup::Error> {
+        self.view().install_crush(crush, class)
+    }
+    pub fn move_object(
+        &mut self,
+        id: ObstacleId,
+        position: [i32; 3],
+        limit: u32,
+    ) -> Result<u32, i32> {
+        self.view().move_object(id, position, limit)
+    }
+}
+impl Components {
+    pub(crate) fn object(&self, id: ObstacleId) -> Result<&Object, i32> {
+        self.objects.get(id.0).and_then(Option::as_ref).ok_or(-1)
+    }
+    pub(crate) fn object_mut(&mut self, id: ObstacleId) -> Result<&mut Object, i32> {
+        self.objects
+            .get_mut(id.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)
+    }
+    pub(crate) fn crush_initial(&self, id: ObstacleId) -> Result<crush::Initial, i32> {
+        self.pending_crush
+            .iter()
+            .find(|(target, _)| *target == id)
+            .map(|(_, initial)| *initial)
+            .ok_or(-1)
+    }
+    pub(crate) fn finish_crush_initial(&mut self, id: ObstacleId) {
+        self.pending_crush.retain(|(target, _)| *target != id);
+    }
+}
+impl View<'_> {
     fn adopt(&mut self, object: Object) -> Result<ObstacleId, scene_startup::Error> {
         let id = object.data.id;
-        if self.objects.get(id.0).is_some_and(Option::is_some) {
+        if self
+            .components
+            .objects
+            .get(id.0)
+            .is_some_and(Option::is_some)
+        {
             return Err(scene_startup::Error::InvalidWorld);
         }
-        if self.objects.len() <= id.0 {
-            self.objects.resize_with(id.0 + 1, || None);
+        if self.components.objects.len() <= id.0 {
+            self.components.objects.resize_with(id.0 + 1, || None);
         }
-        self.objects[id.0] = Some(object);
+        self.components.objects[id.0] = Some(object);
         Ok(id)
     }
     pub fn install_obstacle(
@@ -124,8 +198,9 @@ impl Scene {
         obstacle: Obstacle,
         class: ClassId,
     ) -> Result<ObstacleId, scene_startup::Error> {
-        let data = obstacle.install_components(&mut self.world, class)?;
+        let data = obstacle.install_components(self.world, class)?;
         self.adopt(Object {
+            impact_sound: None,
             data,
             auxiliary_mesh: None,
             auxiliary_active: 0,
@@ -137,12 +212,13 @@ impl Scene {
         crush: Crush,
         class: ClassId,
     ) -> Result<ObstacleId, scene_startup::Error> {
-        let placed = crush.install_components(&mut self.world, &mut self.surfaces, class)?;
-        let mesh = self.surfaces.entries[placed.id.0]
+        let placed = crush.install_components(self.world, &mut self.components.surfaces, class)?;
+        let mesh = self.components.surfaces.entries[placed.id.0]
             .as_ref()
             .ok_or(scene_startup::Error::InvalidWorld)?
             .mesh;
         self.adopt(Object {
+            impact_sound: None,
             data: PlacedObstacle {
                 id: placed.id,
                 // Crush initialize does not call the ordinary parent initializer.
@@ -161,36 +237,23 @@ impl Scene {
             ground_height: Some(placed.ground_height),
         })
     }
-    pub(crate) fn object(&self, id: ObstacleId) -> Result<&Object, i32> {
-        self.objects.get(id.0).and_then(Option::as_ref).ok_or(-1)
-    }
-    pub(crate) fn object_mut(&mut self, id: ObstacleId) -> Result<&mut Object, i32> {
-        self.objects
-            .get_mut(id.0)
-            .and_then(Option::as_mut)
-            .ok_or(-1)
-    }
-    pub(crate) fn crush_initial(&self, id: ObstacleId) -> Result<crush::Initial, i32> {
-        self.pending_crush
-            .iter()
-            .find(|(target, _)| *target == id)
-            .map(|(_, initial)| *initial)
-            .ok_or(-1)
-    }
     fn crush_records_attached(&self, id: ObstacleId) -> Result<bool, i32> {
-        if let Some(surface) = self.surfaces.entries.get(id.0).and_then(Option::as_ref) {
+        if let Some(surface) = self
+            .components
+            .surfaces
+            .entries
+            .get(id.0)
+            .and_then(Option::as_ref)
+        {
             Ok(surface.sampling.state.records_attached)
         } else {
-            self.crush_initial(id).map(|_| false)
+            self.components.crush_initial(id).map(|_| false)
         }
     }
-    pub(crate) fn finish_crush_initial(&mut self, id: ObstacleId) {
-        self.pending_crush.retain(|(target, _)| *target != id);
-    }
     fn insert_grid(&mut self, id: ObstacleId) -> Result<(), i32> {
-        let mesh = self.object(id)?.data.mesh;
+        let mesh = self.components.object(id)?.data.mesh;
         let radius = mesh
-            .and_then(|mesh| self.surfaces.meshes.get(mesh))
+            .and_then(|mesh| self.components.surfaces.meshes.get(mesh))
             .map(|_| self.world.colliders[id.0].radius);
         let cell = spatial::insert(
             &mut self.world.grid,
@@ -198,18 +261,22 @@ impl Scene {
             &self.world.colliders[id.0],
             radius,
         );
-        self.object_mut(id)?.data.cell = Some(cell);
+        self.components.object_mut(id)?.data.cell = Some(cell);
         Ok(())
     }
     fn remove_grid(&mut self, id: ObstacleId, limit: u32) -> Result<(), i32> {
-        let cell = self.object(id)?.data.cell;
+        let cell = self.components.object(id)?.data.cell;
         spatial::remove(&mut self.world.grid, id, cell, limit).map_err(spatial_code)
     }
     fn clear_owned(&mut self, id: ObstacleId) -> Result<(), i32> {
-        if let Some(mesh) = self.object(id)?.auxiliary_mesh {
-            self.surfaces.meshes.release_private(mesh).ok_or(-1)?;
+        if let Some(mesh) = self.components.object(id)?.auxiliary_mesh {
+            self.components
+                .surfaces
+                .meshes
+                .release_private(mesh)
+                .ok_or(-1)?;
         }
-        let object = self.object_mut(id)?;
+        let object = self.components.object_mut(id)?;
         object.auxiliary_mesh = None;
         object.auxiliary_active = 0;
         object.data.auxiliary = None;
@@ -254,6 +321,16 @@ impl Methods<ObstacleId> for Scene {
     fn invoke(
         &mut self,
         method: MethodId,
+        call: Invocation<'_, ObstacleId>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        self.view().invoke(method, call, env)
+    }
+}
+impl Methods<ObstacleId> for View<'_> {
+    fn invoke(
+        &mut self,
+        method: MethodId,
         mut call: Invocation<'_, ObstacleId>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
@@ -277,14 +354,14 @@ impl Methods<ObstacleId> for Scene {
             let retiring = matches!(method, DETACH | RELEASE_ID);
             base.invoke(call, env)?;
             if retiring && let Some(id) = target {
-                self.finish_crush_initial(id);
-                if let Some(object) = self.objects.get_mut(id.0) {
+                self.components.finish_crush_initial(id);
+                if let Some(object) = self.components.objects.get_mut(id.0) {
                     *object = None;
                 }
-                if let Some(surface) = self.surfaces.entries.get_mut(id.0) {
+                if let Some(surface) = self.components.surfaces.entries.get_mut(id.0) {
                     *surface = None;
                 }
-                if let Some(state) = self.falls.get_mut(id.0) {
+                if let Some(state) = self.components.falls.get_mut(id.0) {
                     *state = None;
                 }
             }
@@ -319,28 +396,34 @@ impl Methods<ObstacleId> for Scene {
             }
             WORLD_INITIALIZE => {
                 call.context
-                    .class_dispatch(self.parents.world, entity, None, env, self)
+                    .class_dispatch(self.components.parents.world, entity, None, env, self)
                     .map_err(dispatch_code)?;
-                self.object_mut(id)?.data.sort_position = -8;
+                self.components.object_mut(id)?.data.sort_position = -8;
                 *call.result = 0;
             }
             OBSTACLE_INITIALIZE => {
                 valid_limit(env.work_limit)?;
                 call.context
-                    .class_dispatch(self.parents.generic, entity, None, env, self)
+                    .class_dispatch(self.components.parents.generic, entity, None, env, self)
                     .map_err(dispatch_code)?;
-                self.object_mut(id)?.data.cell = None;
+                self.components.object_mut(id)?.data.cell = None;
                 *call.result = entity.0;
             }
             CRUSH_INITIALIZE => {
                 self.world.objects.get_mut(id.0).ok_or(-1)?.weight = 8;
-                if let Some(surface) = self.surfaces.entries.get_mut(id.0).and_then(Option::as_mut)
+                if let Some(surface) = self
+                    .components
+                    .surfaces
+                    .entries
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
                 {
                     surface.config.floor = 50;
                     surface.config.compression = 1;
                     surface.sampling.edge_cap = 45000;
                     surface.config.drift_shift = 1;
                 } else if let Some((_, initial)) = self
+                    .components
                     .pending_crush
                     .iter_mut()
                     .find(|(target, _)| *target == id)
@@ -350,19 +433,21 @@ impl Methods<ObstacleId> for Scene {
                         ..Default::default()
                     };
                 } else {
-                    self.pending_crush.push((id, crush::Initial::default()));
+                    self.components
+                        .pending_crush
+                        .push((id, crush::Initial::default()));
                 }
                 *call.result = entity.0;
             }
             ENTER => {
                 valid_limit(env.work_limit)?;
-                self.ordinary.push(id);
+                self.components.ordinary.push(id);
                 self.insert_grid(id)?;
                 *call.result = 0;
             }
             LEAVE => {
                 valid_limit(env.work_limit)?;
-                spatial::remove_first(&mut self.ordinary, &id, env.work_limit)
+                spatial::remove_first(&mut self.components.ordinary, &id, env.work_limit)
                     .map_err(spatial_code)?;
                 self.remove_grid(id, env.work_limit)?;
                 *call.result = 0;
@@ -370,12 +455,12 @@ impl Methods<ObstacleId> for Scene {
             DEACTIVATE => {
                 valid_limit(env.work_limit)?;
                 call.context
-                    .class_dispatch(self.parents.generic, entity, None, env, self)
+                    .class_dispatch(self.components.parents.generic, entity, None, env, self)
                     .map_err(dispatch_code)?;
                 self.remove_grid(id, env.work_limit)?;
-                spatial::remove_first(&mut self.ordinary, &id, env.work_limit)
+                spatial::remove_first(&mut self.components.ordinary, &id, env.work_limit)
                     .map_err(spatial_code)?;
-                spatial::remove_first(&mut self.special, &id, env.work_limit)
+                spatial::remove_first(&mut self.components.special, &id, env.work_limit)
                     .map_err(spatial_code)?;
                 *call.result = 0;
             }
@@ -383,9 +468,9 @@ impl Methods<ObstacleId> for Scene {
                 valid_limit(env.work_limit)?;
                 let mode = value(call.payload)?;
                 let (from, to) = if mode == 1 {
-                    (&mut self.ordinary, &mut self.special)
+                    (&mut self.components.ordinary, &mut self.components.special)
                 } else {
-                    (&mut self.special, &mut self.ordinary)
+                    (&mut self.components.special, &mut self.components.ordinary)
                 };
                 spatial::remove_first(from, &id, env.work_limit).map_err(spatial_code)?;
                 to.push(id);
@@ -411,7 +496,7 @@ impl Methods<ObstacleId> for Scene {
                 self.clear_owned(id)?;
                 self.remove_grid(id, env.work_limit)?;
                 call.context
-                    .class_dispatch(self.parents.generic, entity, None, env, self)
+                    .class_dispatch(self.components.parents.generic, entity, None, env, self)
                     .map_err(dispatch_code)?;
                 *call.result = entity.0;
             }
@@ -424,14 +509,20 @@ impl Methods<ObstacleId> for Scene {
             }
             ACTIVATE => {
                 call.context
-                    .dispatch(entity, self.interfaces.activate, None, env, self)
+                    .dispatch(entity, self.components.interfaces.activate, None, env, self)
                     .map_err(dispatch_code)?;
                 *call.result = 1;
             }
             DESTROY_REQUEST => {
                 *call.result = call
                     .context
-                    .dispatch(entity, self.interfaces.deactivate, None, env, self)
+                    .dispatch(
+                        entity,
+                        self.components.interfaces.deactivate,
+                        None,
+                        env,
+                        self,
+                    )
                     .map_err(dispatch_code)?;
             }
             CRUSH_ENTER => {
@@ -439,14 +530,14 @@ impl Methods<ObstacleId> for Scene {
                 let activate = crush::enter(
                     id,
                     &mut self.world.deformables,
-                    &mut self.special,
+                    &mut self.components.special,
                     records_attached,
                     env.work_limit,
                 )
                 .map_err(crush::code)?;
                 if activate {
                     call.context
-                        .dispatch(entity, self.interfaces.activate, None, env, self)
+                        .dispatch(entity, self.components.interfaces.activate, None, env, self)
                         .map_err(dispatch_code)?;
                 }
                 *call.result = u32::from(activate);
@@ -459,7 +550,7 @@ impl Methods<ObstacleId> for Scene {
                         entity,
                         crush::Membership {
                             collision: &mut self.world.deformables,
-                            drawing: &mut self.special,
+                            drawing: &mut self.components.special,
                         },
                         records_attached,
                         call.context.ticks,
@@ -471,30 +562,45 @@ impl Methods<ObstacleId> for Scene {
             }
             CRUSH_DESTROY => {
                 valid_limit(env.work_limit)?;
-                if let Some(surface) = self.surfaces.entries.get_mut(id.0).and_then(Option::as_mut)
+                if let Some(surface) = self
+                    .components
+                    .surfaces
+                    .entries
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
                 {
                     let private = surface.runtime.private_mesh;
-                    crush::destroy_owned(surface, &mut self.surfaces.meshes, env.work_limit)
-                        .map_err(crush::code)?;
+                    crush::destroy_owned(
+                        surface,
+                        &mut self.components.surfaces.meshes,
+                        env.work_limit,
+                    )
+                    .map_err(crush::code)?;
                     if private {
-                        self.object_mut(id)?.data.mesh = None;
+                        self.components.object_mut(id)?.data.mesh = None;
                     }
                 } else {
-                    self.crush_initial(id)?;
+                    self.components.crush_initial(id)?;
                 }
-                self.finish_crush_initial(id);
+                self.components.finish_crush_initial(id);
                 call.context
-                    .class_dispatch(self.parents.obstacle, entity, None, env, self)
+                    .class_dispatch(self.components.parents.obstacle, entity, None, env, self)
                     .map_err(dispatch_code)?;
                 *call.result = entity.0;
             }
             CRUSH_HIGHLIGHT => {
                 let mode = value(call.payload)?;
-                if let Some(surface) = self.surfaces.entries.get_mut(id.0).and_then(Option::as_mut)
+                if let Some(surface) = self
+                    .components
+                    .surfaces
+                    .entries
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
                 {
                     crush::set_highlight(surface, mode);
                 } else {
-                    self.pending_crush
+                    self.components
+                        .pending_crush
                         .iter_mut()
                         .find(|(target, _)| *target == id)
                         .ok_or(-1)?
@@ -504,14 +610,15 @@ impl Methods<ObstacleId> for Scene {
                 *call.result = id.0 as u32 + 1;
             }
             crush::TICK => crush::invoke_tick(
-                self.surfaces
+                self.components
+                    .surfaces
                     .entries
                     .get_mut(id.0)
                     .and_then(Option::as_mut)
                     .ok_or(-1)?,
                 call,
                 env,
-                self.dt,
+                self.components.dt,
             )?,
             _ => return Err(-5),
         }

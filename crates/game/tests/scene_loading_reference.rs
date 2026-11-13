@@ -51,7 +51,7 @@ fn snapshot(
         };
         let id = record.object.unwrap();
         let collider = &scene.world.colliders[id.0];
-        let data = &scene.objects[id.0].as_ref().unwrap().data;
+        let data = &scene.components.objects[id.0].as_ref().unwrap().data;
         let properties = &scene.world.objects[id.0];
         out.push(state.ticks.flags[i]);
         out.extend(collider.pose.position.map(|v| v as u32));
@@ -70,7 +70,7 @@ fn snapshot(
             u32::from(data.auxiliary.is_some()),
             u32::from(data.debris.is_some()),
         ]);
-        let fall = scene.falls.get(id.0).and_then(Option::as_ref);
+        let fall = scene.components.falls.get(id.0).and_then(Option::as_ref);
         out.push(u32::from(fall.is_some()));
         if let Some(fall) = fall {
             out.extend([properties.flags, u32::from(fall.basis_backup.is_some())]);
@@ -88,7 +88,11 @@ fn snapshot(
             }
         }
     }
-    for values in [&scene.ordinary, &scene.special, &scene.lap_objects] {
+    for values in [
+        &scene.components.ordinary,
+        &scene.components.special,
+        &scene.components.lap_objects,
+    ] {
         list(
             out,
             values.iter().map(|id| scene.world.colliders[id.0].entity.0),
@@ -100,6 +104,7 @@ fn snapshot(
     list(
         out,
         scene
+            .components
             .signs
             .iter()
             .map(|id| scene.world.colliders[id.0].entity.0),
@@ -177,7 +182,7 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
             Err(scene_loading::Error::UnsupportedClass(_))
         ));
         assert_eq!(state.entities.record_count(), 0);
-        assert!(loader.scene.objects.is_empty());
+        assert!(loader.scene.components.objects.is_empty());
         assert!(matches!(
             loader.load(&mut state, record),
             Err(scene_loading::Error::Resource(_))
@@ -190,16 +195,30 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
     assert_eq!(state.current_slot, scene_loading::READ);
     let id = state.entities.record(EntityId(1)).unwrap().object.unwrap();
     assert_eq!(scene.world.colliders[id.0].pose.position, [0; 3]);
-    assert_eq!(scene.objects[id.0].as_ref().unwrap().data.sort_position, -8);
-    assert!(scene.objects[id.0].as_ref().unwrap().data.cell.is_none());
-    assert!(scene.ordinary.is_empty() && state.ticks.order.is_empty());
+    assert_eq!(
+        scene.components.objects[id.0]
+            .as_ref()
+            .unwrap()
+            .data
+            .sort_position,
+        -8
+    );
+    assert!(
+        scene.components.objects[id.0]
+            .as_ref()
+            .unwrap()
+            .data
+            .cell
+            .is_none()
+    );
+    assert!(scene.components.ordinary.is_empty() && state.ticks.order.is_empty());
     assert_eq!(state.ticks.flags[1], 8);
     state
         .context()
         .destroy(EntityId(1), registry.environment(100000), &mut scene)
         .unwrap();
     assert_eq!(state.entities.record_count(), 0);
-    assert!(scene.objects[id.0].is_none());
+    assert!(scene.components.objects[id.0].is_none());
     // Crush overrides initialization without the ordinary transform/cell
     // initializer. A failed reader must remain destructible before mesh loading.
     let mut record = record;
@@ -226,12 +245,12 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
     }
     let entity = EntityId(2);
     let id = state.entities.record(entity).unwrap().object.unwrap();
-    let object = scene.objects[id.0].as_ref().unwrap();
+    let object = scene.components.objects[id.0].as_ref().unwrap();
     assert_eq!(scene.world.objects[id.0].weight, 8);
     assert_eq!(scene.world.colliders[id.0].pose.matrix, Matrix([0; 9]));
     assert_eq!(object.data.sort_position, 0);
     assert_eq!(object.data.cell.unwrap().packed(), 0);
-    assert!(scene.surfaces.entries.is_empty());
+    assert!(scene.components.surfaces.entries.is_empty());
     state
         .context()
         .dispatch(
@@ -247,7 +266,7 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
         .destroy(entity, registry.environment(100000), &mut scene)
         .unwrap();
     assert_eq!(state.entities.record_count(), 0);
-    assert!(scene.objects.iter().all(Option::is_none));
+    assert!(scene.components.objects.iter().all(Option::is_none));
 }
 #[test]
 fn named_fall_attachments_bind_later_without_reserving_an_entity() {
@@ -285,7 +304,7 @@ fn named_fall_attachments_bind_later_without_reserving_an_entity() {
             EntityId(1)
         );
         assert_eq!(state.entities.record_count(), 1);
-        let binding = loader.scene.falls[0]
+        let binding = loader.scene.components.falls[0]
             .as_ref()
             .unwrap()
             .attached
@@ -332,7 +351,7 @@ fn named_fall_attachments_bind_later_without_reserving_an_entity() {
         .drain(scene_loading::STOP, env, &mut scene)
         .unwrap();
     assert_eq!(state.entities.record_count(), 0);
-    assert!(scene.falls.iter().all(Option::is_none));
+    assert!(scene.components.falls.iter().all(Option::is_none));
 }
 #[test]
 #[ignore = "requires fresh C World loader; set TANKRACER_SCENE_LOADING_REFERENCE"]
@@ -422,7 +441,7 @@ fn fresh_ids_shared_rng_lap_membership_and_complete_retirement_match_c() {
                     ranges.push((start..expected.len(),format!("scenario {scenarios} lap={lap} remove={remove} static={is_static} phase={phase}")));
                 }
                 assert_eq!(state.entities.record_count(), 0);
-                assert!(scene.objects.iter().all(Option::is_none));
+                assert!(scene.components.objects.iter().all(Option::is_none));
                 scenarios += 1;
             }
         }

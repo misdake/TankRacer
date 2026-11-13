@@ -1,5 +1,5 @@
 //! Fall bindings borrow the scene's terrain, memberships and shared scheduler.
-use super::{Scene, dispatch_code, spatial_code, valid_limit};
+use super::{View, dispatch_code, spatial_code, valid_limit};
 use crate::{
     crush,
     entity_factory::{Environment, Invocation},
@@ -10,7 +10,7 @@ use crate::{
 };
 use std::sync::Arc;
 use tankracer_assets::terrain::TerrainData;
-impl Scene {
+impl View<'_> {
     pub(super) fn destroy_fall(
         &mut self,
         id: ObstacleId,
@@ -20,6 +20,7 @@ impl Scene {
         let entity = call.entity;
         valid_limit(env.work_limit)?;
         let state = self
+            .components
             .falls
             .get_mut(id.0)
             .and_then(Option::as_mut)
@@ -32,7 +33,7 @@ impl Scene {
         }
         state.attached = None;
         call.context
-            .class_dispatch(self.parents.obstacle, entity, None, env, self)
+            .class_dispatch(self.components.parents.obstacle, entity, None, env, self)
             .map_err(dispatch_code)?;
         *call.result = 0;
         Ok(())
@@ -46,6 +47,7 @@ impl Scene {
         let entity = call.entity;
         valid_limit(env.work_limit)?;
         let peer = self
+            .components
             .falls
             .get(id.0)
             .and_then(Option::as_ref)
@@ -62,12 +64,13 @@ impl Scene {
                 Matrix::IDENTITY
             };
         let effect_active = self
+            .components
             .object(id)?
             .data
             .debris
             .as_ref()
             .is_some_and(|d| d.flags & 1 != 0);
-        let cell = self.object(id)?.data.cell;
+        let cell = self.components.object(id)?.data.cell;
         let collider = self.world.colliders.get_mut(id.0).ok_or(-1)?;
         let properties = self.world.objects.get_mut(id.0).ok_or(-1)?;
         if properties.activity != 0 && collider.external_basis.is_none() {
@@ -79,7 +82,7 @@ impl Scene {
             - i32::from(properties.mesh_bounds[0][1]))
         .wrapping_mul(8);
         let mut services = FallServices {
-            terrain: self.terrain.as_deref(),
+            terrain: self.components.terrain.as_deref(),
             grid: &mut self.world.grid,
             id,
             entity,
@@ -91,6 +94,7 @@ impl Scene {
         let status = fall::tick(
             fall::Motion {
                 state: self
+                    .components
                     .falls
                     .get_mut(id.0)
                     .and_then(Option::as_mut)
@@ -101,10 +105,10 @@ impl Scene {
                 position: collider.pose.position,
                 width,
                 vehicle_basis,
-                dt: self.dt,
+                dt: self.components.dt,
                 effect_active,
             },
-            self.fall_tuning,
+            self.components.fall_tuning,
             &mut services,
         );
         if collider.external_basis.is_some() {
@@ -115,12 +119,21 @@ impl Scene {
         }
         status?;
         // These remain real virtual calls, not silently dropped effects.
-        if self.object(id)?.data.auxiliary.is_some() && self.object(id)?.auxiliary_active != 0 {
+        if self.components.object(id)?.data.auxiliary.is_some()
+            && self.components.object(id)?.auxiliary_active != 0
+        {
             call.context
-                .dispatch(entity, self.interfaces.auxiliary_tick, None, env, self)
+                .dispatch(
+                    entity,
+                    self.components.interfaces.auxiliary_tick,
+                    None,
+                    env,
+                    self,
+                )
                 .map_err(dispatch_code)?;
         }
         if self
+            .components
             .object(id)?
             .data
             .debris
@@ -128,7 +141,13 @@ impl Scene {
             .is_some_and(|d| d.flags & 1 != 0)
         {
             call.context
-                .dispatch(entity, self.interfaces.debris_tick, None, env, self)
+                .dispatch(
+                    entity,
+                    self.components.interfaces.debris_tick,
+                    None,
+                    env,
+                    self,
+                )
                 .map_err(dispatch_code)?;
         }
         *call.result = 0;

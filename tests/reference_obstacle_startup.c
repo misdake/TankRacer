@@ -10,6 +10,7 @@
 #undef frame_fall_construct
 #include "reference_game.h"
 #include "frame_math.h"
+#include "frame_native.h"
 typedef struct material_log { frame_object_material_name run;void *ctx;uint32_t count,id[32],mode[32];unsigned char name[32][64]; } material_log;
 static uint32_t ordinary_ids[4096],ordinary_count;
 static int ordinary_id(uint32_t entity)
@@ -78,6 +79,40 @@ static void fall_sequence(uint32_t entity,uint32_t o,const frame_entity_factory_
     oracle_put(fw(o+0xee));oracle_put(fw(o+0xf2));oracle_put(fw(o+0xf6));oracle_put(fw(o+0x80));oracle_put(fw(o+0xea));oracle_put(fw(o+16));
     fall_list(fw(0x55b6bc));for(i=0;i<64;i++)fall_list(fw(0x544e70+i*4));
 }
+/* Real freshly constructed objects, native hit dispatch and subsequent motion.
+ * Only the peer vehicle/device boundary is supplied here. No effects are hidden:
+ * objects with auxiliary/debris/attachments are qualified by separate suites. */
+static uint32_t hit_cases;
+static void hit_snapshot(uint32_t entity,uint32_t o,int status,uint32_t result)
+{
+    uint32_t i;oracle_put((uint32_t)status);oracle_put(result);oracle_put(fw(0x55b6ac));oracle_put(fw(0x55c698));
+    for(i=0;i<9;i++)oracle_put(fw(o+24+i*4));
+    oracle_put(fw(o+0xee));oracle_put(fw(o+0xf2));oracle_put(fw(o+0xe2));oracle_put(fw(o+0xf6));
+    oracle_put(fw(o+0x80));oracle_put(fw(o+0xea));oracle_put(fw(o+16));oracle_put(fw(o+0xda));
+    fall_list(fw(0x55b6a8));fall_list(fw(0x55b6bc));for(i=0;i<64;i++)fall_list(fw(0x544e70+i*4));
+    (void)entity;
+}
+static void hit_sequence(uint32_t entity,uint32_t o)
+{
+    frame_native_context native={0};frame_entity_native_context *e=&native.base.base.base.base;
+    uint32_t peer,record,table,i,result=0x7182;int status;static const uint32_t dt[]={16,33,40,1000};
+    uint32_t eligible=!hit_cases && entity!=1 && !reference_game_word(o+0x88,4) && !reference_game_word(o+0x8c,4) && !reference_game_word(o+0xfa,4);
+    oracle_put(eligible);if(!eligible)return;hit_cases++;
+    memcpy(fall_shadow,tank_data(),TANKRACER_DATA_BYTES);fall_cursor=TANKRACER_DATA_BYTES;
+    e->read=fall_read;e->write=fall_write;e->services.allocate=fall_allocate;e->services.release=fall_release;e->services.work_limit=100000;
+    native.base.base.base.parameters.trig=frame_math_trig();if(frame_native_bind(&native))exit(5);
+    if(fall_allocate(0,0x1100,&peer)||fall_allocate(0,8,&record))exit(5);
+    table=fw(0x55c694);fsw(record,fw(fw(table+8)));fsw(record+4,peer);fsw(table+8,record);
+    fsw(peer+24,4096);fsw(peer+40,4096);fsw(peer+56,4096);
+    if(frame_matrix_rotate(fall_read,fall_write,0,peer+24,1,8192,frame_math_trig()))exit(5);
+    fsw(peer+0x50,250000);fsw(peer+0x54,(uint32_t)-150000);fsw(peer+0x58,500000);fsw(peer+0xec,(entity&1u)?(uint32_t)-400000:400000);
+    fsw(0x55c698,777);fsw(0x5904fc,40);
+    status=frame_native_dispatch(&native,0x40a3e0,entity,1,1,&result);hit_snapshot(entity,o,status,result);
+    for(i=0;i<4;i++){
+        fsw(0x5904fc,dt[i]);status=frame_fall_tick(fall_read,fall_write,0,entity,&e->services,frame_math_trig());hit_snapshot(entity,o,status,0);
+    }
+    result=0x7182;status=frame_native_dispatch(&native,0x40a3e0,entity,1,1,&result);hit_snapshot(entity,o,status,result);
+}
 int frame_fall_construct(frame_data_read read,frame_data_write write,void *ctx,uint32_t entity,uint32_t parser,const frame_entity_factory_services *e,uint32_t *out)
 {
     uint32_t o,r,head,node,n=0,i,flags;int status;
@@ -96,6 +131,7 @@ int frame_fall_construct(frame_data_read read,frame_data_write write,void *ctx,u
     for(i=0;i<7;i++)emit_ordinary_list(reference_game_word(lists[i],4));
     for(i=0;i<64;i++)emit_ordinary_list(reference_game_word(0x544e70+i*4,4));
     fall_sequence(entity,o,e);
+    hit_sequence(entity,o);
     return 0;
 }
 static void emit_shape(uint32_t shape)
@@ -151,7 +187,7 @@ int frame_object_native(void *ctx,uint32_t target,uint32_t entity,uint32_t has_p
 }
 int main(int argc,char **argv)
 {
-    int status;if(argc!=4)return 2;oracle_binary();fwrite("OS05",1,4,stdout);
+    int status;if(argc!=4)return 2;oracle_binary();fwrite("OS06",1,4,stdout);
     status=reference_game_start_cup(argv[1],(uint32_t)strtoul(argv[2],0,10),(uint32_t)strtoul(argv[3],0,10),1,0,0);
     if(status)return status;
     oracle_put(0);tank_destroy();return 0;

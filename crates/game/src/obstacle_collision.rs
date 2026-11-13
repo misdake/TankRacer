@@ -103,6 +103,26 @@ pub struct Shared {
     pub random: u32,
     pub current_slot: u32,
 }
+pub struct Globals<'a> {
+    pub random: &'a mut u32,
+    pub current_slot: &'a mut u32,
+}
+impl Globals<'_> {
+    pub fn reborrow(&mut self) -> Globals<'_> {
+        Globals {
+            random: self.random,
+            current_slot: self.current_slot,
+        }
+    }
+}
+impl<'a> From<&'a mut Shared> for Globals<'a> {
+    fn from(shared: &'a mut Shared) -> Self {
+        Self {
+            random: &mut shared.random,
+            current_slot: &mut shared.current_slot,
+        }
+    }
+}
 pub struct Invocation<'a> {
     pub dt: i32,
     pub target: ObstacleId,
@@ -143,7 +163,7 @@ fn invoke(
     id: ObstacleId,
     slot: u32,
     dt: i32,
-    shared: &mut Shared,
+    shared: &mut Globals<'_>,
     effects: &mut impl Effects,
 ) -> Result<(), Error> {
     let class = object(world, id)?.1.class;
@@ -157,7 +177,7 @@ fn invoke(
     dispatch::call(
         &table,
         slot,
-        &mut shared.current_slot,
+        shared.current_slot,
         &mut result,
         |method, current_slot, result| {
             effects.method(
@@ -167,7 +187,7 @@ fn invoke(
                     target: id,
                     vehicle,
                     world,
-                    random: &mut shared.random,
+                    random: shared.random,
                     current_slot,
                     result,
                 },
@@ -209,13 +229,14 @@ fn blend(state: &mut State, old: [i32; 3], weight: i32) {
         );
     }
 }
-pub fn obstacles(
+pub fn obstacles<'a>(
     world: &mut World,
     state: &mut State,
     env: Environment,
-    shared: &mut Shared,
+    shared: impl Into<Globals<'a>>,
     effects: &mut impl Effects,
 ) -> Result<Option<ObstacleId>, Error> {
+    let mut shared = shared.into();
     let (a, b) = segment(state);
     let mut hit = Hit::default();
     object_query::obstacles(
@@ -249,7 +270,15 @@ pub fn obstacles(
             .collision_size
             .wrapping_add(u32::from(collider.radius >> 5));
     }
-    invoke(world, state, id, env.obstacle_slot, env.dt, shared, effects)?;
+    invoke(
+        world,
+        state,
+        id,
+        env.obstacle_slot,
+        env.dt,
+        &mut shared,
+        effects,
+    )?;
     Ok(Some(id))
 }
 fn inside(world: &World, id: ObstacleId, point: [i32; 3]) -> Result<bool, Error> {
@@ -264,13 +293,14 @@ fn inside(world: &World, id: ObstacleId, point: [i32; 3]) -> Result<bool, Error>
     let high = properties.mesh_bounds[1].map(|v| i32::from(v) * 8);
     Ok(local[0] > low[0] && local[2] > low[2] && local[0] < high[0] && local[2] < high[2])
 }
-pub fn deformables(
+pub fn deformables<'a>(
     world: &mut World,
     state: &mut State,
     env: Environment,
-    shared: &mut Shared,
+    shared: impl Into<Globals<'a>>,
     effects: &mut impl Effects,
 ) -> Result<Option<ObstacleId>, Error> {
+    let mut shared = shared.into();
     let (a, b) = segment(state);
     state.material_tag = 0;
     let mut hit = Hit::default();
@@ -283,7 +313,7 @@ pub fn deformables(
     let old = state.velocity;
     if state.player && env.feedback {
         effects
-            .feedback(10, state, &mut shared.random)
+            .feedback(10, state, shared.random)
             .map_err(|code| Error::Feedback(if code < 0 { code } else { -7 }))?;
     }
     reflect(state, hit.normal, env)?;
@@ -294,7 +324,7 @@ pub fn deformables(
         id,
         env.deformable_slot,
         env.dt,
-        shared,
+        &mut shared,
         effects,
     )?;
     for i in 0..4 {
@@ -303,14 +333,14 @@ pub fn deformables(
             && approximate_distance(state.velocity) > 200000
             && env.mode != 2
             && env.mode != 3
-            && random::next(&mut shared.random) & 0x30 == 0
+            && random::next(shared.random) & 0x30 == 0
         {
             let first = usize::from(state.forward_velocity >= 0);
             effects
-                .impact(state, first, 5, &mut shared.random)
+                .impact(state, first, 5, shared.random)
                 .map_err(|code| Error::Impact(if code < 0 { code } else { -5 }))?;
             effects
-                .impact(state, first + 2, 6, &mut shared.random)
+                .impact(state, first + 2, 6, shared.random)
                 .map_err(|code| Error::Impact(if code < 0 { code } else { -5 }))?;
             state.impact_accumulator = state.impact_accumulator.wrapping_add(env.dt);
         }

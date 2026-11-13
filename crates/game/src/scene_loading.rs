@@ -45,6 +45,8 @@ pub const DEFORMABLE_CONTACT: u32 = 21;
 pub const AUXILIARY_UPDATE: u32 = 22;
 pub const DEBRIS_UPDATE: u32 = 23;
 pub const OBSTACLE_CONTACT: u32 = 24;
+pub const AUXILIARY_CONTACT: u32 = 25;
+pub const DEBRIS_CONTACT: u32 = 26;
 
 const ALLOCATE_OBJECT: MethodId = MethodId(58);
 const READ_OBJECT: MethodId = MethodId(59);
@@ -67,8 +69,8 @@ pub struct Registry {
 impl Default for Registry {
     fn default() -> Self {
         let mut world = Class {
-            maximum_slot: OBSTACLE_CONTACT as i32,
-            methods: vec![None; OBSTACLE_CONTACT as usize + 1],
+            maximum_slot: DEBRIS_CONTACT as i32,
+            methods: vec![None; DEBRIS_CONTACT as usize + 1],
         };
         for (slot, method) in [
             (ALLOCATE, ALLOCATE_OBJECT),
@@ -105,6 +107,8 @@ impl Default for Registry {
             (AFTER_CONSTRUCT, methods::NOTIFY),
             (AUXILIARY_UPDATE, methods::AUXILIARY_TICK),
             (DEBRIS_UPDATE, methods::DEBRIS_TICK),
+            (AUXILIARY_CONTACT, methods::AUXILIARY_HIT),
+            (DEBRIS_CONTACT, methods::DEBRIS_HIT),
         ] {
             obstacle.methods[slot as usize] = Some(method);
         }
@@ -149,6 +153,23 @@ impl Default for Registry {
     }
 }
 impl Registry {
+    pub fn hit_environment(
+        &self,
+        tuning: fall::Tuning,
+        feedback: bool,
+        work_limit: u32,
+    ) -> breakable::Environment {
+        breakable::Environment {
+            minimum_turn_rate: tuning.minimum_turn_rate,
+            maximum_turn_rate: tuning.maximum_turn_rate,
+            activate_slot: ACTIVATE,
+            auxiliary_slot: AUXILIARY_CONTACT,
+            effect_slot: DEBRIS_CONTACT,
+            collision_slot: OBSTACLE_CONTACT,
+            feedback,
+            work_limit,
+        }
+    }
     pub fn environment(&self, work_limit: u32) -> Environment<'_> {
         Environment {
             classes: &self.classes,
@@ -213,8 +234,8 @@ pub struct Loader<'a, S> {
 }
 impl<'a, S: ShapeSource> Loader<'a, S> {
     pub fn new(scene: &'a mut Scene, resources: Resources<'a, S>, registry: &'a Registry) -> Self {
-        scene.terrain = Some(Arc::clone(resources.terrain));
-        scene.fall_tuning = resources.catalog.fall;
+        scene.components.terrain = Some(Arc::clone(resources.terrain));
+        scene.components.fall_tuning = resources.catalog.fall;
         Self {
             scene,
             resources,
@@ -274,7 +295,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .and_then(|v| v.class)
             .ok_or(-1)?;
         let id = ObstacleId(self.scene.world.colliders.len());
-        if self.scene.world.objects.len() != id.0 || self.scene.objects.len() != id.0 {
+        if self.scene.world.objects.len() != id.0 || self.scene.components.objects.len() != id.0 {
             return Err(-1);
         }
         self.scene.world.colliders.push(Collider {
@@ -298,7 +319,8 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             flags: 0,
             mesh_bounds: [[0; 3]; 2],
         });
-        self.scene.objects.push(Some(Object {
+        self.scene.components.objects.push(Some(Object {
+            impact_sound: None,
             data: PlacedObstacle {
                 id,
                 cell: Some(Cell { x: 0, z: 0 }),
@@ -332,8 +354,8 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         call.context.ticks.flags[call.entity.0 as usize] =
             if self.static_allocation { 8 } else { 0 };
         if class == self.registry.fall {
-            self.scene.falls.resize_with(id.0 + 1, || None);
-            self.scene.falls[id.0] = Some(fall::State::default());
+            self.scene.components.falls.resize_with(id.0 + 1, || None);
+            self.scene.components.falls[id.0] = Some(fall::State::default());
         }
         *call.result = 1;
         Ok(())
@@ -363,15 +385,19 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
                 .map_err(scene_startup::Error::Shape);
             self.resource(loaded)?
         };
-        let mesh = source
-            .as_ref()
-            .map(|model| self.scene.surfaces.meshes.bind(record.shape, model));
+        let mesh = source.as_ref().map(|model| {
+            self.scene
+                .components
+                .surfaces
+                .meshes
+                .bind(record.shape, model)
+        });
         let pose = Pose::from_level(&record);
         let collider = &mut self.scene.world.colliders[id.0];
         collider.pose = pose;
         collider.external_basis = Some(pose.matrix);
         collider.radius = source.as_ref().map_or(0, |m| m.radius);
-        let data = &mut self.scene.object_mut(id)?.data;
+        let data = &mut self.scene.components.object_mut(id)?.data;
         data.source = source;
         data.mesh = mesh;
         call.context
@@ -398,13 +424,18 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         call.context
             .class_dispatch(self.registry.render_world, call.entity, None, env, self)
             .map_err(factory_code)?;
-        spatial::remove_first(&mut self.scene.ordinary, &id, env.work_limit)
+        spatial::remove_first(&mut self.scene.components.ordinary, &id, env.work_limit)
             .map_err(spatial_code)?;
         let p = Parameters::new(record.parameters).map_err(|_| -1)?;
         let visibility = scene_startup::visibility(p, self.resources.random);
         let visibility = self.resource(visibility)?;
         let add = visibility.add_lap;
-        self.scene.object_mut(id)?.data.visibility.add_lap = add;
+        self.scene
+            .components
+            .object_mut(id)?
+            .data
+            .visibility
+            .add_lap = add;
         // Leave runs before the delayed list append. Removal rules are independent.
         call.context
             .dispatch(
@@ -415,18 +446,35 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
                 self,
             )
             .map_err(factory_code)?;
-        self.scene.object_mut(id)?.data.visibility.entered = add == 0;
+        self.scene
+            .components
+            .object_mut(id)?
+            .data
+            .visibility
+            .entered = add == 0;
         if add != 0 {
-            self.scene.lap_objects.push(id);
+            self.scene.components.lap_objects.push(id);
         }
         if p.find(":lap_to_remove").is_some() {
-            self.scene.object_mut(id)?.data.visibility.remove_lap = visibility.remove_lap;
-            let position = self.scene.lap_objects.iter().position(|v| *v == id);
-            if position.unwrap_or(self.scene.lap_objects.len()) >= env.work_limit as usize {
+            self.scene
+                .components
+                .object_mut(id)?
+                .data
+                .visibility
+                .remove_lap = visibility.remove_lap;
+            let position = self
+                .scene
+                .components
+                .lap_objects
+                .iter()
+                .position(|v| *v == id);
+            if position.unwrap_or(self.scene.components.lap_objects.len())
+                >= env.work_limit as usize
+            {
                 return Err(-3);
             }
             if position.is_none() {
-                self.scene.lap_objects.push(id);
+                self.scene.components.lap_objects.push(id);
             }
         }
         *call.result = 0;
@@ -447,7 +495,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .and_then(|r| r.object)
             .ok_or(-1)?;
         let record = self.record.ok_or(-1)?;
-        let data = &self.scene.object(id)?.data;
+        let data = &self.scene.components.object(id)?.data;
         let initial = Initial {
             weight: self.scene.world.objects[id.0].weight,
             threshold: data.impact_threshold,
@@ -463,7 +511,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             &mut scene_startup::Resources {
                 source: self.resources.source,
                 models: self.resources.models,
-                meshes: &mut self.scene.surfaces.meshes,
+                meshes: &mut self.scene.components.surfaces.meshes,
                 terrain: self.resources.terrain,
                 random: self.resources.random,
             },
@@ -480,7 +528,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         properties.threshold = built.minimum_activation;
         properties.activity = built.activity;
         properties.mesh_bounds = built.source.as_ref().map_or([[0; 3]; 2], |m| m.bounds);
-        let data = &mut self.scene.object_mut(id)?.data;
+        let data = &mut self.scene.components.object_mut(id)?.data;
         data.source = built.source;
         data.mesh = built.mesh;
         data.visibility = built.visibility;
@@ -509,7 +557,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .record(call.entity)
             .and_then(|r| r.object)
             .ok_or(-1)?;
-        let data = &self.scene.object(id)?.data;
+        let data = &self.scene.components.object(id)?.data;
         let parent = scene_startup::CrushParent {
             collider: self.scene.world.colliders[id.0],
             source: data.source.clone(),
@@ -518,7 +566,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             weight: self.scene.world.objects[id.0].weight,
             sort_position: data.sort_position,
         };
-        let initial = self.scene.crush_initial(id)?;
+        let initial = self.scene.components.crush_initial(id)?;
         let built = scene_startup::Crush::finish(
             &self.record.ok_or(-1)?,
             parent,
@@ -526,7 +574,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             &mut scene_startup::Resources {
                 source: self.resources.source,
                 models: self.resources.models,
-                meshes: &mut self.scene.surfaces.meshes,
+                meshes: &mut self.scene.components.surfaces.meshes,
                 terrain: self.resources.terrain,
                 random: self.resources.random,
             },
@@ -544,16 +592,20 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         self.scene.world.colliders[id.0] = built.collider;
         self.scene.world.objects[id.0].weight = built.weight;
         self.scene.world.objects[id.0].mesh_bounds = built.source.bounds;
-        let object = self.scene.object_mut(id)?;
+        let object = self.scene.components.object_mut(id)?;
         object.data.source = Some(built.source);
         object.data.mesh = Some(mesh);
         object.data.visibility = built.visibility;
         object.ground_height = Some(built.ground_height);
-        if self.scene.surfaces.entries.len() <= id.0 {
-            self.scene.surfaces.entries.resize_with(id.0 + 1, || None);
+        if self.scene.components.surfaces.entries.len() <= id.0 {
+            self.scene
+                .components
+                .surfaces
+                .entries
+                .resize_with(id.0 + 1, || None);
         }
-        self.scene.surfaces.entries[id.0] = Some(built.surface);
-        self.scene.finish_crush_initial(id);
+        self.scene.components.surfaces.entries[id.0] = Some(built.surface);
+        self.scene.components.finish_crush_initial(id);
         *call.result = call.entity.0;
         Ok(())
     }
@@ -570,9 +622,9 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .models
             .load_optional(self.resources.source, Space::Level, name)
             .map_err(|e| Error::Resource(scene_startup::Error::Shape(e)))?;
-        self.scene.sign_meshes[slot] = model
+        self.scene.components.sign_meshes[slot] = model
             .as_ref()
-            .map(|m| self.scene.surfaces.meshes.bind(name, m));
+            .map(|m| self.scene.components.surfaces.meshes.bind(name, m));
         Ok(())
     }
     fn construct_fall(
@@ -592,13 +644,17 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         self.scene.world.objects[id.0].activity = 0;
         let special = self
             .scene
+            .components
             .sign_meshes
-            .contains(&self.scene.object(id)?.data.mesh);
+            .contains(&self.scene.components.object(id)?.data.mesh);
         if special {
             let matrix = self.scene.world.colliders[id.0].pose.matrix;
-            self.scene.falls[id.0].as_mut().ok_or(-1)?.basis_backup = Some(matrix);
+            self.scene.components.falls[id.0]
+                .as_mut()
+                .ok_or(-1)?
+                .basis_backup = Some(matrix);
             self.scene.world.objects[id.0].flags |= 32;
-            self.scene.signs.push(id);
+            self.scene.components.signs.push(id);
         }
         let record = self.record.ok_or(-1)?;
         let p = Parameters::new(record.parameters).map_err(|_| -1)?;
@@ -616,7 +672,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
                 let symbol = call.context.symbols.intern(name).map_err(|_| -1)?;
                 attached.push(crate::symbols::Binding::Named(symbol));
             }
-            self.scene.falls[id.0].as_mut().ok_or(-1)?.attached = Some(attached.into());
+            self.scene.components.falls[id.0]
+                .as_mut()
+                .ok_or(-1)?
+                .attached = Some(attached.into());
         }
         *call.result = 0;
         Ok(())
@@ -654,7 +713,7 @@ impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
                     .record(call.entity)
                     .and_then(|r| r.object)
                     .ok_or(-1)?;
-                let data = &mut self.scene.object_mut(id)?.data;
+                let data = &mut self.scene.components.object_mut(id)?.data;
                 data.visibility.distance = self.visibility_distance;
                 if let Some(sort) = p.integer(":sortpos") {
                     data.sort_position = sort as i16;
@@ -662,7 +721,7 @@ impl<S: ShapeSource> Methods<ObstacleId> for Loader<'_, S> {
                 if let Some(weight) = p.integer(":solidity").or_else(|| p.integer(":Solidity")) {
                     self.scene.world.objects[id.0].weight = weight;
                 }
-                self.scene.ordinary.push(id);
+                self.scene.components.ordinary.push(id);
                 *call.result = call.entity.0;
                 Ok(())
             }

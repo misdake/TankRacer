@@ -58,7 +58,7 @@ pub struct World<'a, 'mesh> {
     pub tanks: &'a mut [Tank],
     pub slots: &'a [Option<TankId>; 9],
     pub peer: &'a mut Option<tank_collision::PeerSnapshot>,
-    pub shared: &'a mut obstacle::Shared,
+    pub shared: obstacle::Globals<'a>,
     pub effects: collision_effects::Bank<'a, 'mesh>,
     pub player_effects: &'a mut [u32],
 }
@@ -312,7 +312,7 @@ fn run(
                         contact: config.contact.contact,
                         layout: config.contact.layout,
                     },
-                    &mut world.shared.random,
+                    world.shared.random,
                     deformable,
                     |slot| {
                         if let Some(value) = world.player_effects.get_mut(usize::from(slot)) {
@@ -329,7 +329,7 @@ fn run(
         .map_err(Error::Contact)?;
     if feedback {
         services
-            .contact_feedback(state, &mut world.shared.random)
+            .contact_feedback(state, world.shared.random)
             .map_err(|c| Error::ContactFeedback(scene_error(c)))?;
     }
     let mut drive = frame.drive;
@@ -369,7 +369,7 @@ fn run(
         world.objects,
         &mut view,
         obstacle_env,
-        world.shared,
+        world.shared.reborrow(),
         &mut collision_effects::ObjectEffects {
             bank: &mut world.effects,
             services,
@@ -408,7 +408,7 @@ fn run(
             world.peer,
             &mut collision_effects::TankEffects {
                 bank: &mut world.effects,
-                random: &mut world.shared.random,
+                random: world.shared.random,
                 own,
             },
         );
@@ -432,7 +432,7 @@ fn run(
         world.objects,
         &mut view,
         obstacle_env,
-        world.shared,
+        world.shared.reborrow(),
         &mut collision_effects::ObjectEffects {
             bank: &mut world.effects,
             services,
@@ -463,7 +463,7 @@ fn run(
         },
         &mut collision_effects::TankEffects {
             bank: &mut world.effects,
-            random: &mut world.shared.random,
+            random: world.shared.random,
             own,
         },
     );
@@ -526,7 +526,7 @@ fn run(
                         frame,
                     },
                     &mut world.effects,
-                    &mut world.shared.random,
+                    world.shared.random,
                 )
             },
         )

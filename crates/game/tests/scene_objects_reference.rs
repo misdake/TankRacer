@@ -253,7 +253,8 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
             flags: 0,
             mesh_bounds: [[0; 3]; 2],
         });
-        scene.objects.push(Some(Object {
+        scene.components.objects.push(Some(Object {
+            impact_sound: None,
             data: PlacedObstacle {
                 id: target,
                 cell: Cell::unpack(if first { f.cell } else { 0 }),
@@ -295,11 +296,11 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
             ground_height: None,
         }));
     }
-    scene.ordinary = f.lists[0]
+    scene.components.ordinary = f.lists[0]
         .iter()
         .map(|v| ObstacleId(*v as usize - 1))
         .collect();
-    scene.special = f.lists[1]
+    scene.components.special = f.lists[1]
         .iter()
         .map(|v| ObstacleId(*v as usize - 1))
         .collect();
@@ -307,7 +308,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
     state.queues.notifications = f.lists[4].iter().copied().map(EntityId).collect();
     state.queues.destruction = f.lists[5].iter().copied().map(EntityId).collect();
     if f.crush {
-        scene.surfaces.entries.push(Some(Deformable {
+        scene.components.surfaces.entries.push(Some(Deformable {
             config: f.config,
             state: Default::default(),
             mesh,
@@ -347,7 +348,7 @@ fn operation(
     op: [u32; 5],
 ) -> Result<u32, i32> {
     let [op, a, b, c, limit] = op;
-    scene.dt = a as i32;
+    scene.components.dt = a as i32;
     let env = Environment {
         classes,
         slots: Slots {
@@ -470,7 +471,7 @@ fn snapshot(
             continue;
         };
         let target = record.object.unwrap();
-        let object = scene.objects[target.0].as_ref().unwrap();
+        let object = scene.components.objects[target.0].as_ref().unwrap();
         let collider = &scene.world.colliders[target.0];
         out.extend(collider.pose.position.map(|v| v as u32));
         out.extend(collider.pose.matrix.0.map(|v| v as u32));
@@ -485,7 +486,7 @@ fn snapshot(
             u32::from(object.data.mesh.is_some()),
         ]);
         if id == 1 && is_crush {
-            let surface = scene.surfaces.entries[0].as_ref().unwrap();
+            let surface = scene.components.surfaces.entries[0].as_ref().unwrap();
             out.extend([
                 surface.config.floor as u32,
                 surface.config.compression as u32,
@@ -503,7 +504,11 @@ fn snapshot(
         }
     }
     out.push(state.ticks.next.map_or(0, |v| v.0));
-    for list in [&scene.ordinary, &scene.special, &scene.world.deformables] {
+    for list in [
+        &scene.components.ordinary,
+        &scene.components.special,
+        &scene.world.deformables,
+    ] {
         words_list(out, list.iter().map(|v| v.0 as u32 + 1));
     }
     words_list(out, state.ticks.order.iter().map(|v| v.0));
@@ -646,7 +651,7 @@ fn common_parent_and_crush_bindings_match_production_dispatcher() {
                     (v, UNCHANGED)
                 }
             };
-            retired += usize::from(scene.objects[0].is_none());
+            retired += usize::from(scene.components.objects[0].is_none());
             let start = expected.len();
             snapshot(&mut expected, &state, &scene, status, value, fixture.crush);
             ranges.push((

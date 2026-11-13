@@ -1,3 +1,5 @@
+#[path = "common/breakable_scene.rs"]
+mod shared_owner;
 use std::{
     fs,
     ops::Range,
@@ -42,6 +44,7 @@ fn list(out: &mut Vec<u32>, ids: &[ObstacleId]) {
     out.push(ids.len() as u32);
     out.extend(ids.iter().map(|id| id.0 as u32));
 }
+#[derive(Clone)]
 struct Probe {
     calls: u32,
     trace: u32,
@@ -468,6 +471,7 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                 deformable_slot: 3,
                 tuning: Tuning::default(),
             };
+            let mut scene_case = shared_owner::SceneCase::new(&world, &methods, &vehicle, &shared);
             for tick in 0..4 {
                 methods.probe.calls = 0;
                 methods.probe.trace = 0;
@@ -513,6 +517,13 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                         e => panic!("unexpected collision error {e:?}"),
                     }
                 };
+                let scene_output = scene_case.run(op, env, collision_env);
+                assert_eq!(
+                    scene_output,
+                    output(&world, &vehicle, &shared, &methods, status, result),
+                    "shared scene owner op={op} case={case} tick={tick}"
+                );
+                assert_eq!(scene_case.probe.rebindings, methods.probe.rebindings);
                 if status != 0 {
                     errors += 1;
                 }
@@ -556,7 +567,7 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
     }
     assert!(errors > 0 && callbacks > 0 && active > 0 && hits > 0 && rebindings > 0);
     eprintln!(
-        "{} breakable/collision records / {} words exact; errors={errors} callbacks={callbacks} active observations={active} collision hits={hits} name rebindings={rebindings}",
+        "{} breakable/collision records through standalone + shared factory owners / {} words exact; errors={errors} callbacks={callbacks} active observations={active} collision hits={hits} name rebindings={rebindings}",
         records.len(),
         words.len()
     );

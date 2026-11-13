@@ -1,3 +1,5 @@
+#[path = "common/scene_hit_sequence.rs"]
+mod hit_sequence;
 use std::{fs, path::PathBuf, process::Command};
 use tankracer_assets::{
     archive::Archive, level::Level, model::ShapeArchive, object_catalog::Catalog,
@@ -79,6 +81,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
     let (mut objects, mut auxiliaries, mut debris, mut pieces, mut sprites, mut animations) =
         (0, 0, 0, 0, 0, 0);
     let mut bound_fall_ticks = 0;
+    let mut bound_hit_sequences = 0;
     let (
         mut absent_pieces,
         mut terry_pieces,
@@ -131,7 +134,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"OS05");
+            assert_eq!(&output.stdout[..4], b"OS06");
             let mut r = Reader(&output.stdout[4..]);
             let mut models = ModelBank::default();
             for name in [
@@ -425,7 +428,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     assert_eq!(live_random, random, "{label} live RNG");
                     let id = live_state.entities.record(entity).unwrap().object.unwrap();
                     let collider = &live_scene.world.colliders[id.0];
-                    let object = live_scene.objects[id.0].as_ref().unwrap();
+                    let object = live_scene.components.objects[id.0].as_ref().unwrap();
                     let properties = &live_scene.world.objects[id.0];
                     assert_eq!(collider.pose, built.collider.pose, "{label} live pose");
                     assert_eq!(
@@ -478,7 +481,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     });
                     if live_kind == 2 {
                         r.check([properties.flags as i32], "Fall motion flags");
-                        let fall = live_scene.falls[id.0].as_ref().unwrap();
+                        let fall = live_scene.components.falls[id.0].as_ref().unwrap();
                         r.present(fall.basis_backup.is_some(), "Fall backup basis");
                         if let Some(matrix) = fall.basis_backup {
                             r.check(matrix.0, "Fall backup basis values");
@@ -506,9 +509,9 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                         "live flags",
                     );
                     for list in [
-                        &live_scene.ordinary,
-                        &live_scene.special,
-                        &live_scene.lap_objects,
+                        &live_scene.components.ordinary,
+                        &live_scene.components.special,
+                        &live_scene.components.lap_objects,
                     ] {
                         let expected = list
                             .iter()
@@ -529,6 +532,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     check_list(
                         &mut r,
                         live_scene
+                            .components
                             .signs
                             .iter()
                             .map(|id| live_scene.world.colliders[id.0].entity.0),
@@ -544,7 +548,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     }
                     if r.word() != 0 {
                         bound_fall_ticks += 1;
-                        let old_state = live_scene.falls[id.0].clone();
+                        let old_state = live_scene.components.falls[id.0].clone();
                         let old_collider = live_scene.world.colliders[id.0];
                         let old_properties = live_scene.world.objects[id.0];
                         let old_grid = live_scene.world.grid.cells.clone();
@@ -552,11 +556,12 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                         let old_queues = live_state.queues.clone();
                         live_scene.world.objects[id.0].activity = 1;
                         live_scene.world.objects[id.0].flags &= 32;
-                        let fall = live_scene.falls[id.0].as_mut().unwrap();
-                        fall.angular_velocity = live_scene.fall_tuning.gravity.wrapping_mul(16);
+                        let fall = live_scene.components.falls[id.0].as_mut().unwrap();
+                        fall.angular_velocity =
+                            live_scene.components.fall_tuning.gravity.wrapping_mul(16);
                         fall.rotation = 1000000;
                         fall.slope_limit = 0;
-                        live_scene.dt = 16;
+                        live_scene.components.dt = 16;
                         live_state
                             .context()
                             .dispatch(
@@ -572,7 +577,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                             live_scene.world.colliders[id.0].pose.matrix.0,
                             "bound Fall rotated matrix",
                         );
-                        let fall = live_scene.falls[id.0].as_ref().unwrap();
+                        let fall = live_scene.components.falls[id.0].as_ref().unwrap();
                         r.check(
                             [
                                 fall.angular_velocity,
@@ -597,12 +602,24 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                                 &label,
                             );
                         }
-                        live_scene.falls[id.0] = old_state;
+                        live_scene.components.falls[id.0] = old_state;
                         live_scene.world.colliders[id.0] = old_collider;
                         live_scene.world.objects[id.0] = old_properties;
                         live_scene.world.grid.cells = old_grid;
                         live_state.ticks = old_ticks;
                         live_state.queues = old_queues;
+                    }
+                    if live_kind == 2 && r.word() != 0 {
+                        hit_sequence::check(
+                            &mut r,
+                            &mut live_scene,
+                            &mut live_state,
+                            &registry,
+                            id,
+                            random,
+                            &label,
+                        );
+                        bound_hit_sequences += 1;
                     }
                     live_loaded += 1;
                 }
@@ -630,12 +647,12 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
             assert!(r.0.is_empty());
         }
     }
-    assert!(objects > 100 && debris > 0 && auxiliaries > 0);
+    assert!(objects > 100 && debris > 0 && auxiliaries > 0 && bound_hit_sequences > 0);
     assert!(
         sprites > 0 && animations > 0 && absent_pieces > 0 && terry_pieces > 0 && grid_placed > 0
     );
     eprintln!(
-        "{objects} common Obstacle constructions; auxiliary={auxiliaries}, debris={debris}, pieces={pieces}, sprites={sprites}, animations={animations}, absent pieces={absent_pieces}, terry pieces={terry_pieces}, installed={grid_placed}, fresh live objects={live_loaded}, Fall={live_falls}, attachments={attachments}, bound Fall ticks={bound_fall_ticks}; exact C outputs/RNG"
+        "{objects} common Obstacle constructions; auxiliary={auxiliaries}, debris={debris}, pieces={pieces}, sprites={sprites}, animations={animations}, absent pieces={absent_pieces}, terry pieces={terry_pieces}, installed={grid_placed}, fresh live objects={live_loaded}, Fall={live_falls}, attachments={attachments}, bound Fall ticks={bound_fall_ticks}, collision-to-Fall sequences={bound_hit_sequences}; exact C outputs/RNG"
     );
 }
 fn check_list(r: &mut Reader<'_>, values: impl Iterator<Item = u32>, label: &str) {
