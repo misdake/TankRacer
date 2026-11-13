@@ -27,7 +27,7 @@ int main(int argc,char **argv)
     bytes=(unsigned char *)malloc((size_t)length);if (!bytes) {fclose(file);return 3;}
     if (fread(bytes,1,(size_t)length,file)!=(size_t)length) {free(bytes);fclose(file);return 3;}fclose(file);
     count=oracle_get(bytes+4,4);if (count>((uint32_t)length-8)/12) {free(bytes);return 2;}
-    oracle_binary();fwrite("SM01",1,4,stdout);oracle_put(count);
+    oracle_binary();fwrite("SM02",1,4,stdout);oracle_put(count);
     for (i=0;i<count;i++) {
         char name[12]={0};uint32_t offset,size,n=0,vertices,faces,j,k,normal[3],has_normals;int status;
         while (n<8 && bytes[8+i*12+n]) {name[n]=(char)bytes[8+i*12+n];n++;}
@@ -43,6 +43,7 @@ int main(int argc,char **argv)
         for (k=0;k<3;k++) normal[k]=word(base+72+k*4,4);
         has_normals=normal[0] && normal[1] && normal[2];oracle_put(has_normals);
         if (has_normals) for (j=0;j<vertices;j++) for (k=0;k<3;k++) short_value(normal[k]+j*2);
+        for(k=0;k<3;k++) {uint32_t center=word(base+16+k*4,4);oracle_put(center!=0);if(center)for(j=0;j<faces;j++)short_value(center+j*2);}
         for (j=0;j<faces;j++) {
             uint32_t tri=word(base+8,4)+j*24,mat=word(tri+20,4),flags=word(tri+18,2);
             for (k=0;k<3;k++) short_value(tri+k*2);

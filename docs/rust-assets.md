@@ -62,8 +62,8 @@ optional-module lifecycle remain subsequent work.
 `ShapeArchive` reads the original SS directory as borrowed, checked payload
 spans. Names match ASCII case-insensitively, with optional `.SM` suffix; empty
 entries remain distinguishable from missing resources. `Model` owns typed SM
-geometry, material identities, bounds, radius, render hint and optional vertex
-normals. SM and BSM share one checked geometry decoder; neither needs original
+geometry, material identities, bounds, radius, render hint, optional vertex
+normals and the three independently optional authored face-center columns. SM and BSM share one checked geometry decoder; neither needs original
 addresses, relocation or a guest-memory arena.
 
 The original SM octant face-order lists are not retained: the new renderer uses
@@ -73,7 +73,7 @@ create GPU resources or select a rendering approximation.
 
 Across all fifteen archives, **435 nonempty models, 11,713 vertices and 10,430
 triangles** match the qualified C SS lookup/shape relocation, including source
-spans, bounds, normals and material names. The shared decoder refactor also
+spans, bounds, normals, face-center columns and material names (SM02). The shared decoder refactor also
 passes all 80,439 existing BSM triangle comparisons and the browser's 133 GPU
 pixel cases; the ENGLAND scene remains five draws. Malformed directory/range
 and geometry checks remain ordinary native tests.

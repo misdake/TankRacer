@@ -130,6 +130,7 @@ fn make(f: &Fixture) -> (factory::State<ObstacleId>, Scene) {
         render_hint: 0,
         bounds: [[0; 3]; 2],
         vertex_normals: None,
+        face_centers: [None, None, None],
     };
     let mut meshes = Meshes::default();
     let shared = meshes.bind("car.sm", &model);

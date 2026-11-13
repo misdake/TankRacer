@@ -35,6 +35,42 @@ pub trait Services: Sized {
     ) -> Result<(), i32> {
         scene.scene_method(method, call, has_payload)
     }
+    /// Resource resolution may involve I/O; private copying and fragment state
+    /// creation are ordinary Rust operations on the scene's shared mesh store.
+    fn auxiliary_model(
+        &mut self,
+        _name: &str,
+    ) -> Result<Option<Arc<tankracer_assets::model::Model>>, i32> {
+        Err(-5)
+    }
+    fn auxiliary_height(
+        &mut self,
+        scene: &mut Collision<'_>,
+        call: Invocation<'_>,
+    ) -> Result<i32, i32> {
+        let position = call
+            .world
+            .colliders
+            .get(call.target.0)
+            .ok_or(-1)?
+            .pose
+            .position;
+        let mut height = crate::terrain::MISS_HEIGHT;
+        crate::terrain::height(
+            scene.components.terrain.as_deref().ok_or(-1)?,
+            position[0],
+            position[2],
+            &mut height,
+        )
+        .map_err(|e| match e {
+            crate::terrain::Error::Arithmetic => -2,
+            _ => -1,
+        })?;
+        Ok(height)
+    }
+    fn paired_vertex_tail(&mut self) -> Option<u16> {
+        None
+    }
     /// Vehicle slots are read separately because an earlier immediate impulse
     /// may change a later slot or target. These game bindings must be supplied.
     fn blast_target(
@@ -93,6 +129,7 @@ impl Collision<'_> {
                 call,
                 hit,
             ),
+            super::AUXILIARY_HIT => self.activate_mesh_fragments(call, services),
             super::DEBRIS_HIT => self.activate_debris(call, services),
             DEFORMABLE_HIT => {
                 // The method result/RNG/timer commit precedes the host sound.
@@ -179,7 +216,7 @@ impl Collision<'_> {
         )
     }
 }
-fn reborrow<'a>(call: &'a mut Invocation<'_>) -> Invocation<'a> {
+pub(super) fn reborrow<'a>(call: &'a mut Invocation<'_>) -> Invocation<'a> {
     Invocation {
         dt: call.dt,
         target: call.target,

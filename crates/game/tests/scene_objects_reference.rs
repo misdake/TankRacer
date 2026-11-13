@@ -169,6 +169,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
         render_hint: 0,
         bounds: [[0; 3]; 2],
         vertex_normals: None,
+        face_centers: [None, None, None],
     };
     let mut meshes = Meshes::default();
     let shared = meshes.bind("fixture.sm", &model);
@@ -211,6 +212,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
             activate: 4,
             deactivate: DEACTIVATE,
             auxiliary_tick: 16,
+            auxiliary_complete: 0,
             debris_tick: 17,
         },
     );
@@ -293,6 +295,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<ObstacleId>, Sce
             },
             auxiliary_mesh: if first { auxiliary_mesh } else { None },
             auxiliary_active: 0,
+            auxiliary_motion: None,
             ground_height: None,
         }));
     }

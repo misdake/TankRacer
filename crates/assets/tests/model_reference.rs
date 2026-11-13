@@ -69,7 +69,7 @@ fn every_shipped_shape_matches_c_lookup_relocation_materials_and_geometry() {
                 file.name,
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SM01");
+            assert_eq!(&output.stdout[..4], b"SM02");
             let mut out = Words {
                 bytes: &output.stdout,
                 at: 4,
@@ -118,6 +118,18 @@ fn every_shipped_shape_matches_c_lookup_relocation_materials_and_geometry() {
                         assert_eq!(out.signed(), i32::from(v), "{label} layer normal");
                     }
                 }
+                for column in &model.face_centers {
+                    assert_eq!(
+                        out.word(),
+                        u32::from(column.is_some()),
+                        "{label} center column"
+                    );
+                    if let Some(column) = column {
+                        for &value in column {
+                            assert_eq!(out.signed(), i32::from(value), "{label} center");
+                        }
+                    }
+                }
                 for (index, tri) in model.geometry.triangles.iter().enumerate() {
                     let mut expected = tri.normal.map(|v| v as u32).to_vec();
                     expected.push(u32::from(tri.color));
@@ -161,6 +173,6 @@ fn every_shipped_shape_matches_c_lookup_relocation_materials_and_geometry() {
         }
     }
     eprintln!(
-        "{models} shapes, {vertices} vertices and {faces} triangles exactly match C, including names/normals/bounds"
+        "{models} shapes, {vertices} vertices and {faces} triangles exactly match C, including names/normals/bounds/face centers"
     );
 }

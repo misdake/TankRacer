@@ -78,6 +78,8 @@ impl<'a> ShapeArchive<'a> {
 pub struct Model {
     pub geometry: Geometry,
     pub materials: Vec<SourceMaterial>,
+    /// Authored per-face XYZ columns; each pointer is independently optional.
+    pub face_centers: [Option<Vec<i16>>; 3],
     pub radius: u16,
     /// Source word +0E, retained for later visibility/style migration.
     pub render_hint: u16,
@@ -90,6 +92,18 @@ impl Model {
         r.span(0, 84)?;
         let mut materials = Materials::default();
         let geometry = mesh::decode(&r, 0, &mut materials)?;
+        let mut face_centers = [None, None, None];
+        for (axis, column) in face_centers.iter_mut().enumerate() {
+            let offset = r.u32(16 + axis * 4)? as usize;
+            if offset != 0 {
+                r.span(offset, geometry.triangles.len() * 2)?;
+                *column = Some(
+                    (0..geometry.triangles.len())
+                        .map(|i| r.i16(offset + i * 2))
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
+            }
+        }
         let normal_offsets = [
             r.u32(72)? as usize,
             r.u32(76)? as usize,
@@ -120,6 +134,7 @@ impl Model {
         };
         Ok(Self {
             geometry,
+            face_centers,
             materials: materials.entries,
             radius: r.u16(12)?,
             render_hint: r.u16(14)?,

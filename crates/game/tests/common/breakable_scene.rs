@@ -45,6 +45,7 @@ impl SceneCase {
                 activate: 0,
                 deactivate: 0,
                 auxiliary_tick: 0,
+                auxiliary_complete: 0,
                 debris_tick: 0,
             },
         );
@@ -113,6 +114,7 @@ impl SceneCase {
                 },
                 auxiliary_mesh: None,
                 auxiliary_active: 0,
+                auxiliary_motion: None,
                 ground_height: None,
             }));
         }

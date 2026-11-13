@@ -1788,3 +1788,76 @@ vehicle blast bindings, then complete vehicle prefix/after-pose and startup.
 $env:TANKRACER_SHATTER_REFERENCE=(Resolve-Path build/native/shatter_reference.exe).Path
 cargo test -p tankracer-game --test shatter_reference --locked -- --include-ignored --nocapture
 ```
+
+## Live auxiliary mesh break
+
+`mesh_break` now implements 41DC00/41D460 on private scene geometry. Model
+resources retain the original XYZ face-center columns rather than deriving
+centroids from vertices. `scene_meshes` binds/copies those columns and radius
+alongside geometry; ticks borrow the same vertices, flags and centers that
+render extraction will read. No per-update geometry copy occurs. Private mesh
+retirement drops the center buffers too; shared bindings remain intact.
+
+Activation uses local incoming velocity, the original push gain and two-draw
+scatter: the FIRST product selects the sign branch and the SECOND is shifted.
+Every face receives RNG/lifetime state before adjacent triangles are paired.
+Pairing uses the last nonshared vertex, carries the prior tail between pairs,
+and spends the same combined piece/pair work budget. Undefined degenerate tails
+return -4 after the committed mode writes unless the caller supplies its actual
+stack-tail input. The 2000-unit ordinary lifetime and supplied 1500-unit class
+state are qualified; Pickup construction/capture is still separate work.
+
+Motion preserves gravity **per update**, dt-scaled translation, quantized i16
+vertices, Y/X/Z rotations and the source's unusual alternating friction/bounce
+policy across all six linear/angular words. Paired heads move a fourth vertex,
+skip their tail's tick and retire two faces. Completion clears drawing/active
+state before immediate virtual deactivation, preserving queue/list errors and
+partial writes. The collision radius cache changes to 5120 with the replacement
+mesh and to zero when it clears, matching native queries/feedback of the current
+mesh rather than retaining the original model's radius.
+
+AUXILIARY_CONTACT is handled by the shared Collision owner; AUXILIARY_UPDATE is
+handled by the Scene view and Fall's existing virtual tail. Resource resolution
+is an explicit service, while binding/private cloning/state creation stay in
+Rust. The default height service uses the real Rust terrain query; the focused
+oracle injects only the height result/error boundary. Prepared-state fixtures
+skip loading, while a fresh resource case executes native shape-cache lookup,
+private clone and buffer creation. Allocator/read-fault prefix equivalence at
+that typed resource boundary is not claimed.
+
+Evidence:
+
+- **43 scenarios / 159 operations / 29,608 semantic words / 14 error prefixes**
+  match unchanged production C through the live owner. Includes fresh and
+  prepared resources, generic breakable hit -> real mesh activation -> Fall
+  virtual updates, wrap/shift boundaries, pairing/undefined tails, expiry and
+  common completion/destruction queues. Snapshots include RNG/slots, height
+  requests, motion, mesh/radius ownership, vertices, flags, centers and full grid.
+- The extended **SM02** oracle compares all **435 shipped models / 11,713
+  vertices / 10,430 faces**, now including every present authored center column.
+- A normal native test resolves **49 map/replacement bindings across eight maps**
+  and runs activation, movement and expiry while checking that shared geometry,
+  flags and centers remain untouched. The INGAME pickup-shape preloads are the
+  same previously qualified startup boundary, spanning all three cups in this
+  resource test. This catches cconc-style cache hits before Level resolution;
+  it does not introduce a cross-namespace fallback.
+- Shared breakable, debris, Fall, authored ordinary/Fall/Crush startup, fresh
+  mixed scripts, common lifecycle and connected-vehicle regressions pass.
+  Workspace/native/Wasm checks, browser build and C preservation verification
+  pass (97 modules / 244 unchanged C files). Current browser Wasm: **183,235 B**.
+
+Still pending: the Pickup-owned backup capture/restore policy (and arbitrary
+long-name/header aliases), other class readers, vehicle blast impulse bindings,
+complete startup/shared RNG and vehicle prefix/after-pose. Future fragment render
+extraction must use the live center columns as well as vertices, not the cached
+billboard center in the immutable source model. No GPU fragment-rendering or
+whole-frame performance claim. No new map acceleration data; the browser still
+runs only the static world/free camera. M3 remains open.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mesh_break.c build/native/libtankracer_core.a -lm -o build/native/mesh_break_reference.exe
+$env:TANKRACER_MESH_BREAK_REFERENCE=(Resolve-Path build/native/mesh_break_reference.exe).Path
+cargo test -p tankracer-game --test mesh_break_reference --locked -- --include-ignored --nocapture
+```
+
+Rebuild `reference_model.c` for SM02 before running the updated assets model suite.

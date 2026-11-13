@@ -47,6 +47,7 @@ pub const DEBRIS_UPDATE: u32 = 23;
 pub const OBSTACLE_CONTACT: u32 = 24;
 pub const AUXILIARY_CONTACT: u32 = 25;
 pub const DEBRIS_CONTACT: u32 = 26;
+pub const AUXILIARY_COMPLETE: u32 = 27;
 
 const ALLOCATE_OBJECT: MethodId = MethodId(58);
 const READ_OBJECT: MethodId = MethodId(59);
@@ -69,8 +70,8 @@ pub struct Registry {
 impl Default for Registry {
     fn default() -> Self {
         let mut world = Class {
-            maximum_slot: DEBRIS_CONTACT as i32,
-            methods: vec![None; DEBRIS_CONTACT as usize + 1],
+            maximum_slot: AUXILIARY_COMPLETE as i32,
+            methods: vec![None; AUXILIARY_COMPLETE as usize + 1],
         };
         for (slot, method) in [
             (ALLOCATE, ALLOCATE_OBJECT),
@@ -109,6 +110,7 @@ impl Default for Registry {
             (DEBRIS_UPDATE, methods::DEBRIS_TICK),
             (AUXILIARY_CONTACT, methods::AUXILIARY_HIT),
             (DEBRIS_CONTACT, methods::DEBRIS_HIT),
+            (AUXILIARY_COMPLETE, methods::DESTROY_REQUEST),
         ] {
             obstacle.methods[slot as usize] = Some(method);
         }
@@ -202,6 +204,7 @@ impl Registry {
                 deactivate: DEACTIVATE,
                 auxiliary_tick: AUXILIARY_UPDATE,
                 debris_tick: DEBRIS_UPDATE,
+                auxiliary_complete: AUXILIARY_COMPLETE,
             },
         )
     }
@@ -340,6 +343,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             },
             auxiliary_mesh: None,
             auxiliary_active: 0,
+            auxiliary_motion: None,
             ground_height: None,
         }));
         call.context

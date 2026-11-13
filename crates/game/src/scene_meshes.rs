@@ -11,6 +11,13 @@ struct Mesh {
     geometry: Option<Geometry>,
     hint: u16,
     shared: bool,
+    centers: [Option<Vec<i16>>; 3],
+    radius: u16,
+}
+pub struct FragmentMesh<'a> {
+    pub geometry: &'a mut Geometry,
+    pub centers: &'a mut [Option<Vec<i16>>; 3],
+    pub radius: &'a mut u16,
 }
 #[derive(Default)]
 pub struct Meshes {
@@ -24,6 +31,8 @@ impl Meshes {
             geometry: Some(geometry),
             hint: 0,
             shared: false,
+            centers: [None, None, None],
+            radius: 0,
         });
         id
     }
@@ -35,6 +44,8 @@ impl Meshes {
         }
         let id = self.insert(model.geometry.clone());
         self.entries[id.0].hint = model.render_hint;
+        self.entries[id.0].centers = model.face_centers.clone();
+        self.entries[id.0].radius = model.radius;
         self.entries[id.0].shared = true;
         self.names.insert(key, id);
         id
@@ -43,9 +54,26 @@ impl Meshes {
     pub fn private_copy(&mut self, source: MeshId) -> Option<MeshId> {
         let copy = self.get(source)?.clone();
         let hint = self.entries[source.0].hint;
+        let centers = self.entries[source.0].centers.clone();
+        let radius = self.entries[source.0].radius;
         let id = self.insert(copy);
         self.entries[id.0].hint = hint;
+        self.entries[id.0].centers = centers;
+        self.entries[id.0].radius = radius;
         Some(id)
+    }
+    pub fn fragments(&mut self, id: MeshId) -> Option<FragmentMesh<'_>> {
+        let mesh = self.entries.get_mut(id.0)?;
+        Some(FragmentMesh {
+            geometry: mesh.geometry.as_mut()?,
+            centers: &mut mesh.centers,
+            radius: &mut mesh.radius,
+        })
+    }
+    pub fn radius(&self, id: MeshId) -> Option<u16> {
+        let mesh = self.entries.get(id.0)?;
+        mesh.geometry.as_ref()?;
+        Some(mesh.radius)
     }
     pub fn hint(&self, id: MeshId) -> Option<u16> {
         let mesh = self.entries.get(id.0)?;
@@ -71,6 +99,7 @@ impl Meshes {
             return None;
         }
         mesh.geometry.take()?;
+        mesh.centers = [None, None, None];
         Some(())
     }
 }
@@ -90,6 +119,7 @@ mod tests {
             render_hint: 0,
             bounds: [[0; 3]; 2],
             vertex_normals: None,
+            face_centers: [None, None, None],
         };
         let mut meshes = Meshes::default();
         let first = meshes.bind("car.sm", &model);

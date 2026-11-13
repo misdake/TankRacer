@@ -220,6 +220,7 @@ mod tests {
             render_hint: 0,
             bounds: [[0; 3]; 2],
             vertex_normals: None,
+            face_centers: [None, None, None],
         }
     }
     fn surface(mesh: crate::scene_meshes::MeshId) -> Deformable {

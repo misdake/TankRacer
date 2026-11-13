@@ -129,6 +129,7 @@ fn model(radius: u16) -> Arc<Model> {
         render_hint: 0,
         bounds: [[0; 3]; 2],
         vertex_normals: None,
+        face_centers: [None, None, None],
     })
 }
 fn piece() -> Piece {

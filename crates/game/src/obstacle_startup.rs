@@ -31,7 +31,7 @@ pub struct Environment<'a> {
     /// Explicit caller-owned tail of the original temporary 12-word matrix.
     pub matrix_tail: Option<[i32; 3]>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Auxiliary {
     pub shape_name: String,
     pub gravity: i32,

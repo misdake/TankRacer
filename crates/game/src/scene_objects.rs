@@ -3,6 +3,7 @@
 pub mod collision;
 mod falling;
 mod fragments;
+mod mesh_fragments;
 use crate::{
     crush,
     dispatch::{ClassId, MethodId},
@@ -65,6 +66,7 @@ pub struct Interfaces {
     pub deactivate: u32,
     pub auxiliary_tick: u32,
     pub debris_tick: u32,
+    pub auxiliary_complete: u32,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SoundId(pub u32);
@@ -72,11 +74,11 @@ pub struct Object {
     /// Optional host-owned sound resource; the disabled C loader creates none.
     pub impact_sound: Option<SoundId>,
     pub data: PlacedObstacle,
-    /// Owned replacement geometry created by mesh break. Its activation/motion
-    /// methods are still pending; destruction already respects ownership.
+    /// Owned replacement geometry and per-face motion share renderer storage.
     pub auxiliary_mesh: Option<MeshId>,
     /// Live auxiliary mode word; mesh ownership alone does not mean it ticks.
     pub auxiliary_active: i16,
+    pub auxiliary_motion: Option<crate::mesh_break::State>,
     pub ground_height: Option<i32>,
 }
 /// Collision traversal borrows `world` while callbacks borrow `components`.
@@ -112,6 +114,7 @@ pub struct Components {
     pub interfaces: Interfaces,
     pub dt: i32,
     pub frame_group: u32,
+    pub mode: i32,
 }
 impl Scene {
     pub fn new(world: World, surfaces: Surfaces, parents: Parents, interfaces: Interfaces) -> Self {
@@ -133,6 +136,7 @@ impl Scene {
                 interfaces,
                 dt: 0,
                 frame_group: 0,
+                mode: 0,
             },
         }
     }
@@ -222,6 +226,7 @@ impl View<'_> {
             data,
             auxiliary_mesh: None,
             auxiliary_active: 0,
+            auxiliary_motion: None,
             ground_height: None,
         })
     }
@@ -252,6 +257,7 @@ impl View<'_> {
             },
             auxiliary_mesh: None,
             auxiliary_active: 0,
+            auxiliary_motion: None,
             ground_height: Some(placed.ground_height),
         })
     }
@@ -297,6 +303,7 @@ impl View<'_> {
         let object = self.components.object_mut(id)?;
         object.auxiliary_mesh = None;
         object.auxiliary_active = 0;
+        object.auxiliary_motion = None;
         object.data.auxiliary = None;
         object.data.debris = None;
         Ok(())
@@ -407,6 +414,7 @@ impl Methods<ObstacleId> for View<'_> {
             FALL_DESTROY => return self.destroy_fall(id, call, env),
             FALL_TICK => return self.tick_fall(id, call, env),
             DEBRIS_TICK => return self.tick_debris(id, call, env),
+            AUXILIARY_TICK => return self.tick_mesh_fragments(id, call, env),
             RESET_POSE => {
                 let pose = &mut self.world.colliders.get_mut(id.0).ok_or(-1)?.pose;
                 pose.matrix = Matrix::IDENTITY;
