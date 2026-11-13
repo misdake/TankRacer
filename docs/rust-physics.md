@@ -259,3 +259,54 @@ Next: model/pose resources, exact attitude/yaw/world-velocity/motion and collisi
 then vehicle construction and browser proxy. Contact and drive are verified stages,
 not yet a complete moving Rust vehicle. No new per-map acceleration or whole-frame
 performance claim; top-gear work can be profiled once the complete frame runs.
+
+Drive checkpoint: `1416a89`.
+
+## Exact basis math, attitude and velocity
+
+`math::Matrix` keeps the original Q12 basis as nine typed words: rows describe
+body axes in world space; local-to-world uses its transpose. Euler construction,
+axis rotation, pivot rotation, row-then-column normalization and angle lookup
+preserve their distinct wrapping/truncating/arithmetic-shift rules. A zero raw
+angle skips rotation; a nonzero full turn still performs the original arithmetic.
+The last angle-table entry intentionally aliases zero, not the ideal atan value.
+
+The sine/cosine and atan constants are shared by all maps. They are committed
+as **41,474 bytes** of signed-16 data, widened for original arithmetic; cosine
+aliases the extra quarter cycle rather than assuming perfect periodic symmetry.
+`node tools/export_rust_math.mjs` imports them from the qualified mathematical C
+catalogue, not a PE/memory capture. Rust const-decodes them at compile time.
+Production Rust builds require neither this importer nor a C compiler, and the
+physics runtime computes no host sin/cos/atan. Other lookup tables are deferred
+until their camera/scene consumers migrate. These are global constants, not
+additional per-map acceleration.
+
+`attitude::State::step` implements acceleration-to-rotation, initial yaw, old-basis
+flip guards (including cross-axis rate use), pivoted pitch/roll and unsigned
+frame%10 normalization. Its config consumes the authored suspension gains.
+`vector` provides the original signed approximate normalization/cross/yaw.
+`velocity` preserves both precision branches and rearweight yaw correction.
+The large-velocity flag is computed once from incoming world velocity and reused
+on both directions; the large branch compares **signed X and Z**, not magnitudes.
+
+56,025 C comparisons / 456,828 output words pass: every sine/cosine word, all
+atan entries and quadrants, Euler/axis/pivot operations, normalization partial
+errors, 8,192 attitude short-sequence records, 8,192 precision transforms and
+vector/yaw operations. Deliberate angle/normalization failures verify prefix
+writes. Ordinary tests explain the nonideal lookup/whole-turn behavior, old-basis
+flip guards and signed large-velocity selector. Native and Wasm target checks pass.
+
+```sh
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_math.c build/native/libtankracer_core.a -o build/native/math_reference
+```
+
+```powershell
+$env:TANKRACER_MATH_REFERENCE=(Resolve-Path build/native/math_reference.exe).Path
+cargo test -p tankracer-game --test math_reference -- --ignored --nocapture
+```
+
+The pure attitude stage exposes its C-equivalent prefix on error. The future
+vehicle orchestrator must also preserve the original adapter's separate commit
+boundary: its copied attitude result is written to the vehicle only on success.
+Next: part poses and model resources, articulation/hull and motion/collision,
+then compose the complete vehicle and browser proxy. The Rust vehicle is not yet running.

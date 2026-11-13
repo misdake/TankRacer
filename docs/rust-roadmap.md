@@ -13,12 +13,13 @@
   C evidence and commands: [physics](rust-physics.md).
 - Authored configs (`342460a`): all 57 vehicle keys / 15 tanks / 100 surface
   factors and override widths match C; real parameters feed contact tests.
-- Latest: full drive stage ported; 9,600 four-tick/branch records match C across
-  all fifteen tanks, including gears/weather/errors. Native/Wasm checks pass.
+- Drive (`1416a89`): 9,600 four-tick/branch records match C across all fifteen tanks.
+- Latest: exact trig/basis math, attitude, velocity precision and yaw correction;
+  56,025 C records match. Native/Wasm checks pass. Shared trig data: 41,474 bytes.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: model/pose resources → attitude/yaw/world velocity/motion/collision
+- Next: part poses and model resources → articulation/hull and motion/collision
   → browser proxy. No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
