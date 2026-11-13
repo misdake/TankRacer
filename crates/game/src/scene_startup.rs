@@ -40,6 +40,9 @@ pub enum Error {
     RecordCount,
     Terrain(terrain::Error),
     InvalidWorld,
+    Material(i32),
+    MissingMatrixTail,
+    Arithmetic,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Visibility {
@@ -68,23 +71,26 @@ pub struct PlacedCrush {
     pub ground_height: i32,
     pub siren_timer: i32,
 }
-fn value(values: &mut Values<'_>) -> Result<i32, Error> {
+pub(crate) fn value(values: &mut Values<'_>) -> Result<i32, Error> {
     values.integer().ok_or(Error::MissingValue)
 }
-fn shape<S: ShapeSource>(r: &mut Resources<'_, S>, name: &str) -> Result<Arc<Model>, Error> {
+pub(crate) fn shape<S: ShapeSource>(
+    r: &mut Resources<'_, S>,
+    name: &str,
+) -> Result<Arc<Model>, Error> {
     r.models
         .load(r.source, Space::Level, name)
         .map_err(Error::Shape)?
         .ok_or(Error::MissingShape)
 }
-fn bounds(model: &Model, margin: i32) -> Bounds {
+pub(crate) fn bounds(model: &Model, margin: i32) -> Bounds {
     Bounds {
         min: model.bounds[0].map(|v| i32::from(v).wrapping_mul(8).wrapping_sub(margin)),
         max: model.bounds[1].map(|v| i32::from(v).wrapping_mul(8).wrapping_add(margin)),
     }
 }
 
-fn visibility(p: Parameters<'_>, random: &mut u32) -> Result<Visibility, Error> {
+pub(crate) fn visibility(p: Parameters<'_>, random: &mut u32) -> Result<Visibility, Error> {
     let mut visibility = Visibility {
         distance: 150,
         add_lap: 0,

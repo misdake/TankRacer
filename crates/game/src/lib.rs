@@ -22,6 +22,7 @@ pub mod math;
 pub mod motion;
 pub mod object_query;
 pub mod obstacle_collision;
+pub mod obstacle_startup;
 pub mod pose;
 pub mod powertrain;
 pub mod random;

@@ -1099,3 +1099,81 @@ Next: common Obstacle parameters and other class construction, named entity
 resolution and world membership/scheduler, then the remaining vehicle prefix and
 after-pose operations. M3 remains open until an independently initialized moving
 proxy runs; neither this constructor nor the connected phase alone closes it.
+
+
+## General Obstacle parent components and fragment construction
+
+`obstacle_startup::Obstacle::build_components` builds parent-owned collider,
+visibility, type/explicit solidity precedence, bounds/margin, activation speed,
+auxiliary parameters and 3D/sprite/animation fragment state from authored records.
+Subclass scalar defaults are explicit inputs, including the sort bias (Bounce
+starts at -8); they are not inferred as zero or read from an original-memory
+arena in production. The type catalogue is real OBPARAMS data. Powerup's 410730
+early return skips generic lap rules; its pre-record method and Mine's request
+shared models, not level models. Current standard pickup cache priming follows
+the actual bootstrap's cup/mode gates.
+
+Auxiliary state retains all six gravity/pair defaults and overrides. Mesh parts
+consume six RNG values and sprite parts two, even for a missing model. Typed
+fragment state retains matrices, explicit ambient matrix tails, positions,
+velocity/spin factors, angular rates, flags, offsets, ground height, gravity,
+friction and direction. Terry offsets use binary32 conversions and preserve
+both orientation branches. Sprite/animation materials are logical asset-owner
+requests, without WebGL objects in simulation. Their request order is tested.
+
+`install_in_grid` moves common collider/properties into the existing collision
+world and preserves metadata/effect ownership in `PlacedObstacle`. It is only
+for classes using the ordinary 41C230 enter method; special classes have their
+own placement. Activation speed (+94) becomes collision Object.threshold;
+subclass impact threshold (+7C) stays distinct. Among captured constructors,
+1,949 Obstacle/Fall/Bounce/Spin placements match the native packed cell, including
+lap-delayed absence. This validates data placement, not complete per-cell order
+through every other class or an executing unified method table.
+
+**2,937 common parent component outputs match across 22 nonempty map/CUP files**:
+384 auxiliary headers, 152 debris groups, 837 parts (including 105 absent mesh
+resources and 331 Terry parts), nine sprite groups and 58 animations. Shared RNG,
+collider/scalar values, local/world transforms, fragment geometry, logical
+material requests, UV/color/config fields and grid-cell placement match. C input
+provides four subclass defaults, each constructor boundary's RNG and external
+material results. The Rust build uses original authored archives for all other
+inputs. This is parent-component boundary qualification, not complete subclass
+construction or startup RNG replay. Enter/leave/final virtual methods, the
+notification scheduler, fragment activation/ticks and named attachments remain
+required; build_components explicitly leaves these to the world/class owner.
+
+### Original animation constants omitted by the C bootstrap
+
+Read-only inspection of `../tankracer/tankrace.exe` confirmed SHA256
+`e8c4f12dd3caac55c4b1b29536475b58222dc44de82e008cae0e4a9c7fd9b9bb` and original
+strings at 52E1C8/4/0: NONE/SUB/ADD, mapping to -1/0/1. The current C bootstrap
+does not initialize them. Rust uses those original definitions; the constructor
+oracle explicitly supplies these three immutable constants before invoking
+unchanged C, rather than copying the C bootstrap omission/entity-ID fallback.
+Unknown text still retains the original explicit entity fallback. Production C
+and the reference site are unchanged. This is blend-mode *data* qualification;
+these new animations are not yet drawn by the Rust browser and no new pixel/GPU
+claim is made.
+
+The gold ENGLAND resources also contain legacy N/D tokens inside shatter lists.
+Inspection of original 41EEF3..41F0A1 confirms the same three-token piece parsing
+as C. Missing names therefore retain null model references while numeric reads
+and RNG continue; the port does not silently skip or repair those records.
+
+Workspace tests, native/all-target and Wasm game Clippy, unchanged-production-C
+verification, all 19 preset comparisons, the 50-file world record suite and the
+154-Crush-construction regression pass. No new spatial precomputation or
+whole-frame performance claim is introduced; full live Wasm budget accounting
+remains pending. M3 is still open and the moving Rust game is not running.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
+$env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_startup_reference.exe).Path
+cargo test -p tankracer-game --test obstacle_startup_reference -- --ignored --nocapture
+```
+
+The oracle includes the production parent translation unit unchanged, wrapping
+its registry entry to capture real map startup. It does not duplicate constructor
+formulas. Next: concrete subclass initialization and lifecycle/method bindings,
+named entity resolution and complete world startup, then remaining vehicle
+prefix/after-pose operations and the independent moving proxy.

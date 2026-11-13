@@ -48,7 +48,20 @@ pub struct ModelBank {
     models: HashMap<String, Arc<Model>>,
 }
 impl ModelBank {
-    pub(crate) fn load(
+    /// Scene file loading (500850) permits an absent/empty resource to yield a
+    /// null shape. Callers requiring geometry must validate that separately.
+    pub fn load_optional(
+        &mut self,
+        source: &impl ShapeSource,
+        space: Space,
+        name: &str,
+    ) -> Result<Option<Arc<Model>>, Error> {
+        match self.load(source, space, name) {
+            Err(Error::Missing(_)) => Ok(None),
+            result => result,
+        }
+    }
+    pub fn load(
         &mut self,
         source: &impl ShapeSource,
         space: Space,

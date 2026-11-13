@@ -97,6 +97,29 @@ impl<'a> Values<'a> {
             value
         } as i32)
     }
+    pub fn real32(&mut self) -> Option<f32> {
+        Some(crate::number::decimal(self.word()?) as f32)
+    }
+}
+
+/// Original binary32 * 1024, signed64 truncation and low32 result.
+pub fn fixed1024(value: f32) -> i32 {
+    let bits = value.to_bits();
+    let exponent = (bits >> 23) & 255;
+    if !(117..180).contains(&exponent) {
+        return 0;
+    }
+    let mantissa = u64::from((bits & 0x7f_ffff) | 0x80_0000);
+    let magnitude = if exponent >= 140 {
+        mantissa << (exponent - 140)
+    } else {
+        mantissa >> (140 - exponent)
+    } as u32;
+    if bits >> 31 != 0 {
+        magnitude.wrapping_neg() as i32
+    } else {
+        magnitude as i32
+    }
 }
 
 #[cfg(test)]

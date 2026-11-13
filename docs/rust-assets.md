@@ -140,3 +140,30 @@ string copies. The actual shipped Crush constructor comparisons exercise it;
 focused lexer tests also cover CR/LF attachment, repeated/case-distinct keys,
 quoted names and an unreadable final integer. Other Obstacle constructors remain
 pending; see the latest [physics checkpoint](rust-physics.md).
+
+
+## Object type presets and parameter real numbers
+
+`object_catalog::Catalog` reads the object presets in the actual DATA archive's
+OBPARAMS.DAT. All 19 entries / 1,444 native bytes match C startup, including
+names, defaults, narrow integer widths, signed solidity, five multiplier/shift
+pairs, deflection-angle conversion, flags, collision margin and nine-byte sound
+names. Lookup preserves first matching case-insensitive name; class sections of
+the same file are deliberately left to other configuration consumers. Focused
+tests cover case/duplicate precedence, narrowing, negative angles, flag clearing,
+long sound tokens and incomplete groups. Arbitrary malformed file cursor/error
+prefix equivalence is not claimed.
+
+The old CRT decimal-prefix conversion is shared by the world parser and class
+parameter real32 reads. Fragment offsets round binary64 to binary32 before
+fixed1024 conversion, matching the original low32 signed64 truncation contract.
+All 50 files / 4,392 authored records still pass the common C reader comparison
+following this refactor. ModelBank also exposes optional scene loading: an absent
+resource is a null shape, while mandatory geometry callers retain strict checks.
+A miss is not cached as a successful model or replaced with another model.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_object_catalog.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/object_catalog_reference.exe
+$env:TANKRACER_OBJECT_CATALOG_REFERENCE=(Resolve-Path build/native/object_catalog_reference.exe).Path
+cargo test -p tankracer-assets --test object_catalog_reference -- --ignored --nocapture
+```
