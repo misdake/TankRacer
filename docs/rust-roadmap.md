@@ -9,16 +9,21 @@
 - M3 verified against C: terrain/secondary queries, deformation, contact and
   suspension; authored vehicle/surface configs; drive, fixed-point math,
   attitude/velocity, part poses, articulation/lean and contact hull.
-- Latest checkpoint **`2099509`**: common SM/BSM decoder and typed vehicle model
-  assembly. 435 models / 10,430 triangles and 60 full native starts match C.
-  Workspace tests, native/Wasm Clippy and existing browser regressions pass.
+- Model assembly (`2099509`): 435 models / 10,430 triangles and 60 full native
+  starts match C; shared resources and instance-owned geometry are separate.
+- Latest **`d6b93bd`**: damage/normal repair, wall/pair impulses and four-point
+  ground response. 9,600 damage/ground + 20,720 collision records match C.
+  Workspace tests and native/Wasm Clippy pass; no new map acceleration.
+- Impact particles remain unported: only synchronous callback order/errors are
+  verified here. No full collision world or moving vehicle is claimed.
 - Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
   [physics](rust-physics.md) and [renderer](rust-renderer.md); keep them out of this summary.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: damage → motion/collision → complete per-tick vehicle orchestration
-  → browser proxy. No permanent original-memory arena or C runtime dependency.
+- Next: object/tank queries and overlap → obstacle/deformable dispatch → motion
+  and complete per-tick vehicle orchestration → browser proxy.
+  No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
