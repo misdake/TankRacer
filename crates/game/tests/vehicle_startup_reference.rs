@@ -160,6 +160,11 @@ fn encode(player: &Player) -> Vec<u32> {
     out.extend(player.smoke.damage.map(u32::from));
     out.extend(player.smoke.sockets.map(u32::from));
     append(&mut out, player.smoke.damage_timers);
+    out.extend([
+        player.debris.active,
+        player.debris.timer as u32,
+        u32::from(player.debris.previous_plane),
+    ]);
     out
 }
 fn shapes(bytes: &[u8]) -> ShapeArchive<'_> {
@@ -256,7 +261,7 @@ fn authored_spawns_and_fifteen_resource_profiles_construct_without_snapshots() {
             "map={map} cup={cup} vehicle={vehicle} mode={mode}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"VS03");
+        assert_eq!(&output.stdout[..4], b"VS04");
         let mut r = Reader {
             words: output.stdout[4..]
                 .chunks_exact(4)

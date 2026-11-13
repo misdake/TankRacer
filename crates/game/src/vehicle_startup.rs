@@ -8,7 +8,7 @@ use crate::{
     pose, powertrain, vehicle,
     vehicle_model::VehicleModel,
     vehicle_prefix,
-    vehicle_scene::{lights, marks, smoke, spray},
+    vehicle_scene::{debris, lights, marks, smoke, spray},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -28,6 +28,7 @@ pub struct Player {
     pub marks: marks::State,
     pub spray: spray::State,
     pub smoke: smoke::State,
+    pub debris: debris::Vehicle,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -103,6 +104,7 @@ impl Player {
             marks: marks::State::default(),
             spray: spray::State::default(),
             smoke: smoke::State::default(),
+            debris: debris::Vehicle::default(),
         })
     }
 }

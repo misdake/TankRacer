@@ -2118,3 +2118,35 @@ pending. These checks qualify components, not a complete moving game.
 $env:TANKRACER_VEHICLE_PARTICLES_REFERENCE=(Resolve-Path build/native/vehicle_particles_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_particles_reference --locked -- --ignored --nocapture
 ```
+
+## Shared vehicle debris (2026-11-14)
+
+`vehicle_scene::debris` implements the two shared eight-particle banks and the
+active/inactive update/clear paths. Per-vehicle markers/cooldown/history belong
+to the fresh player; shared bank ownership is separate. Borrowed canonical
+owners are retired synchronously when a different vehicle steals a bank.
+The kernel reads the current terrain plane, contacts, pose, materials, camera
+half-plane and impact accumulator. It preserves wrapped camera arithmetic,
+unsigned speed gating, distinct vertical SAR, floor expiry and retained payload.
+
+An invisible nonplayer emission still consumes one audio RNG draw, updates its
+cooldown/impact accumulator and sets its marker; it does not generate particles.
+A visible emission consumes that draw plus **144** particle draws. The audio
+value is exposed as device output without handing RNG ownership to playback;
+audio playback wiring remains later work. Clear only resets documented markers,
+owner and cooldown, leaving positions/colors/size/previous-plane data intact.
+
+**VD01: 144 scenarios / 1,728 operations / 297,360 words**, alternating nine
+vehicles and both banks, match unchanged C with independently counted RNG writes:
+255 visible emissions, 142 hidden emissions, 162 owner steals, 57 active clears,
+37,117 total draws. Cases include thresholds, wrapping, camera sides, partial
+expiry, zero dt, cooldown expiry and mixed material colors. **VS04** adds fresh
+debris state: **122 constructions / 83,936 words** match. Native/Wasm lint, 65
+game unit tests, browser build and C preservation pass. No extra map metadata
+or rendering change; browser movement remains pending.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_debris.c build/native/libtankracer_core.a -lm -o build/native/vehicle_debris_reference.exe
+$env:TANKRACER_VEHICLE_DEBRIS_REFERENCE=(Resolve-Path build/native/vehicle_debris_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_debris_reference --locked -- --ignored --nocapture
+```
