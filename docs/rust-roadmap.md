@@ -8,12 +8,14 @@
 - M1 verified: 3 native tests (all 15 archives and budget bounds), native/Wasm
   Clippy without warnings, 114 browser GPU pixel cases and 3 canvas layouts.
   Production Wasm is 85,660 bytes and omits GPU probes; C hashes remain exact.
-- M2 geometry: direct BSM decoder matches the complete C loader on all eight
+- M2 geometry (`50b4d38`): direct BSM decoder matches the complete C loader on all eight
   maps, 80,439 triangles (vertices/origins/normals/colors/indices/UV/flags/materials).
   Native inspector: `cargo run -p tankracer-assets --bin inspect-world --
   assets/game/LEVELS/ENGLAND/FASTFILE.DAT`. Details: `rust-assets.md`.
-- Next: coordinate/unit convention; SUR decode vs C; material/sampler
-  classification; display actual ENGLAND geometry with a free camera. M2 is not done.
+- M2 SUR: 1,007 images/mips, 5,931,008 pixels exactly match C; one invalid BIO
+  resource explicitly rejected. Build/run the optional oracle per `rust-assets.md`.
+- Next: coordinate/unit convention; material/sampler classification; atlas edges;
+  display actual ENGLAND geometry with a free camera. M2 is not done.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
 

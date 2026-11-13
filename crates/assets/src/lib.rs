@@ -2,4 +2,5 @@
 
 pub mod archive;
 pub mod budget;
+pub mod surface;
 pub mod world;

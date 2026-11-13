@@ -1,6 +1,6 @@
 //! Resource inspection is a native Rust tool, independent of browser/game startup.
 use std::{collections::BTreeMap, error::Error};
-use tankracer_assets::{archive::Archive, world::World};
+use tankracer_assets::{archive::Archive, surface::Surface, world::World};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let file = std::env::args()
@@ -52,7 +52,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Raw world bounds: {minimum:?} .. {maximum:?}");
     println!("{} material identities:", materials.len());
     for (name, count) in materials {
-        println!("  {name}: {count} triangles");
+        let file = format!("{}.SUR", name.to_ascii_uppercase());
+        let image = archive
+            .get(&file)
+            .map(Surface::open)
+            .transpose()?
+            .map(|s| s.decode(0))
+            .transpose()?;
+        if let Some(image) = image {
+            println!(
+                "  {name}: {count} triangles, {}x{}, flags 0x{:x}",
+                image.width, image.height, image.flags
+            );
+        } else {
+            println!("  {name}: {count} triangles, no local texture");
+        }
     }
     println!("Triangle flag combinations:");
     for (flag, count) in flags {
