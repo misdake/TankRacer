@@ -1,4 +1,6 @@
 #include "physics_drive.h"
+#include "physics_velocity.h"
+#include "physics_vector.h"
 #include "frame_tank_config.h"
 #include "frame_surface_config.h"
 #include "reference_io.h"
@@ -35,14 +37,14 @@ static int32_t sign_width(uint32_t value,unsigned n)
 }
 int main(int argc,char **argv)
 {
-    unsigned char *tank,*surface;uint32_t tank_size,surface_size,map,consumed=0,i;int status;
+    unsigned char *tank,*surface;uint32_t tank_size,surface_size,map,consumed=0,i;int status,powertrain=argc==4&&!strcmp(argv[3],"--powertrain");
     static const uint32_t state_offsets[]={0xe4,0xe8,0xec,0xb4,0xb8,0xbc,0xa4,0xac,0xb0,0xa0,0xdeb,0xdde,0xc0,0xc4,0xcc,0xf4};
-    if (argc!=3) return 2;
+    if (argc!=3&&!powertrain) return 2;
     tank=file_bytes(argv[1],&tank_size);surface=file_bytes(argv[2],&surface_size);
     if (!tank||!surface) return 3;
     status=frame_surface_configure_span(read_data,write_data,0,surface,surface_size,1000000,&consumed);free(surface);if (status) return 4;
     oracle_set(ram+0x55c694,0x2000,4);oracle_set(ram+0x2008,0x2100,4);oracle_set(ram+0x2100,0x1234,4);oracle_set(ram+0x544f98,0x1234,4);
-    oracle_binary();fwrite("DR01",1,4,stdout);
+    oracle_binary();fwrite(powertrain?"PW01":"DR01",1,4,stdout);
     for (i=0;i<5;i++) oracle_put(default_value(0x531b80+i*4));
     for (i=0;i<5;i++) oracle_put(default_value(0x531b68+i*4));
     for (i=0;i<5;i++) oracle_put(default_value(0x5319e0+i*4));
@@ -63,11 +65,33 @@ int main(int argc,char **argv)
         for (i=0;i<5;i++) store(0x5319e0+i*4,4);
         store(0x5319d4,4);store(0x5319d8,4);store(0x5319dc,4);
         status=frame_tank_configure_span(read_data,write_data,0,object,tank,tank_size,1000000,0,&consumed);if (status) return 4;
-        status=physics_vehicle_drive(read_data,write_data,0,object,1);oracle_put((uint32_t)status);
+        if(powertrain){
+            int32_t world[3],local[3],matrix[9],out[3];int large;
+            for(i=0;i<3;i++)store(object+0x50+i*4,4);
+            for(i=0;i<9;i++)store(object+0x18+i*4,4);
+            store(object+0xc8,4);store(object+0x10be,4);
+            for(i=0;i<3;i++)store(0x531c98+i*4,4);
+            if(oracle_signed(oracle_get(ram+0x5904fc,4))<=0)status=-2;
+            else{
+                for(i=0;i<3;i++)world[i]=oracle_signed(oracle_get(ram+object+0x50+i*4,4));
+                for(i=0;i<9;i++)matrix[i]=oracle_signed(oracle_get(ram+object+0x18+i*4,4));
+                large=physics_velocity_large(world);physics_velocity_transform(world,matrix,local,0,large);
+                for(i=0;i<3;i++)oracle_set(ram+object+0xe4+i*4,(uint32_t)local[i],4);
+                status=physics_vehicle_drive(read_data,write_data,0,object,1);
+                if(!status&&!ram[object+0x10bc]&&oracle_signed(oracle_get(ram+object+0x10be,4))<1)status=physics_yaw_correction(read_data,write_data,0,object);
+                if(!status){
+                    for(i=0;i<3;i++)local[i]=oracle_signed(oracle_get(ram+object+0xe4+i*4,4));
+                    physics_velocity_transform(local,matrix,out,1,large);
+                    for(i=0;i<3;i++)oracle_set(ram+object+0x50+i*4,(uint32_t)out[i]+(i==1?oracle_get(ram+object+0xc8,4):0u),4);
+                }
+            }
+        }else status=physics_vehicle_drive(read_data,write_data,0,object,1);
+        oracle_put((uint32_t)status);
         for (i=0;i<16;i++) {
             unsigned n=i==10||i==11 ? 1 : 4;uint32_t value=oracle_get(ram+object+state_offsets[i],n);
             oracle_put(i==10 ? value : (uint32_t)sign_width(value,n));
         }
+        if(powertrain)for(i=0;i<3;i++)oracle_put(oracle_get(ram+object+0x50+i*4,4));
     }
     free(tank);return ferror(stdin) ? 5 : 0;
 }

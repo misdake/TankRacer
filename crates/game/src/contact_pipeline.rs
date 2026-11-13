@@ -1,7 +1,7 @@
 //! Authoritative terrain -> surface/effect -> material/fallback -> suspension chain.
 use crate::{
     contact::{self, Coefficient},
-    deformation, geometry,
+    deformation, geometry, motion, pose, powertrain,
     sampling::{AuxiliaryContact, Transform},
     suspension, terrain,
 };
@@ -17,6 +17,7 @@ pub struct World<'a> {
 pub enum Error {
     Terrain(terrain::Error),
     MissingSurface(u32),
+    EffectSlotWrite(u8),
 }
 impl From<terrain::Error> for Error {
     fn from(error: terrain::Error) -> Self {
@@ -240,11 +241,26 @@ impl Sampling {
         seed: &mut u32,
         deformable: Option<&mut Deformable<'_>>,
     ) -> Result<(), Error> {
+        self.sample_with_effects(world, env, seed, deformable, |_| true)
+    }
+    fn sample_with_effects(
+        &mut self,
+        world: &World<'_>,
+        env: &Environment,
+        seed: &mut u32,
+        deformable: Option<&mut Deformable<'_>>,
+        mut clear_player_slot: impl FnMut(u8) -> bool,
+    ) -> Result<(), Error> {
         self.clear_player_slot = None;
         self.primary
             .sample(world, env, self.effect.timer > 0, deformable)?;
         self.effect.step(env.dt, env.frame, seed);
         self.clear_player_slot = self.effect.clear_player_slot.then_some(env.player as u8);
+        if let Some(slot) = self.clear_player_slot
+            && !clear_player_slot(slot)
+        {
+            return Err(Error::EffectSlotWrite(slot));
+        }
         self.fallback_mode = match self.primary.flagged_ground_count {
             4 => 2,
             0 => 1,
@@ -294,6 +310,15 @@ pub struct Pipeline {
     pub pivot: [i32; 3],
 }
 
+/// Shared motion/drive fields have one authoritative owner. Copies inside the
+/// pipeline are stage views refreshed before computation; its other fields,
+/// including spring rates, caches and effect timers, remain persistent state.
+pub struct Vehicle<'a> {
+    pub motion: &'a mut motion::State,
+    pub powertrain: &'a mut powertrain::State,
+    pub pose: &'a mut pose::Config,
+}
+
 impl Pipeline {
     pub fn step(
         &mut self,
@@ -302,8 +327,19 @@ impl Pipeline {
         seed: &mut u32,
         deformable: Option<&mut Deformable<'_>>,
     ) -> Result<(), Error> {
+        self.step_with_effects(world, config, seed, deformable, |_| true)
+    }
+    fn step_with_effects(
+        &mut self,
+        world: &World<'_>,
+        config: &Config<'_>,
+        seed: &mut u32,
+        deformable: Option<&mut Deformable<'_>>,
+        clear_player_slot: impl FnMut(u8) -> bool,
+    ) -> Result<(), Error> {
         let env = config.sampling;
-        self.sampling.sample(world, env, seed, deformable)?;
+        self.sampling
+            .sample_with_effects(world, env, seed, deformable, clear_player_slot)?;
         for (sample, response) in self
             .sampling
             .primary
@@ -349,6 +385,85 @@ impl Pipeline {
             auxiliary.cached = self.response.auxiliary_cached[i];
         }
         Ok(())
+    }
+
+    /// Original vehicle-contact adapter commits local sampling/suspension/RNG
+    /// only on success. Deformation and player-effect writes remain synchronous
+    /// world operations even if a later query fails.
+    pub fn step_vehicle(
+        &mut self,
+        vehicle: Vehicle<'_>,
+        world: &World<'_>,
+        config: &Config<'_>,
+        seed: &mut u32,
+        deformable: Option<&mut Deformable<'_>>,
+        clear_player_slot: impl FnMut(u8) -> bool,
+    ) -> Result<bool, Error> {
+        let motion = vehicle.motion;
+        let mut pending = self.clone();
+        pending.pivot = motion.pivot;
+        let mut next_seed = *seed;
+        pending.response.angular = [motion.angular[0], motion.angular[2]];
+        pending.response.world_vy = motion.velocity[1];
+        pending.response.position_y = motion.poses.physical_position[1];
+        pending.sampling.effect.impulse = [
+            motion.articulation.recoil_rate,
+            motion.articulation.pitch_rate,
+        ];
+        // The effect writes the turret's local Z offset (+30A), not body Y.
+        pending.sampling.effect.pose = vehicle.pose.turret_offset[2];
+        for (i, point) in pending.sampling.primary.points.iter_mut().enumerate() {
+            point.world = motion.contacts[i].world;
+            point.gap = motion.contacts[i].gap;
+            point.travel = motion.travel[i];
+        }
+        let mut sampling = *config.sampling;
+        sampling.force_surface &= sampling.player != 0;
+        sampling.tracks = motion.poses.tracks.map(|p| Transform {
+            basis: p.matrix.0,
+            origin: p.position,
+        });
+        let mut suspension = *config.suspension;
+        suspension.dt = sampling.dt;
+        suspension.is_player = sampling.player != 0;
+        suspension.base = [motion.poses.base_position[0], motion.poses.base_position[2]];
+        pending.step_with_effects(
+            world,
+            &Config {
+                sampling: &sampling,
+                suspension: &suspension,
+                contact: config.contact,
+                layout: config.layout,
+            },
+            &mut next_seed,
+            deformable,
+            clear_player_slot,
+        )?;
+        motion.angular[0] = pending.response.angular[0];
+        motion.angular[2] = pending.response.angular[1];
+        motion.velocity[1] = pending.response.world_vy;
+        motion.poses.physical_position[1] = pending.response.position_y;
+        motion.articulation.recoil_rate = pending.sampling.effect.impulse[0];
+        motion.articulation.pitch_rate = pending.sampling.effect.impulse[1];
+        vehicle.pose.turret_offset[2] = pending.sampling.effect.pose;
+        for (i, point) in pending.sampling.primary.points.iter().enumerate() {
+            motion.contacts[i] = body_contact(point);
+            motion.travel[i] = point.travel;
+        }
+        motion.pivot = pending.pivot;
+        motion.rates.travel_sum = pending.response.travel_sum;
+        motion.rates.penetrating_force = pending.response.penetrating_input_sum;
+        vehicle.powertrain.load = pending.sampling.primary.load;
+        *seed = next_seed;
+        *self = pending;
+        Ok(self.sampling.feedback_required)
+    }
+}
+
+fn body_contact(point: &Point) -> crate::body::Contact {
+    crate::body::Contact {
+        world: point.world,
+        gap: point.gap,
     }
 }
 
@@ -414,6 +529,97 @@ mod tests {
             frame: 0,
             player: 257,
         }
+    }
+
+    #[test]
+    fn vehicle_contact_failure_keeps_local_fields_and_rng_uncommitted() {
+        let (terrain, mut origin) = ground();
+        origin[1] += 75;
+        let gains = [Coefficient::default(); 10];
+        let world = World {
+            terrain: &terrain,
+            surface_bumps: &gains,
+            noise: [128; 16],
+        };
+        let mut env = environment(origin);
+        env.player = 1;
+        let suspension = suspension::Environment::default();
+        let zero = Coefficient::default();
+        let contact = contact::Config {
+            lower: -12000,
+            upper: 12000,
+            force_positive: zero,
+            force_negative: zero,
+            output_gain: zero,
+            tilt_gain: zero,
+            shape_shift: 3,
+            restore_positive: zero,
+            restore_negative: zero,
+            damping_shift: 8,
+            travel_dead_step: 1,
+        };
+        let config = Config {
+            sampling: &env,
+            suspension: &suspension,
+            contact: &contact,
+            layout: [0; 5],
+        };
+        let mut pipeline = Pipeline::default();
+        pipeline.sampling.effect = SurfaceEffect {
+            timer: 1,
+            active: 1,
+            restore: -123,
+            ..SurfaceEffect::default()
+        };
+        let before = pipeline.clone();
+        let mut motion = motion::State::default();
+        motion.poses.tracks = [pose::Pose {
+            position: origin,
+            ..pose::Pose::default()
+        }; 2];
+        motion.articulation.recoil_rate = 73;
+        let motion_before = motion.clone();
+        let mut power = powertrain::State {
+            load: 99,
+            ..powertrain::State::default()
+        };
+        let power_before = power;
+        let mut pose = pose::Config {
+            track_offsets: [[0; 3]; 2],
+            turret_offset: [0, 0, 321],
+            gun_offset: [0; 3],
+            attachment_offsets: [[0; 3]; 2],
+            bottom_offset: [0; 3],
+            track_length: 1,
+            travel_gain: tankracer_assets::config::Gain::default(),
+            gun_pivot: [0; 3],
+        };
+        let mut seed = 27;
+        let mut slot_seen = None;
+        assert_eq!(
+            pipeline.step_vehicle(
+                Vehicle {
+                    motion: &mut motion,
+                    powertrain: &mut power,
+                    pose: &mut pose
+                },
+                &world,
+                &config,
+                &mut seed,
+                None,
+                |slot| {
+                    slot_seen = Some(slot);
+                    false
+                }
+            ),
+            Err(Error::EffectSlotWrite(1))
+        );
+        assert_eq!(slot_seen, Some(1));
+        assert_eq!(pipeline, before);
+        assert_eq!(motion, motion_before);
+        assert_eq!(power, power_before);
+        assert_eq!(pose.turret_offset, [0, 0, 321]);
+        assert_eq!(seed, 27);
     }
 
     #[test]

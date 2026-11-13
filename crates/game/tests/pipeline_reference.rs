@@ -8,7 +8,7 @@ use tankracer_assets::{archive::Archive, terrain::TerrainData};
 use tankracer_game::{
     contact::{self, Coefficient},
     contact_pipeline::{self as pipeline, Pipeline},
-    deformation,
+    deformation, motion, pose, powertrain,
     sampling::Transform,
     suspension, terrain,
 };
@@ -100,6 +100,87 @@ fn response(s: &suspension::State) -> Vec<u32> {
     signed(&mut out, s.auxiliary_cached);
     signed(&mut out, [s.max_penetration, s.last_penetration]);
     assert_eq!(out.len(), 40);
+    out
+}
+fn vehicle_state(
+    s: &Pipeline,
+    m: &motion::State,
+    p: &powertrain::State,
+    pose: &pose::Config,
+    seed: u32,
+    feedback: u32,
+) -> Vec<u32> {
+    let mut out = Vec::new();
+    for i in 0..4 {
+        let a = &s.sampling.primary.points[i];
+        let b = s.response.points[i];
+        signed(&mut out, a.local);
+        signed(&mut out, m.contacts[i].world);
+        signed(
+            &mut out,
+            [
+                a.kind,
+                m.contacts[i].gap,
+                a.previous_gap,
+                a.raw_height,
+                b.corner as i32,
+                m.travel[i],
+                b.rate,
+                b.output,
+            ],
+        );
+        signed(&mut out, a.normal);
+        out.push(a.flags);
+    }
+    let a = &s.sampling.primary;
+    signed(
+        &mut out,
+        [
+            p.load,
+            a.airborne_count,
+            a.special_count,
+            a.flagged_count,
+            i32::from(a.has_extra),
+        ],
+    );
+    signed(&mut out, a.extra);
+    signed(
+        &mut out,
+        [
+            m.angular[0],
+            m.angular[2],
+            s.response.tilt[0],
+            s.response.tilt[1],
+            m.rates.penetrating_force,
+            m.rates.travel_sum,
+            s.response.vertical_delta,
+            m.velocity[1],
+            m.poses.physical_position[1],
+            s.response.timer,
+        ],
+    );
+    let e = &s.sampling.effect;
+    signed(
+        &mut out,
+        [
+            e.timer,
+            e.restore,
+            e.active,
+            e.phase,
+            m.articulation.recoil_rate,
+            m.articulation.pitch_rate,
+            pose.turret_offset[2],
+        ],
+    );
+    out.push(seed);
+    for a in &s.sampling.auxiliary {
+        signed(&mut out, a.world);
+        signed(&mut out, [a.kind, a.cached]);
+    }
+    signed(&mut out, s.sampling.materials);
+    signed(&mut out, m.pivot);
+    out.push(feedback);
+    assert_eq!(out.len(), 115);
     out
 }
 fn environment(
@@ -195,8 +276,20 @@ fn deform_input(geometry: &deformation::Geometry, state: &deformation::State) ->
 #[test]
 #[ignore = "requires the composed native oracle; set TANKRACER_PIPELINE_REFERENCE"]
 fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
+    compare(false);
+}
+#[test]
+#[ignore = "requires extended C vehicle-contact oracle; set TANKRACER_PIPELINE_REFERENCE"]
+fn vehicle_adapter_shared_fields_transaction_and_world_effects_match_c() {
+    compare(true);
+}
+fn compare(vehicle: bool) {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
-    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../build/tests/pipeline");
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(if vehicle {
+        "../../build/tests/vehicle-contact"
+    } else {
+        "../../build/tests/pipeline"
+    });
     fs::create_dir_all(&folder).unwrap();
     let branch_contact = contact::Config {
         lower: -12000,
@@ -234,6 +327,7 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
     let mut deformations = 0;
     let mut lazy_queries = 0;
     let mut mixed_materials = 0;
+    let mut service_errors = 0;
     for map in [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ] {
@@ -339,6 +433,41 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                 p.corner = i as u32;
                 p.rate = case as i32 * 13 - 200;
             }
+            let mut motion = motion::State {
+                angular: [state.response.angular[0], 17, state.response.angular[1]],
+                velocity: [31, state.response.world_vy, -19],
+                contacts: state.sampling.primary.points.each_ref().map(|p| {
+                    tankracer_game::body::Contact {
+                        world: p.world,
+                        gap: p.gap,
+                    }
+                }),
+                travel: state.sampling.primary.points.each_ref().map(|p| p.travel),
+                pivot: state.pivot,
+                rates: motion::Rates {
+                    travel_sum: state.response.travel_sum,
+                    penetrating_force: state.response.penetrating_input_sum,
+                    ..motion::Rates::default()
+                },
+                ..motion::State::default()
+            };
+            motion.poses.physical_position[1] = state.response.position_y;
+            motion.articulation.recoil_rate = state.sampling.effect.impulse[0];
+            motion.articulation.pitch_rate = state.sampling.effect.impulse[1];
+            let mut power = powertrain::State {
+                load: state.sampling.primary.load,
+                ..powertrain::State::default()
+            };
+            let mut pose = pose::Config {
+                track_offsets: [[0; 3]; 2],
+                turret_offset: [0, 0, state.sampling.effect.pose],
+                gun_offset: [0; 3],
+                attachment_offsets: [[0; 3]; 2],
+                bottom_offset: [0; 3],
+                track_length: 1,
+                travel_gain: tankracer_assets::config::Gain::default(),
+                gun_pivot: [0; 3],
+            };
             let geometry = deformation::Geometry {
                 sample_bounds: [[-1000, 1000]; 2],
                 edges: [-16000, 16000, -16000, 16000],
@@ -404,6 +533,9 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                 if tick == 2 {
                     env.tracks[0].origin[1] = env.tracks[0].origin[1].wrapping_add(151);
                 }
+                if vehicle {
+                    env.force_surface &= env.player != 0;
+                }
                 let se = suspension::Environment {
                     dt: env.dt,
                     environment_flag: (case % 2) as i32,
@@ -447,8 +579,22 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                     old
                 });
                 let sample_only = case % 4 == 0 && tick % 2 == 0;
+                let sample_only = sample_only && !vehicle;
+                motion.poses.tracks = env.tracks.map(|t| pose::Pose {
+                    position: t.origin,
+                    matrix: tankracer_game::math::Matrix(t.basis),
+                });
+                motion.poses.base_position[0] = se.base[0];
+                motion.poses.base_position[2] = se.base[1];
+                let fail_clear = vehicle && case % 9 == 0;
                 let mut request = vec![
-                    if sample_only { 2 } else { 1 },
+                    if vehicle {
+                        3
+                    } else if sample_only {
+                        2
+                    } else {
+                        1
+                    },
                     patch.map_or(0, |at| 0x5dab54 + at + 2),
                 ];
                 request.extend(sampling(&state.sampling, seed, &data));
@@ -462,6 +608,9 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                 if has_deform {
                     request.extend(deform_input(&geometry, &deform));
                 }
+                if vehicle {
+                    request.push(u32::from(fail_clear));
+                }
                 input.extend(request.into_iter().flat_map(u32::to_le_bytes));
                 let world = pipeline::World {
                     terrain: &data,
@@ -474,7 +623,38 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                 });
                 let mut binding = deformable;
                 let before_aux = state.sampling.auxiliary.clone();
-                let result = if sample_only {
+                let mut slot_value = 0x12345678;
+                let mut feedback = 0x7182;
+                let result = if vehicle {
+                    state
+                        .step_vehicle(
+                            pipeline::Vehicle {
+                                motion: &mut motion,
+                                powertrain: &mut power,
+                                pose: &mut pose,
+                            },
+                            &world,
+                            &pipeline::Config {
+                                sampling: &env,
+                                suspension: &se,
+                                contact: &contact,
+                                layout,
+                            },
+                            &mut seed,
+                            binding.as_mut(),
+                            |slot| {
+                                assert_eq!(slot, env.player as u8);
+                                if fail_clear {
+                                    return false;
+                                }
+                                slot_value = 0;
+                                true
+                            },
+                        )
+                        .map(|value| {
+                            feedback = u32::from(value);
+                        })
+                } else if sample_only {
                     state
                         .sampling
                         .sample(&world, &env, &mut seed, binding.as_mut())
@@ -494,10 +674,18 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                 let status = match result {
                     Ok(()) => 0,
                     Err(pipeline::Error::Terrain(terrain::Error::Arithmetic)) => -2,
+                    Err(pipeline::Error::EffectSlotWrite(_)) => {
+                        service_errors += 1;
+                        -1
+                    }
                     Err(e) => panic!("unexpected error {e:?}"),
                 };
                 errors += usize::from(status < 0);
-                clears += usize::from(state.sampling.clear_player_slot.is_some());
+                clears += usize::from(if vehicle {
+                    slot_value == 0
+                } else {
+                    state.sampling.clear_player_slot.is_some()
+                });
                 for p in &state.sampling.primary.points {
                     if (0..5).contains(&p.kind) {
                         kinds[p.kind as usize] += 1;
@@ -515,10 +703,18 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
                 deformations += usize::from(deform.dirty != 0);
                 let start = expected.len();
                 expected.push(status as u32);
-                expected.extend(sampling(&state.sampling, seed, &data));
-                expected.extend(response(&state.response));
-                signed(&mut expected, state.pivot);
-                expected.push(if state.sampling.clear_player_slot.is_some() {
+                if vehicle {
+                    expected.extend(vehicle_state(
+                        &state, &motion, &power, &pose, seed, feedback,
+                    ));
+                } else {
+                    expected.extend(sampling(&state.sampling, seed, &data));
+                    expected.extend(response(&state.response));
+                    signed(&mut expected, state.pivot);
+                }
+                expected.push(if vehicle {
+                    slot_value
+                } else if state.sampling.clear_player_slot.is_some() {
                     0
                 } else {
                     0x12345678
@@ -584,11 +780,14 @@ fn all_maps_composed_contact_flow_and_short_sequences_match_c() {
     assert!(
         errors > 0 && clears > 0 && lazy_queries > 0 && deformations > 0 && mixed_materials > 0
     );
+    if vehicle {
+        assert!(service_errors > 0);
+    }
     assert!(
         kinds.iter().all(|&n| n > 0),
         "must exercise kinds 0..4: {kinds:?}"
     );
     eprintln!(
-        "{total} records; query errors={errors}, effect clears={clears}, auxiliary updates={lazy_queries}, deform updates={deformations}, mixed materials={mixed_materials}, kinds={kinds:?}"
+        "{total} records; errors={errors} (effect-slot writes={service_errors}), effect clears={clears}, auxiliary updates={lazy_queries}, deform updates={deformations}, mixed materials={mixed_materials}, kinds={kinds:?}"
     );
 }

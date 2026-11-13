@@ -865,3 +865,66 @@ remain unchanged. Motion has no per-call heap allocation or new per-map cache.
 Rendering is unchanged. Next: connect pre-contact timers/abilities, contact,
 velocity/drive/yaw and ordered collision stages to this finalizer, then construct
 the Rust world and run the browser proxy. M3 remains open.
+
+## Contact and powertrain vehicle bindings
+
+`powertrain` connects incoming world velocity, the qualified drive kernel,
+rearweight yaw correction, return world velocity and the suspension's vertical
+delta. Its persistent state contains only engine/local-velocity/load fields;
+angular rates, drive deltas, slip and lateral speed belong to `motion::State`.
+A transient drive view is published even on failure, preserving direct C drive
+writes. A failure skips yaw correction, the return transform and vertical delta.
+The large-velocity precision choice is taken once from incoming world velocity,
+then reused even if drive crosses that threshold. Alternate steering and a
+positive yaw-lock timer independently gate yaw correction.
+
+**4,800 additional C powertrain records / 96,000 output words match** across all
+15 tanks, weather selections, alternate controls, launch/boost/gears and four-tick
+sequences. They include 457 changed precision classifications, 480 yaw-corrected
+and 2,100 yaw-blocked successful records, 360 weather and 60 gear-limit errors,
+plus invalid timestep exits. The oracle composes the actual C velocity, drive
+and yaw functions. The existing 9,600 drive records also pass. Both tests use
+separate fixture directories so parallel execution cannot overwrite input files.
+
+`Pipeline::step_vehicle` binds contact sampling/suspension to the same motion,
+powertrain and instance pose configuration. It derives current track transforms,
+base position and shared angular/vertical/contact fields from the vehicle.
+The surface disturbance's +30A alias is explicitly the **turret's local Z offset**;
+its impulse fields are the same recoil/pitch spring rates used by articulation.
+The player-only forced-surface gate and suspension timestep/player flag follow
+the original adapter rather than accepting inconsistent duplicated inputs.
+
+The C vehicle-contact adapter computes local values and commits them only on
+success. Rust mirrors that boundary with a fixed-size pending value and local
+RNG, publishing successful contact data, load, pivot, lift and impulses together.
+Deformable activation remains a direct world write. Effect-slot clearing now
+runs synchronously at the original sampling point, before auxiliary queries;
+its failure stops the stage, leaving the local vehicle/RNG unpublished. A later
+query failure retains an already successful world clear. The source's write
+failure is represented by `Error::EffectSlotWrite(slot)` (reference status -1).
+
+**6,144 additional real C vehicle-contact records / 727,040 output words match**,
+using all eight actual terrain worlds and authored/synthetic suspension settings.
+They include 118 terrain arithmetic failures and 200 injected world-slot write
+failures, cache reuse/refresh, deformation, material/fallback branches and effect
+expiration. This oracle actually calls `physics_vehicle_contact`, packing input
+fields and reading persistent output fields; it does not substitute a second
+copy of the wrapper formula. The original 6,144 direct sampling/pipeline records
+also pass. Unit cases explain both contact rollback and drive partial commits.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_drive.c build/native/libtankracer_core.a -o build/native/drive_reference.exe
+$env:TANKRACER_DRIVE_REFERENCE=(Resolve-Path build/native/drive_reference.exe).Path
+cargo test -p tankracer-game --test drive_reference -- --ignored --nocapture
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_pipeline.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/pipeline_reference.exe
+$env:TANKRACER_PIPELINE_REFERENCE=(Resolve-Path build/native/pipeline_reference.exe).Path
+cargo test -p tankracer-game --test pipeline_reference -- --ignored --nocapture
+```
+
+Workspace tests and native/Wasm Clippy pass; 244 qualified C production files
+remain unchanged. The new operations allocate no per-call heap memory and add
+no per-map precomputed data. Contact uses a fixed-size pending stage copy;
+whole-frame cost will be measured after the complete update runs. Browser and
+renderer code are unchanged. Pre-contact timers/abilities, actual collision-effect
+bindings, after-pose effects, the unified update caller and Rust world construction
+remain necessary before the moving Rust vehicle can be claimed complete.

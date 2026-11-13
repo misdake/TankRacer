@@ -8,6 +8,7 @@ use tankracer_assets::{
     config::{ResolveContext, Surfaces, Tank},
 };
 use tankracer_game::drive::{Environment, Error, Input, State, Tuning};
+use tankracer_game::{math::Matrix, motion, powertrain, velocity};
 
 struct Random(u32);
 impl Random {
@@ -111,8 +112,20 @@ fn request(
 #[test]
 #[ignore = "requires the native drive oracle; set TANKRACER_DRIVE_REFERENCE"]
 fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
+    compare(false);
+}
+#[test]
+#[ignore = "requires extended native drive oracle; set TANKRACER_DRIVE_REFERENCE"]
+fn world_body_drive_yaw_and_suspension_velocity_match_c() {
+    compare(true);
+}
+fn compare(powered: bool) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let folder = root.join("build/tests/drive");
+    let folder = root.join(if powered {
+        "build/tests/powertrain"
+    } else {
+        "build/tests/drive"
+    });
     fs::create_dir_all(&folder).unwrap();
     let bytes = fs::read(root.join("assets/game/DATA/FASTFILE.DAT")).unwrap();
     let archive = Archive::parse(&bytes).unwrap();
@@ -147,6 +160,9 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
     let mut launch_cases = 0;
     let mut weather_cases = [0; 7];
     let mut hill_cases = 0;
+    let mut cached_precision = 0;
+    let mut yaw_applied = 0;
+    let mut yaw_blocked = 0;
     for index in 1..=15 {
         let name = format!("TANK{index}.DAT");
         let source = archive.get(&name).unwrap();
@@ -156,7 +172,7 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
         let mut binary = Vec::new();
         let mut expected = Vec::new();
         let mut labels = Vec::new();
-        for case in 0..160 {
+        for case in 0..if powered { 80 } else { 160 } {
             let mut s = State {
                 velocity: std::array::from_fn(|_| r.choose(&boundary)),
                 angular: std::array::from_fn(|_| r.choose(&boundary)),
@@ -235,6 +251,34 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
                 ambient_battle: None,
             };
             let resolved = tank.resolve(context).unwrap();
+            let mut motion_state = motion::State {
+                velocity: std::array::from_fn(|_| r.choose(&boundary)),
+                angular: s.angular,
+                acceleration: s.acceleration,
+                rates: motion::Rates {
+                    track_slip: s.slip,
+                    lateral_velocity: s.lateral_velocity,
+                    ..motion::Rates::default()
+                },
+                ..motion::State::default()
+            };
+            motion_state.poses.reference =
+                Matrix::from_angles(std::array::from_fn(|_| r.word() & 65535));
+            let mut power = powertrain::State {
+                local_velocity: s.velocity,
+                track_speed: s.track_speed,
+                boost_target: s.boost_target,
+                engine_display: s.engine_display,
+                was_active: s.was_active,
+                gear: s.gear,
+                load: s.load,
+            };
+            let vertical_delta = r.choose(&boundary);
+            let yaw_lock = [-1, 0, 1, i32::MAX][case % 4];
+            let mut yaw = velocity::YawConfig::from(&resolved.tank.drive);
+            if case % 7 == 0 {
+                yaw.axis = std::array::from_fn(|_| r.choose(&boundary));
+            }
             for tick in 0..4 {
                 if tick == 2 {
                     env.active = !env.active;
@@ -245,7 +289,49 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
                         .into_iter()
                         .flat_map(u32::to_le_bytes),
                 );
-                let result = s.step(&resolved.tank.drive, &surfaces, &tuning, &input, &env);
+                if powered {
+                    binary.extend(
+                        motion_state
+                            .velocity
+                            .into_iter()
+                            .chain(motion_state.poses.reference.0)
+                            .chain([vertical_delta, yaw_lock])
+                            .chain(yaw.axis)
+                            .flat_map(|v| (v as u32).to_le_bytes()),
+                    );
+                }
+                let incoming_precision = velocity::large(motion_state.velocity);
+                let result = if powered {
+                    let result = power.step(
+                        &mut motion_state,
+                        &powertrain::Config {
+                            drive: &resolved.tank.drive,
+                            surfaces: &surfaces,
+                            tuning: &tuning,
+                            yaw,
+                        },
+                        &powertrain::Frame {
+                            input: &input,
+                            drive: &env,
+                            vertical_delta,
+                            yaw_lock,
+                        },
+                    );
+                    s = power.drive_state(&motion_state);
+                    match result {
+                        Ok(()) => Ok(()),
+                        Err(powertrain::Error::Drive(e)) => Err(e),
+                        Err(powertrain::Error::InvalidTimeStep) => {
+                            expected.push((-2_i32) as u32);
+                            expected.extend(state(&s));
+                            expected.extend(motion_state.velocity.map(|v| v as u32));
+                            labels.push((case, tick));
+                            continue;
+                        }
+                    }
+                } else {
+                    s.step(&resolved.tank.drive, &surfaces, &tuning, &input, &env)
+                };
                 let code = match result {
                     Ok(()) => 0,
                     Err(Error::InvalidWeather) => {
@@ -259,6 +345,16 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
                     Err(e) => panic!("unexpected {e:?}"),
                 };
                 if code == 0 {
+                    if powered {
+                        cached_precision += usize::from(
+                            incoming_precision != velocity::large(power.local_velocity),
+                        );
+                        if input.alternate || yaw_lock >= 1 {
+                            yaw_blocked += 1;
+                        } else {
+                            yaw_applied += 1;
+                        }
+                    }
                     gears[s.gear as usize] += 1;
                     if env.player && !input.alternate {
                         let flags = input.action_flags;
@@ -281,25 +377,31 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
                 }
                 expected.push(code as u32);
                 expected.extend(state(&s));
+                if powered {
+                    expected.extend(motion_state.velocity.map(|v| v as u32));
+                }
                 labels.push((case, tick));
             }
         }
         let file = folder.join(format!("{index}.input.bin"));
         fs::write(&file, binary).unwrap();
-        let output = Command::new(
+        let mut command = Command::new(
             std::env::var_os("TANKRACER_DRIVE_REFERENCE").expect("set TANKRACER_DRIVE_REFERENCE"),
-        )
-        .arg(tank_file)
-        .arg(&surface_file)
-        .stdin(Stdio::from(fs::File::open(file).unwrap()))
-        .output()
-        .unwrap();
+        );
+        command.arg(tank_file).arg(&surface_file);
+        if powered {
+            command.arg("--powertrain");
+        }
+        let output = command
+            .stdin(Stdio::from(fs::File::open(file).unwrap()))
+            .output()
+            .unwrap();
         assert!(
             output.status.success(),
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"DR01");
+        assert_eq!(&output.stdout[..4], if powered { b"PW01" } else { b"DR01" });
         let actual: Vec<_> = output.stdout[4..]
             .chunks_exact(4)
             .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
@@ -311,19 +413,29 @@ fn authored_tanks_weather_controls_gears_and_short_sequences_match_c() {
         );
         let actual = &actual[18..];
         assert_eq!(actual.len(), expected.len());
+        let words = if powered { 20 } else { 17 };
         for (i, (case, tick)) in labels.iter().enumerate() {
             assert_eq!(
-                actual[i * 17..(i + 1) * 17],
-                expected[i * 17..(i + 1) * 17],
+                actual[i * words..(i + 1) * words],
+                expected[i * words..(i + 1) * words],
                 "tank={index} case={case} tick={tick}"
             );
         }
         total += labels.len();
-        eprintln!("tank {index}: {} exact drive records", labels.len());
+        eprintln!(
+            "tank {index}: {} exact records (powertrain={powered})",
+            labels.len()
+        );
     }
     assert!(
         invalid_weather > 0 && gear_limits > 0 && launch_cases > 0 && gears.iter().all(|&n| n > 0)
     );
+    if powered {
+        assert!(cached_precision > 0 && yaw_applied > 0 && yaw_blocked > 0);
+        eprintln!(
+            "precision retained across {cached_precision} threshold changes; yaw applied={yaw_applied}, blocked={yaw_blocked}"
+        );
+    }
     assert!(
         weather_cases.iter().all(|&n| n > 0) && hill_cases > 0,
         "weather={weather_cases:?}, hill={hill_cases}"
