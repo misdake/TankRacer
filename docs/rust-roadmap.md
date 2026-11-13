@@ -9,7 +9,10 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`f7ce7a2`**. Connected physics now uses the same live
+- Last verified code: **`909722e`**. Authored level input is decoded from all
+  50 shipped object files / 4,392 records; names, poses and parameters match the
+  actual C common reader. Class-specific construction remains pending.
+- Physics checkpoint **`f7ce7a2`** uses the same live
   deformable mesh for contact and real class hit methods; 1,254 records /
   8,716,157 output words match C across 15 cars/eight maps, including 37 mesh
   changes and 33 later sampling borrows. Workspace tests, native/Wasm Clippy,
@@ -17,8 +20,10 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - The phase starts after the timer/ability prefix; ordinary obstacle hit chains,
   full world construction and complete after-pose effects remain outside this
   connected qualification. It is not a full autonomous Rust replay.
-- **Next runnable increment:** finish real scene/class bindings and Rust world
-  construction; connect pre-contact timers/abilities, after-pose effects and
+- **Next runnable increment:** decode class parameters and instantiate real
+  scene objects from those authored records (not test snapshots); finish method
+  bindings and Rust world construction. Connect pre-contact timers/abilities,
+  after-pose effects and
   object ticks/scheduler, then run an independent moving proxy. M3 stays open
   until that proxy runs without C or an original-memory arena.
 - Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
