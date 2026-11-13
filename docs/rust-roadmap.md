@@ -9,14 +9,14 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`98e9dd0`**. Terrain/contact/suspension, powertrain,
-  poses/model assembly, collision/damage and shared effects are implemented;
-  1,254 connected physics records match C across 15 cars/eight maps. That
-  committed phase test uses empty object lists and starts after the timer/ability
-  prefix; it does not qualify a complete game replay.
-- **Pending worktree:** contact-scoped borrowing of the current deformable mesh,
-  actual scene hit dispatch and extended connected tests. Finish ownership/branch
-  checks and record evidence before promoting this work to a verified checkpoint.
+- Last verified code: **`f7ce7a2`**. Connected physics now uses the same live
+  deformable mesh for contact and real class hit methods; 1,254 records /
+  8,716,157 output words match C across 15 cars/eight maps, including 37 mesh
+  changes and 33 later sampling borrows. Workspace tests, native/Wasm Clippy,
+  deformation/contact regressions and unchanged-C verification pass.
+- The phase starts after the timer/ability prefix; ordinary obstacle hit chains,
+  full world construction and complete after-pose effects remain outside this
+  connected qualification. It is not a full autonomous Rust replay.
 - **Next runnable increment:** finish real scene/class bindings and Rust world
   construction; connect pre-contact timers/abilities, after-pose effects and
   object ticks/scheduler, then run an independent moving proxy. M3 stays open
