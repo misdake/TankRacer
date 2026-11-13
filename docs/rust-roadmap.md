@@ -2,17 +2,19 @@
 
 ## Current checkpoint
 
-- Active: **M1 — build and renderer foundation**.
+- Active: **M2 — static world**, starting with ENGLAND resource inspection.
 - C reference committed; source-byte preservation fixed (`052ba81`).
-- Rust/Wasm target installed, workspace and dependencies prepared.
-- Next: finish world-space indexed WebGL renderer; build Wasm; pass GPU
-  blend/depth/state-transition tests; document runnable commands; commit M1.
+- M1 verified: 3 native tests (all 15 archives and budget bounds), native/Wasm
+  Clippy without warnings, 114 browser GPU pixel cases and 3 canvas layouts.
+  Production Wasm is 85,660 bytes and omits GPU probes; C hashes remain exact.
+- Next: decode original BSM geometry/material references in Rust, compare with
+  C resource interpretation, then display actual ENGLAND terrain with a free camera.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
 
 ## Milestones
 
-- [ ] **M1 Foundation:** Rust build, Wasm/browser shell, explicit render state,
+- [x] **M1 Foundation:** Rust build, Wasm/browser shell, explicit render state,
   indexed geometry, resource loading foundation, GPU correctness tests.
 - [ ] **M2 Static world:** ENGLAND meshes/materials, resource provenance, free
   camera, atlas/texture classification and static batches.

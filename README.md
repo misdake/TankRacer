@@ -1,5 +1,26 @@
 # Tank Racer CUP
 
+A Rust rewrite is in progress, starting with a small world-space WebGL 2
+renderer. The runnable C game below remains the reference during migration.
+The short plan and current checkpoint are in [the roadmap](docs/rust-roadmap.md).
+
+```sh
+rustup target add wasm32-unknown-unknown
+node tools/build_rust.mjs
+node tools/serve.mjs 8133 build/rust/site
+```
+
+Open http://127.0.0.1:8133. This first Rust milestone displays a 3D renderer
+test scene; game content and physics are subsequent milestones. Rust 1.95,
+Node.js 22+ and `wasm-pack` are required. `Cargo.lock` fixes crate versions.
+Run `npm run test:rust` for native resource tests, lint checks and actual browser
+GPU pixel tests (set `CHROME` if Chromium is not in a standard location).
+GPU probes compile only with `gpu-tests`; test builds have a separate output.
+
+See [the renderer notes](docs/rust-renderer.md) for the current architecture.
+
+## C reference
+
 Single-player Tank Racer, recompiled from readable C reconstructed from the original game. The C core owns physics, opponents, world updates, CUP menus and drawing commands. The browser supplies WebGL rendering, Web Audio and keyboard input.
 
 The repository is self-contained: all eight CUP tracks, vehicle resources, menus and 117 sound samples are included. No original executable, memory dump, Unicorn, Ghidra or Python server is required to play.
