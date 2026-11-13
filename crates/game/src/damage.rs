@@ -20,6 +20,40 @@ pub struct State {
     pub tracks: [u8; 2],
 }
 
+/// One vehicle's writable damage binding. Player geometry is instance-owned;
+/// non-player track wear does not require a writable copy of the body mesh.
+pub struct Target<'a> {
+    pub state: &'a mut State,
+    pub player: bool,
+    pub body_pose: Pose,
+    pub body_vertices: [u8; 4],
+    pub body_mesh: Option<&'a mut Geometry>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetError {
+    MissingBody,
+    Mesh(Error),
+}
+impl Target<'_> {
+    pub fn track(&mut self, kind: i32, world: [i32; 3]) -> Result<(), TargetError> {
+        if self.state.hit_track(kind) && self.player {
+            let q = quadrant(self.body_pose, world);
+            if self.state.body[q] != 0 {
+                return Ok(());
+            }
+            let Some(mesh) = self.body_mesh.as_deref_mut() else {
+                // Wear and the one-shot flag precede the original mesh read.
+                self.state.body[q] = 1;
+                return Err(TargetError::MissingBody);
+            };
+            self.state
+                .hit(Part::Body, self.body_pose, world, self.body_vertices, mesh)
+                .map_err(TargetError::Mesh)?;
+        }
+        Ok(())
+    }
+}
+
 pub fn quadrant(pose: Pose, world: [i32; 3]) -> usize {
     let local = pose.matrix.world_to_local(std::array::from_fn(|i| {
         world[i].wrapping_sub(pose.position[i])
@@ -108,6 +142,26 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_player_body_commits_wear_and_flag_but_nonplayer_needs_no_mesh() {
+        let mut state = State::default();
+        let mut target = Target {
+            state: &mut state,
+            player: true,
+            body_pose: Pose::default(),
+            body_vertices: [0; 4],
+            body_mesh: None,
+        };
+        assert_eq!(target.track(2, [0; 3]), Err(TargetError::MissingBody));
+        assert_eq!(target.state.body, [0, 0, 1, 0]);
+        assert_eq!(target.state.tracks, [1, 0]);
+        assert!(target.track(2, [0; 3]).is_ok()); // Already dented: no mesh read.
+        target.player = false;
+        assert!(target.track(3, [1; 3]).is_ok());
+        assert_eq!(target.state.tracks, [2, 1]);
+        assert_eq!(target.state.body, [0, 0, 1, 0]);
+    }
 
     #[test]
     fn quadrant_boundaries_duplicate_vertices_and_one_shot_flags_are_distinct() {

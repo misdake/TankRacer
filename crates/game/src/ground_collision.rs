@@ -1,8 +1,9 @@
 //! Ordered four-contact ground response (432190). Effects execute synchronously.
 use crate::{
-    collision,
+    collision, damage,
     fixed::trunc_shift,
     geometry::approximate_distance,
+    impact_particles,
     math::{self, Matrix},
 };
 
@@ -36,6 +37,45 @@ pub enum Error {
 pub trait Effects {
     fn impact(&mut self, contact: usize, kind: i32) -> Result<(), i32>;
     fn track_damage(&mut self, kind: i32, world: [i32; 3]) -> Result<(), i32>;
+}
+
+/// Real synchronous game operations for the four-contact response. Contact
+/// record index and its authored corner are distinct: emission reads the latter.
+pub struct GameEffects<'a> {
+    particles: &'a mut impact_particles::State,
+    vehicle: &'a mut impact_particles::Vehicle,
+    context: impact_particles::Context<'a>,
+    damage: damage::Target<'a>,
+    corners: [u32; 4],
+}
+impl<'a> GameEffects<'a> {
+    pub fn new(
+        contacts: &[Contact; 4],
+        particles: &'a mut impact_particles::State,
+        vehicle: &'a mut impact_particles::Vehicle,
+        context: impact_particles::Context<'a>,
+        damage: damage::Target<'a>,
+    ) -> Self {
+        Self {
+            particles,
+            vehicle,
+            context,
+            damage,
+            corners: contacts.map(|c| c.corner as u32),
+        }
+    }
+}
+impl Effects for GameEffects<'_> {
+    fn impact(&mut self, contact: usize, kind: i32) -> Result<(), i32> {
+        let corner = *self.corners.get(contact).ok_or(-4)?;
+        self.particles
+            .emit(self.vehicle, corner, kind, &mut self.context)
+            .map(|_| ())
+            .map_err(impact_particles::Error::status)
+    }
+    fn track_damage(&mut self, kind: i32, world: [i32; 3]) -> Result<(), i32> {
+        self.damage.track(kind, world).map_err(|_| -1)
+    }
 }
 fn effect(result: Result<(), i32>) -> Result<(), Error> {
     result.map_err(|code| Error::Effect(if code < 0 { code } else { -5 }))

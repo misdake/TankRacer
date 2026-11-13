@@ -742,3 +742,75 @@ Next: real impact particles/shared line resources, then full vehicle motion/upda
 composition. Falling/spinning/bouncing ticks, auxiliary/destruction effects, world
 construction and the full entity scheduler remain later scene/game integration.
 The complete moving Rust vehicle is still not running.
+
+## Real impact particles and synchronous ground effects
+
+`impact_particles` ports 42A5C0 emission and 42AAC0 animation: one game-owned
+four-batch ring, ten particles per batch, shared RNG and per-vehicle cooldown.
+The renderer receives retained geometry; emitting/updating/freeing that geometry
+is synchronous simulation work. A full line pool still consumes all 20 RNG
+draws, commits the batch and returns exhausted handles. Recycling an active
+batch frees its old lines before validating the new angle; failure retains the
+old batch metadata. Kinds 3/4 reset cooldown only after angle success.
+
+Tick adds cooldown first, then processes matching batches in ring order. A batch
+created in the current frame returns from the **whole function**, retaining any
+earlier batch updates. Distances wrap through signed 16-bit storage. A missing
+required basis fails after the first particle's distance writes. Retirement is
+strictly `age > 60`, and releases/marks handles in order. Unit tests explain
+these boundaries instead of merely checking successful pictures.
+
+Forward/reverse offsets are verified original PE `.data` inputs at 531868 and
+531878: `(0,0,2000)` / `(0,0,-2000)`. Read-only source SHA256 is
+`e8c4f12dd3caac55c4b1b29536475b58222dc44de82e008cae0e4a9c7fd9b9bb`.
+`Tuning::default` owns those six integers; builds need neither that PE nor a dump.
+The C oracle receives explicit inputs, covering both the original values and
+synthetic alternatives; this does not qualify the old C bootstrap's initialization
+of those addresses.
+
+`effect_pool` owns the 100 line records and shared 160 quad records. Reset changes
+free markers/counts while retaining other fields. It deliberately preserves the
+source's bounded exhaustion quirks: updating handle MAX aliases the last quad's
+tail and eight following bytes, while releasing it can desynchronize line count
+and markers. A subsequent allocation can return handle 100, whose extra record
+is retained outside the renderer's scan. This is a typed, bounded representation,
+not an original-memory arena. Arbitrary invalid handles/corners are rejected;
+general invalid-pointer memory behavior is not emulated. Quad allocation and
+other quad-producing effects are still pending.
+
+`ground_collision::GameEffects` binds the actual particle operation and
+`damage::Target` to ground response. It maps contact-record index to the record's
+stored corner, which can differ. Wear, one-shot body flags, vertex dents, face
+normals, RNG and particle ownership commit before the next contact executes.
+Non-player wear needs no mutable body copy. No notification queue stands in for
+these stateful game operations. Tank/obstacle consumers still need equivalent
+bindings during complete vehicle orchestration.
+
+**4,480 C reference records / 6,850,304 words match**: 1,024 direct pool operations,
+768 emissions, 1,728 particle ticks and 960 composed ground responses. The latter
+form four-ground/four-tick sequences across all 15 real vehicle bodies, including
+permuted corner mappings, player/mode/speed gates and saturated wear. There are
+75 dented-body cases, 90 cases retaining real particle batches and 60 composed
+failure prefixes. Direct cases cover full/near-full pools, wraparound, multiple
+owners, same-frame exits, null basis, partial failures and retirement. The oracle
+calls the actual C impact callback, ground response, track/body damage and line
+pool functions; these particular operations are no longer probe callbacks.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_impact.c build/native/libtankracer_core.a -o build/native/impact_reference.exe
+$env:TANKRACER_IMPACT_REFERENCE=(Resolve-Path build/native/impact_reference.exe).Path
+cargo test -p tankracer-game --test impact_reference -- --ignored --nocapture
+```
+
+Workspace tests and native/Wasm Clippy pass, as does the existing 9,600-record
+damage/ground regression. Source verification confirms all 244 qualified C files
+unchanged. Renderer/browser code is unchanged; prior GPU checks were not rerun.
+Pool and impact ring occupy 13,488 + 1,716 bytes on the native target, shared per
+game rather than per map. These methods allocate no heap memory per call and add
+no per-map acceleration data. Tick reuses equal endpoint trigonometry and lazily
+transforms the offset once per batch, preserving the missing-basis write prefix;
+no whole-frame performance gain is claimed before integration/measurement.
+
+Next: motion integration and complete per-tick vehicle orchestration, then the
+browser proxy. Auxiliary/destruction effects, moving scene objects, world
+construction, the scheduler and full gameplay remain incomplete. M3 stays open.
