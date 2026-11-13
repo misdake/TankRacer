@@ -367,3 +367,46 @@ Next: SS/SM resource decoding and model-derived contacts/bounds, mutable damage
 geometry, motion/collision, then complete vehicle construction/integration and
 browser proxy. Poses are verified in isolation; no full running vehicle is claimed.
 These changes add per-vehicle state and mesh views, no map acceleration data.
+
+Pose/articulation checkpoint: `249e5d2`.
+
+## Model-derived vehicle construction
+
+`vehicle_model::VehicleModel` derives physics metadata from actual SS/SM models
+and the authored tank configuration. It preserves the constructor's offset
+normalization order, model-bound inclusion, left/right track contact corners,
+auxiliary contact placement, track dimensions, aerial height and expanded
+collision/query bounds. `pose_config` consumes these normalized offsets and
+real track length directly. No inferred box replaces the original geometry.
+
+The assembly also identifies the four gun articulation vertices and original
+Z values, body/turret damage quadrants, mutable shadow geometry and track UV
+groups. Strict comparisons, first-wins ties, small fixed group capacities and
+signed narrowing follow C. Controller setup captures alternate/reset values
+before mode-specific or ambient changes, preserving their original order.
+
+The world-scoped model bank shares immutable templates. Its case-insensitive
+name cache intentionally preserves the first namespace binding, matching the
+original cache. Player body/turret and every gun get instance-owned geometry;
+tracks remain shared. Doubling an instance gun radius or modifying a player
+body cannot mutate the cached template. Optional-module eviction and world
+lifecycle are still later work, not implemented by this cache alone.
+
+**60 complete native game initializations** (all fifteen tanks, ENGLAND and
+CIRCUIT, CUP modes 0/1) match the Rust contacts, dimensions, offsets, bounds,
+damage/articulation selections, shadow vertices/colors, controller coefficients
+and track UV references. This oracle runs the existing full C host constructor;
+it does not stub game logic. Modes 4/5 and ambient setup are ported but are not
+claimed as covered by these sixty full-start comparisons. Ordinary tests check
+real-model contact values, all fifteen assemblies, template isolation and
+cross-namespace cache aliases. Native/workspace and Wasm Clippy checks pass.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_model.c build/native/libtankracer_host.a build/native/libtankracer_core.a -o build/native/vehicle_model_reference.exe
+$env:TANKRACER_VEHICLE_MODEL_REFERENCE=(Resolve-Path build/native/vehicle_model_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_model_reference -- --ignored --nocapture
+```
+
+Next: mutable damage, motion/collision and complete per-tick vehicle orchestration,
+then the browser proxy. Model construction is verified; a complete moving Rust
+vehicle is still not running. No new per-map acceleration data is introduced.

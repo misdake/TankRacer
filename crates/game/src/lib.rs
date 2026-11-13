@@ -14,4 +14,5 @@ pub mod sampling;
 pub mod suspension;
 pub mod terrain;
 pub mod vector;
+pub mod vehicle_model;
 pub mod velocity;

@@ -1,4 +1,6 @@
-# M2 resource import: BSM geometry checkpoint
+# Rust resource import
+
+## BSM geometry checkpoint
 
 `tankracer-assets` reads FASTF101 directories and BSM v4 geometry directly from
 the shipped immutable archives. Source offsets remain provenance; the imported
@@ -54,3 +56,34 @@ cargo test -p tankracer-assets --test surface_reference -- --ignored --nocapture
 The decoded BSM/SUR data now feeds the actual ENGLAND static scene, material
 classification and atlas described in `rust-renderer.md`. Placed scenery and
 optional-module lifecycle remain subsequent work.
+
+## SS bundles and SM models
+
+`ShapeArchive` reads the original SS directory as borrowed, checked payload
+spans. Names match ASCII case-insensitively, with optional `.SM` suffix; empty
+entries remain distinguishable from missing resources. `Model` owns typed SM
+geometry, material identities, bounds, radius, render hint and optional vertex
+normals. SM and BSM share one checked geometry decoder; neither needs original
+addresses, relocation or a guest-memory arena.
+
+The original SM octant face-order lists are not retained: the new renderer uses
+world-space geometry and depth testing. Triangle order, material/blend inputs,
+UVs, colors, normals and billboard data are preserved. Model loading does not
+create GPU resources or select a rendering approximation.
+
+Across all fifteen archives, **435 nonempty models, 11,713 vertices and 10,430
+triangles** match the qualified C SS lookup/shape relocation, including source
+spans, bounds, normals and material names. The shared decoder refactor also
+passes all 80,439 existing BSM triangle comparisons and the browser's 133 GPU
+pixel cases; the ENGLAND scene remains five draws. Malformed directory/range
+and geometry checks remain ordinary native tests.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_model.c build/native/libtankracer_core.a -o build/native/model_reference.exe
+$env:TANKRACER_MODEL_REFERENCE=(Resolve-Path build/native/model_reference.exe).Path
+cargo test -p tankracer-assets --test model_reference -- --ignored --nocapture
+```
+
+Vehicle model assembly and instance ownership are documented in
+[rust-physics.md](rust-physics.md). These are original resource data and
+per-vehicle state, not additional per-map acceleration structures.
