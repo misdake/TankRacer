@@ -3,4 +3,6 @@
 pub mod lights;
 pub mod marks;
 pub mod shield;
+pub mod smoke;
+pub mod spray;
 pub mod temporary;

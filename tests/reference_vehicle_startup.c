@@ -61,6 +61,18 @@ int physics_pose_update(physics_world_read read,physics_world_write write,void *
     narrow(object+0xc54,1);narrow(object+0xc55,1);emit(object+0xc56,12);emit(object+0xc86,3);
     for(i=0;i<68;i++)emit(object+0xaac+i*6u,1);
     emit(object+0xc44,1);emit(object+0xc4c,1);emit(object+0xc50,1);
+    for(i=0;i<8;i++){
+        uint32_t p=object+0x990+i*34u;emit(p,6);narrow(p+24,2);narrow(p+26,2);
+        narrow(p+28,2);narrow(p+30,2);narrow(p+32,1);narrow(p+33,1);
+    }
+    emit(object+0xaa0,3);
+    for(i=0;i<15;i++){
+        uint32_t p=object+0x798+i*32u;emit(p,6);narrow(p+24,2);narrow(p+26,2);
+        narrow(p+28,2);narrow(p+30,1);narrow(p+31,1);
+    }
+    emit(object+0x978,4);
+    narrow(object+0xdf1,1);narrow(object+0xdf2,1);narrow(object+0xdf3,1);narrow(object+0xdf4,1);
+    emit(object+0x988,2);
     if(variant){
         unsigned char bytes[4];uint32_t at[3]={0x545ffc,0x58e7ac,0x59054c};
         for(i=0;i<3;i++){oracle_set(bytes,saved_environment[i],4);if(!write(ctx,at[i],bytes,4))return -1;}
@@ -70,7 +82,7 @@ int physics_pose_update(physics_world_read read,physics_world_write write,void *
 int main(int argc,char **argv)
 {
     int status;if(argc!=7)return 2;variant=(uint32_t)strtoul(argv[6],0,10);if(variant>3)return 2;
-    oracle_binary();fwrite("VS02",1,4,stdout);
+    oracle_binary();fwrite("VS03",1,4,stdout);
     status=reference_game_start_cup(argv[1],(uint32_t)strtoul(argv[2],0,10),(uint32_t)strtoul(argv[3],0,10),
         (uint32_t)strtoul(argv[4],0,10),(uint32_t)strtoul(argv[5],0,10),0);
     if(status)return status;

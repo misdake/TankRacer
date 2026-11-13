@@ -119,6 +119,47 @@ fn encode(player: &Player) -> Vec<u32> {
     append(&mut out, player.marks.movement);
     out.extend(player.marks.handles.map(|h| h.0));
     out.extend([player.marks.count, player.marks.head, player.marks.tail]);
+    for p in player.spray.particles {
+        append(&mut out, p.position);
+        append(&mut out, p.velocity);
+        append(
+            &mut out,
+            [
+                i32::from(p.life),
+                i32::from(p.size as i16),
+                i32::from(p.floor),
+                i32::from(p.rotation as i16),
+            ],
+        );
+        out.extend([u32::from(p.kind as u8), u32::from(p.side)]);
+    }
+    out.extend([
+        player.spray.timer as u32,
+        player.spray.side,
+        player.spray.count,
+    ]);
+    for p in player.smoke.particles {
+        append(&mut out, p.position);
+        append(&mut out, p.velocity);
+        append(
+            &mut out,
+            [
+                i32::from(p.life),
+                i32::from(p.size as i16),
+                i32::from(p.rotation as i16),
+            ],
+        );
+        out.extend([u32::from(p.direction), u32::from(p.expanding)]);
+    }
+    out.extend([
+        player.smoke.timer as u32,
+        player.smoke.side,
+        player.smoke.force as u32,
+        player.smoke.count,
+    ]);
+    out.extend(player.smoke.damage.map(u32::from));
+    out.extend(player.smoke.sockets.map(u32::from));
+    append(&mut out, player.smoke.damage_timers);
     out
 }
 fn shapes(bytes: &[u8]) -> ShapeArchive<'_> {
@@ -215,7 +256,7 @@ fn authored_spawns_and_fifteen_resource_profiles_construct_without_snapshots() {
             "map={map} cup={cup} vehicle={vehicle} mode={mode}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert_eq!(&output.stdout[..4], b"VS02");
+        assert_eq!(&output.stdout[..4], b"VS03");
         let mut r = Reader {
             words: output.stdout[4..]
                 .chunks_exact(4)

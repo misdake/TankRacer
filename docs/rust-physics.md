@@ -2081,3 +2081,40 @@ writes is a candidate source-proven simplification, to qualify by C comparison.
 $env:TANKRACER_VEHICLE_ENERGY_REFERENCE=(Resolve-Path build/native/vehicle_energy_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_energy_reference --locked -- --ignored --nocapture
 ```
+
+## Track spray and damage smoke (2026-11-14)
+
+`vehicle_scene::{spray,smoke}` implement 439EF0/439550. Persistent particle
+payload and timers belong to `vehicle_startup::Player`; live input is read from
+the canonical `AfterPose`. Spray preserves last-free-slot selection, pre-expiry
+counts, delayed reuse, type-five visibility, all six surface styles, retained
+rotation and narrow/wrapping arithmetic. The stale-position radius offset was
+removed: all three coordinates are overwritten with the contact point before
+any callback/query. The native comparison qualifies that simplification.
+
+Smoke preserves first-free damage reservations, independent turret/body timers,
+authored sockets, narrow-before-cap lifetime, retained direction, suppression
+and force damping. Severe slip synchronously invokes the existing real impact
+generator with the shared pool/seed/cooldown; there is no deferred approximation.
+
+**VP03: 240 scenarios / 1,920 operations / 3,353,520 words / 2 error prefixes**
+match C, including immutable styles/socket metadata and per-operation RNG write
+counts. Every spray style actually emits (190 emissions); 16 impact-ring changes,
+959 smoke changes and 866 RNG draws occur. Cases cover swamp/hardware variants,
+full/just-expired particles, threshold sides, seed/coordinate wrapping, shared
+line aliases, exhaustion and invalid handles. Like the connected-physics fixture,
+the oracle installs source-confirmed impact offsets `[0,0,2000,0,0,-2000]` because
+the preserved C bootstrap does not install them; production C remains unchanged.
+
+**VS03: 122 fresh constructions / 83,570 words** now includes all owned spray and
+smoke state. Fresh startup, energy, quads, prefix and connected-physics regressions
+pass, as do workspace tests, native/Wasm lint, browser build and C preservation.
+Browser Wasm stays 183,235 B; no renderer or extra map precomputation changed.
+Shared debris/pickup fade, the after-pose coordinator and browser movement remain
+pending. These checks qualify components, not a complete moving game.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_particles.c build/native/libtankracer_core.a -lm -o build/native/vehicle_particles_reference.exe
+$env:TANKRACER_VEHICLE_PARTICLES_REFERENCE=(Resolve-Path build/native/vehicle_particles_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_particles_reference --locked -- --ignored --nocapture
+```
