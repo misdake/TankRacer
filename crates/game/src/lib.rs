@@ -18,6 +18,7 @@ pub mod ground_collision;
 pub mod impact_particles;
 pub mod lifecycle;
 pub mod math;
+pub mod motion;
 pub mod object_query;
 pub mod obstacle_collision;
 pub mod pose;

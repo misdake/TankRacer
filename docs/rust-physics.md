@@ -814,3 +814,54 @@ no whole-frame performance gain is claimed before integration/measurement.
 Next: motion integration and complete per-tick vehicle orchestration, then the
 browser proxy. Auxiliary/destruction effects, moving scene objects, world
 construction, the scheduler and full gameplay remain incomplete. M3 stays open.
+
+## Post-collision motion composition
+
+`motion::State::finish` connects the second half of 430A30 in source order:
+save previous physical position -> wrapping Q14 integration -> attitude -> gun
+articulation -> gated player lean -> all part poses -> required scene callback
+-> contact hull -> ready flag -> four wrapping `40/dt` rescalings.
+Recoil and pitch come from the updated articulation state, not stale frame inputs.
+
+Commit boundaries matter: attitude runs on a local value and publishes matrix,
+body position and angular rates only on success. Failed angle/normalization
+still leaves position integration committed, but cannot leak the local attitude
+prefix. Pose errors retain their existing partial writes. A failed scene callback
+retains poses, skips hull/readiness/rescaling and normalizes positive status to
+-8. A successful callback may modify contacts/physical position/rates; the hull
+and rescaling read those modifications synchronously. An executable unit case
+demonstrates failed normalization after a partial local matrix update.
+
+**1,078 real C update-boundary records / 215,644 semantic output words match**,
+including gun vertices and callback count. The oracle starts all 15 cars on
+ENGLAND and car 1 on the other seven maps (22 combinations), calls the actual
+complete `physics_vehicle_step`, and captures its state immediately after the
+last ground-collision delta write. It compares the actual subsequent C writes
+with Rust motion composition. It does not copy the expected integration/tail
+formula into a second test implementation.
+
+Sixteen branches use up to four updates each: position/velocity wrapping,
+angle failure, second-track pose failure, absent gun, player/mode lean gates,
+both wobbles, null/custom external basis, frame wrap, rate overflow, partial
+normalization failure and callback mutation/failure. Five failing branches
+produce 110 error prefixes. Test-only injections occur before any integration
+read, avoiding a stale pre-evaluated write argument at the capture boundary.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_motion.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/motion_reference.exe
+$env:TANKRACER_MOTION_REFERENCE=(Resolve-Path build/native/motion_reference.exe).Path
+cargo test -p tankracer-game --test motion_reference -- --ignored --nocapture
+```
+
+This qualifies the post-collision composition, **not the complete Rust vehicle
+update**. Earlier contact/drive/collision stages still run in C to supply this
+oracle's boundary inputs. Scene callbacks are explicit ordering/error probes;
+the real active after-pose effects are not yet migrated. C collision methods and
+impact generation used before capture are real C bodies, not Rust qualification
+of the missing world orchestration. Test RAM remains inside the C oracle only.
+
+Workspace tests and native/Wasm Clippy pass; the qualified C production sources
+remain unchanged. Motion has no per-call heap allocation or new per-map cache.
+Rendering is unchanged. Next: connect pre-contact timers/abilities, contact,
+velocity/drive/yaw and ordered collision stages to this finalizer, then construct
+the Rust world and run the browser proxy. M3 remains open.

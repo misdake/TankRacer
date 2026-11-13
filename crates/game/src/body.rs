@@ -134,7 +134,7 @@ impl Lean {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Contact {
     pub world: [i32; 3],
     pub gap: i32,
