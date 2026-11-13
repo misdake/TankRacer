@@ -14,9 +14,12 @@
 - Response (`d6b93bd`): damage/normal repair, wall/pair impulses and four-point
   ground response. 9,600 damage/ground + 20,720 collision records match C.
   Workspace tests and native/Wasm Clippy pass; no new map acceleration.
-- Latest **`1cec4a3`**: segment/box, obstacle/deformable/tank queries and contact
+- Queries (`1cec4a3`): segment/box, obstacle/deformable/tank queries and contact
   overlap. 12,288 synthetic + 15,480 real-world queries match C across all eight
   maps / 664 colliders; typed candidate arrays replace address lists.
+- Latest **`bcdc436`**: tank overlap response and query/response dispatch compose
+  separation, pair impulses, damage, peer snapshots and timers. 8,192 short C
+  sequence records match, including effect/limit prefixes. Native/Wasm checks pass.
 - Impact particles remain unported: only synchronous callback order/errors are
   verified here. No full collision world or moving vehicle is claimed.
 - Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
@@ -24,7 +27,7 @@
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: tank overlap response/dispatch → obstacle/deformable game operations → motion
+- Next: obstacle/deformable response and game dispatch → real impact particles/RNG → motion
   and complete per-tick vehicle orchestration → browser proxy.
   No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
