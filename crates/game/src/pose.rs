@@ -11,6 +11,24 @@ pub struct Pose {
     pub position: [i32; 3],
     pub matrix: Matrix,
 }
+impl Pose {
+    /// World-file initialization (443990) uses sequential Y/X/Z rotations.
+    /// The combined angle formula has different fixed-point rounding.
+    pub fn from_level(object: &tankracer_assets::level::Object<'_>) -> Self {
+        let mut matrix = Matrix::IDENTITY;
+        for (axis, angle) in [Axis::Y, Axis::X, Axis::Z].into_iter().zip([
+            object.angles[1],
+            object.angles[0],
+            object.angles[2],
+        ]) {
+            matrix.rotate(axis, angle);
+        }
+        Self {
+            position: object.position,
+            matrix,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExternalBasis {

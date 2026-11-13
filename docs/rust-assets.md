@@ -87,3 +87,46 @@ cargo test -p tankracer-assets --test model_reference -- --ignored --nocapture
 Vehicle model assembly and instance ownership are documented in
 [rust-physics.md](rust-physics.md). These are original resource data and
 per-vehicle state, not additional per-map acceleration structures.
+
+
+## Authored level object records (FSTPC 5)
+
+`level::Level::decode` reads the common record format from actual archived map
+files: class/name, position, authored angles, shape name and nested parameter
+text. Names and parameter groups borrow their archive bytes, avoiding per-field
+string copies or a guest-memory representation. The object vector is decoded
+resource metadata, not a new spatial acceleration table. The Paths payload is
+retained uninterpreted; class construction and reference resolution are separate
+pending operations.
+
+Body-token delimiters/capacities follow `frame_world_text`: space/CR/LF only,
+with full token consumption before bounded string truncation. Parenthesized
+groups retain nesting and source whitespace, with the original 1,023-byte bound.
+Coordinates use the source decimal numeric prefix and binary64 -> signed64 low32
+conversion after multiplying by 1,024; angles use wrapping integer * 182.
+`Pose::from_level` in the game crate then initializes identity and rotates Y/X/Z
+sequentially using the exact Q12 rules. It deliberately does not use the combined
+angle formula, which has different intermediate rounding.
+
+**All 50 shipped FSTPC 5 files / 4,392 records across all eight CUP map archives
+match the actual C common record reader**: class/name/shape, positions, all nine
+matrix words and nested parameter bytes. The test invokes
+`frame_world_object_read` rather than copying a conversion/matrix formula into
+the oracle. Class-specific parent/final slots are explicitly empty and shape
+loading is bypassed after comparing the name; this test does **not** qualify
+class constructors, model resolution, entity allocation, named forward references
+or the final initialized world. Those remain the next integration work.
+
+Ordinary workspace tests also decode all 50 files and verify that string/group
+slices remain inside their source. Focused cases cover negative/overflowing
+integers, decimal prefixes, D exponents, truncated shape names, nested groups,
+missing Paths, invalid version and oversized groups. Legacy formats, arbitrary
+file-header comments/quoting and malformed-memory prefix parity are not claimed.
+Native/all-target and Wasm game Clippy pass; all 244 production C files remain
+unchanged. The renderer/browser is unchanged.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_level.c build/native/libtankracer_core.a -lm -o build/native/level_reference.exe
+$env:TANKRACER_LEVEL_REFERENCE=(Resolve-Path build/native/level_reference.exe).Path
+cargo test -p tankracer-game --test level_reference -- --ignored --nocapture
+```
