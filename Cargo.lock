@@ -127,6 +127,13 @@ name = "tankracer-assets"
 version = "0.1.0"
 
 [[package]]
+name = "tankracer-game"
+version = "0.1.0"
+dependencies = [
+ "tankracer-assets",
+]
+
+[[package]]
 name = "tankracer-render"
 version = "0.1.0"
 dependencies = [

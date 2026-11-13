@@ -2,25 +2,21 @@
 
 ## Current checkpoint
 
-- Active: **M3 — physics**, beginning with terrain-query data/arithmetic.
-- C reference committed; source-byte preservation fixed (`052ba81`).
-- M1 implementation commit: `38841c4`.
-- M2 geometry (`50b4d38`): direct BSM decoder matches the complete C loader on all eight
-  maps, 80,439 triangles (vertices/origins/normals/colors/indices/UV/flags/materials).
-  Native inspector: `cargo run -p tankracer-assets --bin inspect-world --
-  assets/game/LEVELS/ENGLAND/FASTFILE.DAT`. Details: `rust-assets.md`.
-- M2 SUR (`e86657a`): 1,007 images/mips, 5,931,008 pixels exactly match C; one invalid BIO
-  resource explicitly rejected. Build/run the optional oracle per `rust-assets.md`.
-- M2 scene verified: actual ENGLAND static BSM content, 56 materials/one atlas,
-  5 draws/8,762 visible triangles, 542 GPU billboard triangles; free camera.
-  11 native checks, 2 optional C oracles and 133 GPU pixel cases pass. Inspector
-  uploads 20,508 index bytes on camera change, zero when stationary.
-- Per-map retained acceleration/metadata currently **376,808 bytes in Wasm**;
-  physics must share the remaining budget. GPU asset storage is separately
-  listed in `rust-renderer.md`. Actors/sky/layers are subsequent milestones.
-- Next: inspect `src/physics_terrain.c`; decode its existing 8x8/node/triangle
-  graph into typed Rust, preserving candidate order and wrapping arithmetic;
-  add C query oracles/boundary tests before any query acceleration.
+- Active: **M3 — physics**. Primary terrain checkpoint verified; vehicle is not running.
+- Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world, atlas and
+  free camera (`e98e429`). Actual scene: 5 draws, 8,762 visible triangles.
+- Verified M2: all eight maps' geometry and valid SUR pixels match C; 133 GPU
+  pixel cases pass. Detailed evidence: [assets](rust-assets.md),
+  [renderer](rust-renderer.md).
+- M3 terrain: typed primary graph, 97–195 KB/map native; 166,740 real-map points
+  match C's three query interfaces, plus arithmetic fixtures. Contracts, test
+  commands and limitations: [physics](rust-physics.md).
+- Budget: render acceleration/metadata **376,808 bytes in Wasm**. Terrain and
+  later physics acceleration share the same per-map limit; not yet integrated
+  into the live Wasm counter. GPU resource bytes are accounted separately.
+- Next: contact/suspension arithmetic and auxiliary queries; then fallback
+  geometry → typed vehicle state/config
+  → drive/pose/collision → browser proxy. M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
 
@@ -69,4 +65,6 @@ use short branch/sequence tests, extending coverage when changes justify it.
 
 Read this file before each milestone, after completing one, and after context
 recovery. Update the checkbox, current checkpoint, verification/commit and next
-concrete task. Then proceed to the next small, runnable increment.
+concrete task. Check the worktree before resuming; distinguish verified work,
+pending changes and remaining scope. Keep this summary short and move detailed
+evidence into the linked documents. Then proceed to the next runnable increment.
