@@ -17,19 +17,21 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`0931a4d`**. Breakable collision now borrows the real Fall
-  components, factory ticks/queues, symbols and dispatch slot. Both owners match
-  C on 4,096 records; 22 authored collision -> Fall sequences / 132 checkpoints
-  also match. Startup, Crush, lifecycle, factory, connected-vehicle regressions,
-  workspace/native/Wasm checks and browser build pass. [Details](rust-physics.md).
-- Still missing: active auxiliary/debris contact and update methods, Bounce/Spin
-  and remaining readers, complete startup/shared RNG replay and vehicle prefix/
-  after-pose. Effect interfaces now fail explicitly rather than falling through
-  null slots. Complete bootstrap and fragment/animation GPU rendering are pending.
-- **Next runnable increment:** implement auxiliary/debris activation and updates
-  on this shared owner; finish remaining readers, then connect vehicle prefix/
-  after-pose and scheduler -> independent moving proxy. Do not leave tested
-  modules disconnected. Keep the Store adapter restricted to qualification.
+- Last verified code: **`e80994a`**. Debris activation, motion, retirement and
+  animation now run on the shared scene/factory/RNG, including breakable hit ->
+  Fall tail -> real scheduler passes. 156 scenarios / 642 operations / 116,051
+  words match C; startup, shared collision, Fall/Crush, lifecycle and connected-
+  vehicle regressions, workspace/native/Wasm checks and browser build pass.
+  [Details and qualification limits](rust-physics.md).
+- Still missing: auxiliary mesh-break activation/update, real vehicle blast
+  impulse bindings, Bounce/Spin/remaining readers, complete startup/shared RNG
+  replay and vehicle prefix/after-pose. Missing game bindings fail explicitly.
+  Fragment/animation GPU rendering and complete bootstrap remain pending.
+- **Next runnable increment:** implement auxiliary mesh break on this owner;
+  finish remaining readers and vehicle blast bindings, then connect vehicle
+  prefix/after-pose and scheduler -> independent moving proxy. Simulation updates
+  must use `Scene::updates(&mut random)`, keeping nested effects on the same RNG.
+  Do not leave tested modules disconnected; Store is qualification-only.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
   ownership, RNG consumption and the distinction between activation/impact limits.
   Interning a forward name does not allocate an entity ID in the original.
