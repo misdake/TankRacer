@@ -17,25 +17,19 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`82bbcb1`**. Concrete Crush record tick/retirement and
-  sampling share one buffer, with private/shared geometry cleanup. 178 scenarios /
-  840 updates and 154 authored constructions / 302 short runtime ticks match C.
-  Connected vehicle/contact/deformation/parent regressions, workspace tests,
-  native/Wasm lint, unchanged-C checks and browser build pass. Detailed contracts
-  and earlier entity/physics qualification: [physics](rust-physics.md).
-- **Uncommitted, not qualified:** unified scene-object bindings, direct parent
-  dispatch and component-only startup installation are being implemented. The
-  C lifecycle oracle is drafted; its Rust comparison is not yet implemented.
-  These changes do not advance the verified checkpoint or complete M3.
-- Still missing: common Obstacle/Model parent lifecycle and concrete subclass
-  bindings, authored class/attachment factories, complete startup/shared RNG
-  replay and vehicle prefix/after-pose effects. Crush enter/destruction expose
-  prefixes; activation/parent callbacks are still boundaries in their tests.
-  Surrounding constructor/membership inputs still come partly from C. Full native
-  world-reader parity and new fragment/animation GPU rendering remain pending.
-- **Next runnable increment:** common Obstacle parent lifecycle, real class
-  activation/destructor bindings, authored attachments and world membership;
-  connect vehicle prefix/after-pose and scheduler -> independent moving proxy.
+- Last verified code: **`c8d96ca`**. Common scene-object lifecycle and Crush now
+  use real parent/activation/destructor bindings on shared components. 664 short
+  scenarios / 1,672 operations match the production C dispatcher. Authored parent,
+  Crush, factory and connected-vehicle regressions, workspace tests, native/Wasm
+  lint, unchanged-C checks and browser build pass. Details: [physics](rust-physics.md).
+- Still missing: fresh class allocation, authored reader/subclass/attachment
+  factories, auxiliary face/backup motion and complete startup/shared RNG replay.
+  Breakable collision callbacks must share the entity scheduler/symbol context;
+  vehicle prefix/after-pose and world startup remain incomplete. Class-slot tests
+  are scoped; complete bootstrap and fragment/animation GPU rendering are pending.
+- **Next runnable increment:** bind authored class allocation/readers and
+  attachments to this lifecycle, then connect vehicle prefix/after-pose and
+  scheduler -> independent moving proxy. Do not leave tested modules disconnected.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
   ownership, RNG consumption and the distinction between activation/impact limits.
   Interning a forward name does not allocate an entity ID in the original.
