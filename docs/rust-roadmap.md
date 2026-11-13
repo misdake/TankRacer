@@ -8,22 +8,22 @@
   camera (`e98e429`): 5 draws, 8,762 visible triangles; 133 GPU pixel cases pass.
 - M3 verified against C: terrain/contact/suspension, drive/fixed-point math,
   vehicle poses/model assembly/damage, ordered object queries and collision
-  response, deformable objects, breakable hit chains and spatial/tick membership.
-- Last verified code: **`22ad404`**. Membership + breakable hit/flow: 12,288 C
-  reference records; native/Wasm checks pass. Earlier evidence is linked below.
-- In progress, **uncommitted and not yet qualified here**: impact particles,
-  shared line pool and their C comparison tests. Inspect the worktree and test
-  results before treating these as complete.
-- Remaining scene gaps include real impact particles, auxiliary/destruction
-  effects, object motion ticks and the full scheduler; probes do not complete them.
+  response, deformable objects, breakable hit chains, spatial/tick membership,
+  impact particles/shared line pool and real synchronous ground-effect bindings.
+- Last verified code: **`1d45e70`**. 4,480 pool/particle/composed ground records
+  match C, including all 15 real vehicle bodies. Existing 9,600 damage records,
+  workspace tests, native/Wasm Clippy and unchanged-C source verification pass.
+- Remaining scene gaps include tank/obstacle particle bindings,
+  auxiliary/destruction effects, object motion ticks and the full scheduler;
+  probes do not complete them.
   Rust world construction and the complete moving vehicle are still unfinished.
 - Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
   [physics](rust-physics.md) and [renderer](rust-renderer.md); keep them out of this summary.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: real impact particles/shared line resources → vehicle motion and
-  complete per-tick vehicle orchestration → browser proxy.
+- Next: vehicle motion and complete per-tick vehicle orchestration, including
+  remaining real collision-effect bindings → browser proxy.
   No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
