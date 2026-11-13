@@ -664,3 +664,81 @@ Owned world/class/candidate storage will need live aggregate accounting when
 connected to Wasm; it is not included in existing scene-budget measurements yet.
 Next: the real breakable-obstacle method/lifecycle and impact particles, then full
 motion/update orchestration. A complete moving Rust vehicle remains unfinished.
+
+Obstacle/deformable checkpoint: `d836ea7`.
+
+## Generic breakable hit and ordered scene membership
+
+`breakable` now implements the actual 40A3E0 body: activity/already-hit guards,
+signed approximate-speed angular impulse, reverse-direction flag, sound and
+activation, saved vehicle, ordered turn-rate limits, auxiliary/effect dispatch,
+spatial removal, attachment propagation and final feedback. It rereads mutable
+state at the original callback boundaries. Activity can be zero while the entity
+remains scheduled; these are deliberately separate concepts. Its output result
+is zero even when an earlier operation fails.
+
+The method uses the qualified class slot table and real `lifecycle::Ticks` for
+the standard enable-tick binding. Attachment bindings are immutable level data
+in source order, while target liveness is checked at each call. Self/cyclic
+chains terminate through the original hit flag. The original 65,536 attachment
+limit and state prefixes remain. Source conditional turn limits are preserved
+even when minimum exceeds maximum; this is not replaced by a generic clamp.
+
+`spatial` ports grid insertion and removal. Insertion uses the authored radius
+padding, clamped center, wrapping cell bounds, strict overlap and prepend order.
+It intentionally permits duplicate entries. Removal visits the stored cell's
+3x3 neighborhood in row/column order and removes **one** matching entry per cell.
+The per-list traversal limit includes the sentinel test; failure retains already
+completed cells. `Cell` exposes signed X/unsigned Z and an optional absent value,
+instead of making gameplay manipulate packed coordinate bits.
+
+`lifecycle::Ticks` appends newly enabled entities once according to bit 16,
+preserves other enable-time flags, and removes the first entry on disable.
+Disabling advances a matching next-entity cursor before list removal, so even a
+later traversal failure preserves that cursor write. Successful disable clears
+bits 16/32. This is membership support, not yet the full entity-update/notification
+scheduler or the falling/spinning/bouncing object ticks.
+
+`dispatch::call_entity` distinguishes ordinary lifecycle dispatch from physics
+dispatch: entity output commits only on success, and positive errors remain for
+the enclosing scene boundary to normalize. Physics method errors still normalize
+to -6; activation/sound/feedback scene errors normalize to -8. The changed slot
+survives the original exceptional exits. Native logical bindings are re-exported
+from `scene_collision`; no function address is executed or retained as a callable.
+
+**8,192 C membership records / 1,923,606 words** pass: 2,048 four-tick records
+each for insert, remove, enable and disable. All 64 cell lists, tick order, flags,
+cursor, result and packed-coordinate conversions match. Cases cover signed/shift
+boundaries, missing shape radius fallback, duplicates, strict cell edges and
+1,156 remove / 556 disable error prefixes.
+
+**4,096 C breakable/collision records / 881,784 words** pass: direct real hits
+and full query -> response -> real-hit chains, including 129 errors, circular
+attachment graphs and an explicit oversized attachment list. Activation uses
+the actual C entity/list routines and removal uses the actual C spatial/list
+routines; their allocation service is only a bounded test heap. Velocities,
+flags, angular/turn values, owners, active order, all grid lists, method slot,
+output result and shared RNG/probe writes match. Auxiliary/effect methods and
+audio/feedback remain ordered stateful probes, **not** claimed migrated bodies.
+Native unit tests explain first-match/prefix behavior and dispatch output timing.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_membership.c build/native/libtankracer_core.a -o build/native/membership_reference.exe
+$env:TANKRACER_MEMBERSHIP_REFERENCE=(Resolve-Path build/native/membership_reference.exe).Path
+cargo test -p tankracer-game --test membership_reference -- --ignored --nocapture
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_breakable.c build/native/libtankracer_core.a -o build/native/breakable_reference.exe
+$env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_reference.exe).Path
+cargo test -p tankracer-game --test breakable_reference -- --ignored --nocapture
+```
+
+Workspace tests, native/Wasm Clippy and the existing 6,144-record obstacle/dispatch
+C regression pass. All qualified C production sources remain unchanged.
+No new spatial cache is introduced. Membership insertion/activation may grow
+owned vectors; zero-allocation complete updates and live aggregate map accounting
+are not claimed. Rare attachment lookup uses the existing collider array rather
+than adding an unmeasured index.
+
+Next: real impact particles/shared line resources, then full vehicle motion/update
+composition. Falling/spinning/bouncing ticks, auxiliary/destruction effects, world
+construction and the full entity scheduler remain later scene/game integration.
+The complete moving Rust vehicle is still not running.

@@ -2,6 +2,7 @@
 
 pub mod attitude;
 pub mod body;
+pub mod breakable;
 pub mod collision;
 pub mod contact;
 pub mod contact_pipeline;
@@ -13,6 +14,7 @@ pub mod drive;
 mod fixed;
 pub mod geometry;
 pub mod ground_collision;
+pub mod lifecycle;
 pub mod math;
 pub mod object_query;
 pub mod obstacle_collision;
@@ -20,6 +22,7 @@ pub mod pose;
 pub mod random;
 pub mod sampling;
 pub mod scene_collision;
+pub mod spatial;
 pub mod suspension;
 pub mod tank_collision;
 pub mod terrain;

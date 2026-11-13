@@ -24,6 +24,31 @@ pub fn call(
     result: &mut u32,
     invoke: impl FnOnce(MethodId, &mut u32, &mut u32) -> Result<(), i32>,
 ) -> Result<(), Error> {
+    call_inner(class, slot, current, result, true, invoke)
+}
+
+/// Entity/lifecycle dispatch delays its output commit until success and lets
+/// the enclosing scene boundary normalize positive method failures.
+pub fn call_entity(
+    class: &Class,
+    slot: u32,
+    current: &mut u32,
+    result: &mut u32,
+    invoke: impl FnOnce(MethodId, &mut u32, &mut u32) -> Result<(), i32>,
+) -> Result<(), Error> {
+    let mut temporary = 0;
+    call_inner(class, slot, current, &mut temporary, false, invoke)?;
+    *result = temporary;
+    Ok(())
+}
+fn call_inner(
+    class: &Class,
+    slot: u32,
+    current: &mut u32,
+    result: &mut u32,
+    physics: bool,
+    invoke: impl FnOnce(MethodId, &mut u32, &mut u32) -> Result<(), i32>,
+) -> Result<(), Error> {
     let old = *current;
     *current = slot;
     *result = 0;
@@ -36,7 +61,7 @@ pub fn call(
         .ok_or(Error::MissingSlot(slot))?;
     if let Some(method) = method {
         invoke(*method, current, result)
-            .map_err(|code| Error::Method(if code < 0 { code } else { -6 }))?;
+            .map_err(|code| Error::Method(if physics && code >= 0 { -6 } else { code }))?;
     }
     *current = old;
     Ok(())
@@ -77,5 +102,30 @@ mod tests {
             Ok(())
         );
         assert_eq!((slot, result), (7, 17));
+    }
+
+    #[test]
+    fn entity_dispatch_keeps_failed_output_private_and_defers_error_normalization() {
+        let class = Class {
+            maximum_slot: 0,
+            methods: vec![Some(MethodId(4))],
+        };
+        let (mut slot, mut result) = (9, 55);
+        assert_eq!(
+            call_entity(&class, 0, &mut slot, &mut result, |_, slot, result| {
+                *slot = 7;
+                *result = 123;
+                Err(1)
+            }),
+            Err(Error::Method(1))
+        );
+        assert_eq!((slot, result), (7, 55));
+        assert_eq!(
+            call_entity(&class, 1, &mut slot, &mut result, |_, _, _| panic!(
+                "out of range"
+            )),
+            Ok(())
+        );
+        assert_eq!((slot, result), (1, 0));
     }
 }

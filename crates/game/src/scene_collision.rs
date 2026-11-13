@@ -1,4 +1,5 @@
 //! Concrete gameplay bindings for collision interfaces. No original code pointers.
+pub use crate::breakable::{BREAKABLE_HIT, ENABLE_TICK};
 use crate::{deformable_hit, dispatch::MethodId, obstacle_collision::Invocation};
 use tankracer_assets::mesh::Geometry;
 
