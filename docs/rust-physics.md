@@ -928,3 +928,72 @@ whole-frame cost will be measured after the complete update runs. Browser and
 renderer code are unchanged. Pre-contact timers/abilities, actual collision-effect
 bindings, after-pose effects, the unified update caller and Rust world construction
 remain necessary before the moving Rust vehicle can be claimed complete.
+
+## Connected active physics phase
+
+`vehicle::step_physics` now runs the actual contact -> powertrain -> obstacle ->
+tank -> deformable -> ground -> motion chain. It owns the source's impulse
+measurements, pair/ground deltas, mode 4/5 pair blending and failure boundaries.
+This is the active physics **phase**, beginning after the timer/ability prefix;
+it is not yet the complete game update or an independent world constructor.
+
+Vehicle dynamics are canonical. Tank queries use refreshed resource/pose views;
+pair response uses a fixed nine-entry stack array and publishes both actors'
+velocity/timer writes even when the stage fails. A subsequent actor update reads
+the already changed canonical velocity. Disabled tank collision still writes
+the original zero delta; mode-specific peer snapshots retain their source timing.
+Obstacle/deformable views likewise publish partial method/state writes before
+propagating an error. Ground normal/yaw writes commit before its error returns.
+
+`collision_effects::Bank` supplies one real particle and track/body-damage
+implementation for tank, object and ground interfaces, sharing cooldowns, RNG,
+ring and line pool. Source contact-record corners remain distinct from indices.
+After pose, body-relative effect bindings are refreshed to the **new** reference
+matrix before any animation runs. Class methods receive the same effect bank,
+so auxiliary/destruction code can use these actual resources rather than a
+private pool. Required scene services have no default successful substitute.
+The after-pose view includes current surfaces, powertrain, motion and a writable
+impact accumulator for the still-pending debris/smoke/light implementations.
+
+**1,254 connected C records / 8,537,175 semantic output words match** across all
+15 cars on ENGLAND plus car 1 on seven other maps (22 combinations). Eight
+branches run up to four two-actor update pairs, alternating a player and another
+active tank. There are 603 observations of writes to the other actor's velocity
+and 236 observations of track wear. The comparisons include all eight initialized tank
+states, body vertices/face data, gun vertices, particle ownership/cooldowns,
+shared RNG/slot, peer snapshot, line records and exhaustion aliases. Cases cover
+collision disable, modes 0–5, near/full pools and an after-pose failure.
+
+The oracle calls the actual complete C `physics_vehicle_step`, capturing its
+input at the first contact read after its prefix. It then compares the resulting
+C persistent fields with Rust's connected phase; no copied phase formula creates
+expected results. Before each compared update, inputs come from the C state:
+this is boundary/short-sequence parity, not yet a Rust-only full race replay.
+
+Scope is deliberate: test obstacle/deformable lists are empty. Object miss
+stages run, but their hit/class-method integration is not qualified by this test.
+Existing hit-module evidence remains separate. Contact feedback is an explicit
+probe; after-pose invokes the real impact tick and an error branch, not the
+complete original scene effect chain. Original impact-particle offsets are explicit
+verified fixture inputs, not a claim about the old C bootstrap's initialization.
+Test DATA/address handling is confined to C/test serializers; Rust production
+logic contains no guest-memory arena or C runtime dependency. Common motion
+serialization is shared with the earlier boundary test, which still passes all
+1,078 cases after extraction.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_reference.exe
+$env:TANKRACER_VEHICLE_REFERENCE=(Resolve-Path build/native/vehicle_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_reference -- --ignored --nocapture
+```
+
+Workspace tests and native/Wasm Clippy pass. Qualified C production files remain
+unchanged. The phase and its temporary tank views add no per-call heap allocation
+or per-map precomputed cache; scene methods can still grow their owned state.
+Renderer/browser behavior is unchanged and no new whole-frame performance claim
+is made. Next: real scene hit bindings, pre-contact timers/abilities, complete
+after-pose effects and authored world startup. In that integration, deformable
+sampling and rendering must borrow the same current mesh, with contact-only
+borrows ending before collision methods mutate it; retaining a copied sampling
+mesh or extending that borrow across the whole phase would be incorrect. The
+independent moving Rust game and M3 remain unfinished.

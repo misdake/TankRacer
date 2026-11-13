@@ -46,6 +46,7 @@ pub struct Config<'a> {
     pub body: &'a body::Tuning,
     pub pose: &'a pose::Config,
 }
+#[derive(Debug, Clone, Copy)]
 pub struct PoseInput {
     pub timer: u16,
     pub ambient_wobble: bool,
