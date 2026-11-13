@@ -41,6 +41,27 @@ pub fn call_entity(
     *result = temporary;
     Ok(())
 }
+/// A direct parent-class call reuses the current interface. It neither installs
+/// a new slot nor restores it after a callback; failed outputs stay private.
+pub fn call_class(
+    class: &Class,
+    current: &mut u32,
+    result: &mut u32,
+    invoke: impl FnOnce(MethodId, &mut u32, &mut u32) -> Result<(), i32>,
+) -> Result<(), Error> {
+    let mut temporary = 0;
+    if *current as i32 <= class.maximum_slot {
+        let method = class
+            .methods
+            .get(*current as usize)
+            .ok_or(Error::MissingSlot(*current))?;
+        if let Some(method) = method {
+            invoke(*method, current, &mut temporary).map_err(Error::Method)?;
+        }
+    }
+    *result = temporary;
+    Ok(())
+}
 fn call_inner(
     class: &Class,
     slot: u32,
@@ -127,5 +148,37 @@ mod tests {
             Ok(())
         );
         assert_eq!((slot, result), (1, 0));
+    }
+
+    #[test]
+    fn parent_calls_use_live_slot_and_commit_output_only_on_success() {
+        let class = Class {
+            maximum_slot: 0,
+            methods: vec![Some(MethodId(4))],
+        };
+        let (mut slot, mut result) = (0, 55);
+        assert_eq!(
+            call_class(&class, &mut slot, &mut result, |method, slot, result| {
+                assert_eq!(method, MethodId(4));
+                *slot = 7;
+                *result = 123;
+                Err(-13)
+            }),
+            Err(Error::Method(-13))
+        );
+        assert_eq!((slot, result), (7, 55));
+        call_class(&class, &mut slot, &mut result, |_, _, _| {
+            panic!("out of range")
+        })
+        .unwrap();
+        assert_eq!((slot, result), (7, 0));
+        slot = 0;
+        call_class(&class, &mut slot, &mut result, |_, slot, result| {
+            *slot = 3;
+            *result = 17;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!((slot, result), (3, 17));
     }
 }

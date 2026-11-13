@@ -1398,3 +1398,63 @@ $env:TANKRACER_CRUSH_REFERENCE=(Resolve-Path build/native/crush_reference.exe).P
 $env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
 cargo test -p tankracer-game --test crush_reference --test scene_startup_reference --locked -- --ignored --nocapture
 ```
+
+## Common scene-object lifecycle and real parent dispatch
+
+`scene_objects::Scene` now owns ordinary/special draw memberships alongside the
+existing collision world and deformable/mesh components. It implements the
+shared entity factory's method interface: Obstacle initialize/enter/leave,
+mode switch, position/grid update, collision membership, deactivation, owned
+cleanup and destruction; Crush enter/leave/highlight/initialize/tick/destruction
+use the same scheduler, queues and current method slot. Component installation
+is separate from entry, so class methods determine when membership changes.
+The previous data-placement convenience methods keep their old behavior.
+
+Direct parent calls reuse the live interface slot without saving/restoring it.
+Their outputs commit only on success. GenObst's inherited initialize calls World
+to install the identity transform, then sets sort position to -8; ordinary
+Obstacle subsequently sets its cell to -1. Crush overrides initialize without
+calling those parents, retaining its zero-initialized cell/transform until the
+authored reader supplies its pose. Deactivation requests destruction through the
+real parent before removing spatial/draw memberships. A pending stop shares the
+queue flag and can suppress that destruction request, as in C.
+
+Crush destruction retires owned records/private geometry before the Obstacle
+parent clears auxiliary/debris resources and removes grid membership; the generic
+parent then releases object storage. ID detachment drops typed components without
+renumbering other handles. Shared/named meshes survive. Private main-mesh release
+also clears the drawable mesh handle. Host allocation/free failures and guest
+pointer identities remain outside the typed contract: notification nodes become
+presence, and returned object pointers become logical component identity.
+
+**664 scenarios / 1,672 operations / 367,097 semantic words match production C**,
+including 140 error prefixes and 176 retired observations. The new oracle calls
+the actual `frame_native_dispatch`, native classes and inherited handlers; only
+host allocation/free are supplied externally. It compares every intermediate
+pose, cell, initialization scalar, retained Crush record, object lifetime,
+current slot, flag, queue and all 64 grid lists. Scoped test slots exercise the
+real bodies without claiming the complete original bootstrap catalogue.
+Coverage includes parent out-of-range dispatch, duplicate memberships, partial
+removals, all tested work-limit failures, private/shared shapes and short
+entry/move/exit/tick/stop/destruction sequences. Unit tests additionally cover a
+parent callback changing the live slot and failing after writing a private result.
+
+Regression: the 178-scenario Crush suite, 154 authored Crush constructions / 302
+runtime ticks, 2,937 authored Obstacle constructions, 155 entity-factory scenarios
+and 1,254 connected vehicle records still match C. Workspace tests, native/Wasm
+Clippy, unchanged-C verification and browser release build pass. The browser is
+still the static scene (183,221 B Wasm); its game crate is not wired into the live
+browser yet. No renderer/GL state changed, new GPU claim or map acceleration data.
+
+Still missing: fresh class allocation and authored-reader binding through these
+methods, subclass/attachment factories and auxiliary face/backup motion,
+full shared-RNG world startup, and the vehicle prefix/after-pose integration.
+Existing breakable collision callbacks still have their own context and must be
+connected to the same entity scheduler/symbols rather than duplicated in a final
+world owner. M3 remains open until the moving proxy actually runs independently.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_objects.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_objects_reference.exe
+$env:TANKRACER_SCENE_OBJECTS_REFERENCE=(Resolve-Path build/native/scene_objects_reference.exe).Path
+cargo test -p tankracer-game --test scene_objects_reference --locked -- --ignored --nocapture
+```

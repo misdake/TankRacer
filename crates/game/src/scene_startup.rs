@@ -216,6 +216,20 @@ impl Crush {
         surfaces: &mut Surfaces,
         class: ClassId,
     ) -> Result<PlacedCrush, Error> {
+        let entered = self.visibility.entered;
+        let placed = self.install_components(world, surfaces, class)?;
+        if entered {
+            world.deformables.push(placed.id);
+        }
+        Ok(placed)
+    }
+    /// Runtime enter/leave methods own collision and draw membership.
+    pub fn install_components(
+        self,
+        world: &mut obstacle_collision::World,
+        surfaces: &mut Surfaces,
+        class: ClassId,
+    ) -> Result<PlacedCrush, Error> {
         let index = world.colliders.len();
         if world.objects.len() != index
             || surfaces.entries.len() > index
@@ -238,11 +252,6 @@ impl Crush {
             activity: 0,
             flags: 0,
         });
-        // Crush enters its dedicated ordered list, never the ordinary obstacle
-        // grid. Delayed lap visibility must not make it queryable prematurely.
-        if self.visibility.entered {
-            world.deformables.push(id);
-        }
         surfaces.entries.resize_with(index, || None);
         surfaces.entries.push(Some(self.surface));
         Ok(PlacedCrush {

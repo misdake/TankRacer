@@ -32,6 +32,7 @@ pub mod random;
 pub mod sampling;
 pub mod scene_collision;
 pub mod scene_meshes;
+pub mod scene_objects;
 pub mod scene_startup;
 pub mod spatial;
 pub mod suspension;

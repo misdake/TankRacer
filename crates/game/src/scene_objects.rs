@@ -1,0 +1,479 @@
+//! Ordered scene-object lifecycle on the same components used by collision.
+//! Class tables stay immutable; parent calls and nested activation are immediate.
+use crate::{
+    crush,
+    dispatch::{ClassId, MethodId},
+    entity_factory::{self as factory, BaseMethod, Environment, Invocation, Methods, Payload},
+    math::Matrix,
+    object_query::ObstacleId,
+    obstacle_collision::World,
+    obstacle_startup::{Obstacle, PlacedObstacle},
+    scene_collision::Surfaces,
+    scene_meshes::MeshId,
+    scene_startup::{self, Crush},
+    spatial::{self, Cell},
+};
+
+pub const ZERO: MethodId = MethodId(32);
+pub const ONE: MethodId = MethodId(33);
+pub const IDENTITY: MethodId = MethodId(34);
+pub const DISABLE_TICK: MethodId = MethodId(35);
+pub const QUEUE_DESTROY: MethodId = MethodId(36);
+pub const DETACH: MethodId = MethodId(37);
+pub const RELEASE_ID: MethodId = MethodId(38);
+pub const RELEASE_OBJECT: MethodId = MethodId(39);
+pub const RESET_POSE: MethodId = MethodId(40);
+pub const WORLD_INITIALIZE: MethodId = MethodId(41);
+pub const OBSTACLE_INITIALIZE: MethodId = MethodId(42);
+pub const ENTER: MethodId = MethodId(43);
+pub const LEAVE: MethodId = MethodId(44);
+pub const DEACTIVATE: MethodId = MethodId(45);
+pub const SET_MODE: MethodId = MethodId(46);
+pub const MOVE: MethodId = MethodId(47);
+pub const COLLIDABLE: MethodId = MethodId(48);
+pub const DESTROY: MethodId = MethodId(49);
+pub const NOTIFY: MethodId = MethodId(50);
+pub const ACTIVATE: MethodId = MethodId(51);
+pub const CRUSH_ENTER: MethodId = MethodId(52);
+pub const CRUSH_LEAVE: MethodId = MethodId(53);
+pub const CRUSH_DESTROY: MethodId = MethodId(54);
+pub const CRUSH_HIGHLIGHT: MethodId = MethodId(55);
+pub const CRUSH_INITIALIZE: MethodId = MethodId(56);
+pub const DESTROY_REQUEST: MethodId = MethodId(57);
+
+#[derive(Clone, Copy)]
+pub struct Parents {
+    pub world: ClassId,
+    pub generic: ClassId,
+    pub obstacle: ClassId,
+}
+#[derive(Clone, Copy)]
+pub struct Interfaces {
+    pub activate: u32,
+    pub deactivate: u32,
+}
+pub struct Object {
+    pub data: PlacedObstacle,
+    /// Owned replacement geometry created by mesh break. Its activation/motion
+    /// methods are still pending; destruction already respects ownership.
+    pub auxiliary_mesh: Option<MeshId>,
+    pub ground_height: Option<i32>,
+}
+pub struct Scene {
+    pub world: World,
+    pub surfaces: Surfaces,
+    pub objects: Vec<Option<Object>>,
+    pub ordinary: Vec<ObstacleId>,
+    pub special: Vec<ObstacleId>,
+    pub parents: Parents,
+    pub interfaces: Interfaces,
+    pub dt: i32,
+}
+impl Scene {
+    pub fn new(world: World, surfaces: Surfaces, parents: Parents, interfaces: Interfaces) -> Self {
+        Self {
+            world,
+            surfaces,
+            objects: Vec::new(),
+            ordinary: Vec::new(),
+            special: Vec::new(),
+            parents,
+            interfaces,
+            dt: 0,
+        }
+    }
+    fn adopt(&mut self, object: Object) -> Result<ObstacleId, scene_startup::Error> {
+        let id = object.data.id;
+        if self.objects.get(id.0).is_some_and(Option::is_some) {
+            return Err(scene_startup::Error::InvalidWorld);
+        }
+        if self.objects.len() <= id.0 {
+            self.objects.resize_with(id.0 + 1, || None);
+        }
+        self.objects[id.0] = Some(object);
+        Ok(id)
+    }
+    pub fn install_obstacle(
+        &mut self,
+        obstacle: Obstacle,
+        class: ClassId,
+    ) -> Result<ObstacleId, scene_startup::Error> {
+        let data = obstacle.install_components(&mut self.world, class)?;
+        self.adopt(Object {
+            data,
+            auxiliary_mesh: None,
+            ground_height: None,
+        })
+    }
+    pub fn install_crush(
+        &mut self,
+        crush: Crush,
+        class: ClassId,
+    ) -> Result<ObstacleId, scene_startup::Error> {
+        let placed = crush.install_components(&mut self.world, &mut self.surfaces, class)?;
+        let mesh = self.surfaces.entries[placed.id.0]
+            .as_ref()
+            .ok_or(scene_startup::Error::InvalidWorld)?
+            .mesh;
+        self.adopt(Object {
+            data: PlacedObstacle {
+                id: placed.id,
+                // Crush initialize does not call the ordinary parent initializer.
+                cell: Some(Cell { x: 0, z: 0 }),
+                source: Some(placed.source),
+                mesh: Some(mesh),
+                visibility: placed.visibility,
+                sort_position: 0,
+                impact_threshold: 0,
+                collision_margin: 1536,
+                auxiliary: None,
+                debris: None,
+            },
+            auxiliary_mesh: None,
+            ground_height: Some(placed.ground_height),
+        })
+    }
+    fn object(&self, id: ObstacleId) -> Result<&Object, i32> {
+        self.objects.get(id.0).and_then(Option::as_ref).ok_or(-1)
+    }
+    fn object_mut(&mut self, id: ObstacleId) -> Result<&mut Object, i32> {
+        self.objects
+            .get_mut(id.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)
+    }
+    fn insert_grid(&mut self, id: ObstacleId) -> Result<(), i32> {
+        let mesh = self.object(id)?.data.mesh;
+        let radius = mesh
+            .and_then(|mesh| self.surfaces.meshes.get(mesh))
+            .map(|_| self.world.colliders[id.0].radius);
+        let cell = spatial::insert(
+            &mut self.world.grid,
+            id,
+            &self.world.colliders[id.0],
+            radius,
+        );
+        self.object_mut(id)?.data.cell = Some(cell);
+        Ok(())
+    }
+    fn remove_grid(&mut self, id: ObstacleId, limit: u32) -> Result<(), i32> {
+        let cell = self.object(id)?.data.cell;
+        spatial::remove(&mut self.world.grid, id, cell, limit).map_err(spatial_code)
+    }
+    fn clear_owned(&mut self, id: ObstacleId) -> Result<(), i32> {
+        if let Some(mesh) = self.object(id)?.auxiliary_mesh {
+            self.surfaces.meshes.release_private(mesh).ok_or(-1)?;
+        }
+        let object = self.object_mut(id)?;
+        object.auxiliary_mesh = None;
+        object.data.auxiliary = None;
+        object.data.debris = None;
+        Ok(())
+    }
+    pub fn move_object(
+        &mut self,
+        id: ObstacleId,
+        position: [i32; 3],
+        limit: u32,
+    ) -> Result<u32, i32> {
+        valid_limit(limit)?;
+        self.world.colliders.get_mut(id.0).ok_or(-1)?.pose.position = position;
+        self.remove_grid(id, limit)?;
+        self.insert_grid(id)?;
+        Ok(position[1] as u32)
+    }
+}
+fn valid_limit(limit: u32) -> Result<(), i32> {
+    if limit == 0 { Err(-1) } else { Ok(()) }
+}
+fn spatial_code(error: spatial::Error) -> i32 {
+    match error {
+        spatial::Error::InvalidLimit => -1,
+        spatial::Error::Limit => -3,
+    }
+}
+fn dispatch_code(error: factory::Error) -> i32 {
+    match error {
+        factory::Error::Dispatch(crate::dispatch::Error::Method(code)) => code,
+        _ => -1,
+    }
+}
+fn value(payload: Option<Payload>) -> Result<u32, i32> {
+    match payload {
+        Some(Payload::Value(v)) => Ok(v),
+        _ => Err(-1),
+    }
+}
+impl Methods<ObstacleId> for Scene {
+    fn invoke(
+        &mut self,
+        method: MethodId,
+        mut call: Invocation<'_, ObstacleId>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        let base = match method {
+            ZERO => Some(BaseMethod::Zero),
+            ONE => Some(BaseMethod::One),
+            IDENTITY => Some(BaseMethod::Identity),
+            crate::breakable::ENABLE_TICK => Some(BaseMethod::EnableTick),
+            DISABLE_TICK => Some(BaseMethod::DisableTick),
+            QUEUE_DESTROY => Some(BaseMethod::QueueDestroy),
+            DETACH => Some(BaseMethod::Detach),
+            RELEASE_ID => Some(BaseMethod::ReleaseId),
+            _ => None,
+        };
+        if let Some(base) = base {
+            let target = call
+                .context
+                .entities
+                .record(call.entity)
+                .and_then(|r| r.object);
+            let retiring = matches!(method, DETACH | RELEASE_ID);
+            base.invoke(call, env)?;
+            if retiring && let Some(id) = target {
+                if let Some(object) = self.objects.get_mut(id.0) {
+                    *object = None;
+                }
+                if let Some(surface) = self.surfaces.entries.get_mut(id.0) {
+                    *surface = None;
+                }
+            }
+            return Ok(());
+        }
+        let entity = call.entity;
+        let target = call.context.entities.record(entity).and_then(|r| r.object);
+        if method == RELEASE_OBJECT {
+            *call.result = u32::from(
+                target.is_some()
+                    && call
+                        .context
+                        .ticks
+                        .flags
+                        .get(entity.0 as usize)
+                        .copied()
+                        .ok_or(-1)?
+                        & 8
+                        == 0,
+            );
+            return Ok(());
+        }
+        let id = target.ok_or(-1)?;
+        match method {
+            RESET_POSE => {
+                let pose = &mut self.world.colliders.get_mut(id.0).ok_or(-1)?.pose;
+                pose.matrix = Matrix::IDENTITY;
+                self.world.colliders[id.0].external_basis = Some(Matrix::IDENTITY);
+                *call.result = entity.0;
+            }
+            WORLD_INITIALIZE => {
+                call.context
+                    .class_dispatch(self.parents.world, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                self.object_mut(id)?.data.sort_position = -8;
+                *call.result = 0;
+            }
+            OBSTACLE_INITIALIZE => {
+                valid_limit(env.work_limit)?;
+                call.context
+                    .class_dispatch(self.parents.generic, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                self.object_mut(id)?.data.cell = None;
+                *call.result = entity.0;
+            }
+            CRUSH_INITIALIZE => {
+                self.world.objects.get_mut(id.0).ok_or(-1)?.weight = 8;
+                let surface = self
+                    .surfaces
+                    .entries
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
+                    .ok_or(-1)?;
+                surface.config.floor = 50;
+                surface.config.compression = 1;
+                surface.sampling.edge_cap = 45000;
+                surface.config.drift_shift = 1;
+                *call.result = entity.0;
+            }
+            ENTER => {
+                valid_limit(env.work_limit)?;
+                self.ordinary.push(id);
+                self.insert_grid(id)?;
+                *call.result = 0;
+            }
+            LEAVE => {
+                valid_limit(env.work_limit)?;
+                spatial::remove_first(&mut self.ordinary, &id, env.work_limit)
+                    .map_err(spatial_code)?;
+                self.remove_grid(id, env.work_limit)?;
+                *call.result = 0;
+            }
+            DEACTIVATE => {
+                valid_limit(env.work_limit)?;
+                call.context
+                    .class_dispatch(self.parents.generic, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                self.remove_grid(id, env.work_limit)?;
+                spatial::remove_first(&mut self.ordinary, &id, env.work_limit)
+                    .map_err(spatial_code)?;
+                spatial::remove_first(&mut self.special, &id, env.work_limit)
+                    .map_err(spatial_code)?;
+                *call.result = 0;
+            }
+            SET_MODE => {
+                valid_limit(env.work_limit)?;
+                let mode = value(call.payload)?;
+                let (from, to) = if mode == 1 {
+                    (&mut self.ordinary, &mut self.special)
+                } else {
+                    (&mut self.special, &mut self.ordinary)
+                };
+                spatial::remove_first(from, &id, env.work_limit).map_err(spatial_code)?;
+                to.push(id);
+                *call.result = 0;
+            }
+            MOVE => {
+                let Some(Payload::Position(position)) = call.payload else {
+                    return Err(-1);
+                };
+                *call.result = self.move_object(id, position, env.work_limit)?;
+            }
+            COLLIDABLE => {
+                valid_limit(env.work_limit)?;
+                if value(call.payload)? == 1 {
+                    self.insert_grid(id)?;
+                } else {
+                    self.remove_grid(id, env.work_limit)?;
+                }
+                *call.result = 0;
+            }
+            DESTROY => {
+                valid_limit(env.work_limit)?;
+                self.clear_owned(id)?;
+                self.remove_grid(id, env.work_limit)?;
+                call.context
+                    .class_dispatch(self.parents.generic, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                *call.result = entity.0;
+            }
+            NOTIFY => {
+                call.context
+                    .queues
+                    .queue(call.context.ticks, entity, false, env.work_limit)
+                    .map_err(|e| crush::code(crush::Error::Lifecycle(e)))?;
+                *call.result = 0;
+            }
+            ACTIVATE => {
+                call.context
+                    .dispatch(entity, self.interfaces.activate, None, env, self)
+                    .map_err(dispatch_code)?;
+                *call.result = 1;
+            }
+            DESTROY_REQUEST => {
+                *call.result = call
+                    .context
+                    .dispatch(entity, self.interfaces.deactivate, None, env, self)
+                    .map_err(dispatch_code)?;
+            }
+            CRUSH_ENTER => {
+                let records = &self
+                    .surfaces
+                    .entries
+                    .get(id.0)
+                    .and_then(Option::as_ref)
+                    .ok_or(-1)?
+                    .sampling
+                    .state;
+                let activate = crush::enter(
+                    id,
+                    &mut self.world.deformables,
+                    &mut self.special,
+                    records,
+                    env.work_limit,
+                )
+                .map_err(crush::code)?;
+                if activate {
+                    call.context
+                        .dispatch(entity, self.interfaces.activate, None, env, self)
+                        .map_err(dispatch_code)?;
+                }
+                *call.result = u32::from(activate);
+            }
+            CRUSH_LEAVE => {
+                let records = &self
+                    .surfaces
+                    .entries
+                    .get(id.0)
+                    .and_then(Option::as_ref)
+                    .ok_or(-1)?
+                    .sampling
+                    .state;
+                *call.result = u32::from(
+                    crush::leave(
+                        id,
+                        entity,
+                        crush::Membership {
+                            collision: &mut self.world.deformables,
+                            drawing: &mut self.special,
+                        },
+                        records,
+                        call.context.ticks,
+                        call.context.queues,
+                        env.work_limit,
+                    )
+                    .map_err(crush::code)?,
+                );
+            }
+            CRUSH_DESTROY => {
+                valid_limit(env.work_limit)?;
+                let private = self
+                    .surfaces
+                    .entries
+                    .get(id.0)
+                    .and_then(Option::as_ref)
+                    .ok_or(-1)?
+                    .runtime
+                    .private_mesh;
+                crush::destroy_owned(
+                    self.surfaces
+                        .entries
+                        .get_mut(id.0)
+                        .and_then(Option::as_mut)
+                        .ok_or(-1)?,
+                    &mut self.surfaces.meshes,
+                    env.work_limit,
+                )
+                .map_err(crush::code)?;
+                if private {
+                    self.object_mut(id)?.data.mesh = None;
+                }
+                call.context
+                    .class_dispatch(self.parents.obstacle, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                *call.result = entity.0;
+            }
+            CRUSH_HIGHLIGHT => {
+                crush::set_highlight(
+                    self.surfaces
+                        .entries
+                        .get_mut(id.0)
+                        .and_then(Option::as_mut)
+                        .ok_or(-1)?,
+                    value(call.payload)?,
+                );
+                *call.result = id.0 as u32 + 1;
+            }
+            crush::TICK => crush::invoke_tick(
+                self.surfaces
+                    .entries
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
+                    .ok_or(-1)?,
+                call,
+                env,
+                self.dt,
+            )?,
+            _ => return Err(-5),
+        }
+        Ok(())
+    }
+}

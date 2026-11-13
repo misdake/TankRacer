@@ -136,18 +136,28 @@ impl Obstacle {
         world: &mut obstacle_collision::World,
         class: ClassId,
     ) -> Result<PlacedObstacle, Error> {
+        let entered = self.visibility.entered;
+        let mut placed = self.install_components(world, class)?;
+        if entered {
+            placed.cell = Some(spatial::insert(
+                &mut world.grid,
+                placed.id,
+                &world.colliders[placed.id.0],
+                placed.source.as_ref().map(|m| m.radius),
+            ));
+        }
+        Ok(placed)
+    }
+    /// Install component data; runtime class methods own membership changes.
+    pub fn install_components(
+        self,
+        world: &mut obstacle_collision::World,
+        class: ClassId,
+    ) -> Result<PlacedObstacle, Error> {
         let id = ObstacleId(world.colliders.len());
         if world.objects.len() != id.0 || world.classes.get(class.0).is_none() {
             return Err(Error::InvalidWorld);
         }
-        let cell = self.visibility.entered.then(|| {
-            spatial::insert(
-                &mut world.grid,
-                id,
-                &self.collider,
-                self.source.as_ref().map(|m| m.radius),
-            )
-        });
         world.colliders.push(self.collider);
         world.objects.push(obstacle_collision::Object {
             class,
@@ -159,7 +169,7 @@ impl Obstacle {
         });
         Ok(PlacedObstacle {
             id,
-            cell,
+            cell: None,
             source: self.source,
             mesh: self.mesh,
             visibility: self.visibility,

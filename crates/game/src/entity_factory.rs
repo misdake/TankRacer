@@ -76,8 +76,14 @@ pub struct Context<'a, T> {
 pub struct Invocation<'a, T> {
     pub context: Context<'a, T>,
     pub entity: EntityId,
-    pub payload: Option<u32>,
+    pub payload: Option<Payload>,
     pub result: &'a mut u32,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Payload {
+    Value(u32),
+    Entity(EntityId),
+    Position([i32; 3]),
 }
 pub trait Methods<T> {
     fn invoke(
@@ -163,7 +169,7 @@ impl<T: Copy> Context<'_, T> {
         &mut self,
         entity: EntityId,
         slot: u32,
-        payload: Option<u32>,
+        payload: Option<Payload>,
         env: Environment<'_>,
         methods: &mut impl Methods<T>,
     ) -> Result<u32, Error> {
@@ -189,6 +195,42 @@ impl<T: Copy> Context<'_, T> {
                             current_slot,
                             ticks: self.ticks,
                             queues: self.queues,
+                        },
+                        entity,
+                        payload,
+                        result,
+                    },
+                    env,
+                )
+            },
+        )
+        .map_err(Error::Dispatch)?;
+        Ok(result)
+    }
+    pub fn class_dispatch(
+        &mut self,
+        class: ClassId,
+        entity: EntityId,
+        payload: Option<Payload>,
+        env: Environment<'_>,
+        methods: &mut impl Methods<T>,
+    ) -> Result<u32, Error> {
+        let class = Arc::clone(env.classes.get(class.0).ok_or(Error::MissingClass(class))?);
+        let mut result = 0;
+        dispatch::call_class(
+            &class,
+            self.current_slot,
+            &mut result,
+            |method, current_slot, result| {
+                methods.invoke(
+                    method,
+                    Invocation {
+                        context: Context {
+                            entities: self.entities,
+                            symbols: self.symbols,
+                            ticks: self.ticks,
+                            queues: self.queues,
+                            current_slot,
                         },
                         entity,
                         payload,
