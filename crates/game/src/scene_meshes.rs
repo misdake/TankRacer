@@ -8,8 +8,9 @@ use tankracer_assets::{mesh::Geometry, model::Model};
 pub struct MeshId(usize);
 
 struct Mesh {
-    geometry: Geometry,
+    geometry: Option<Geometry>,
     hint: u16,
+    shared: bool,
 }
 #[derive(Default)]
 pub struct Meshes {
@@ -19,7 +20,11 @@ pub struct Meshes {
 impl Meshes {
     pub fn insert(&mut self, geometry: Geometry) -> MeshId {
         let id = MeshId(self.entries.len());
-        self.entries.push(Mesh { geometry, hint: 0 });
+        self.entries.push(Mesh {
+            geometry: Some(geometry),
+            hint: 0,
+            shared: false,
+        });
         id
     }
     /// The first case-insensitive name binding wins, even across namespaces.
@@ -30,6 +35,7 @@ impl Meshes {
         }
         let id = self.insert(model.geometry.clone());
         self.entries[id.0].hint = model.render_hint;
+        self.entries[id.0].shared = true;
         self.names.insert(key, id);
         id
     }
@@ -42,17 +48,30 @@ impl Meshes {
         Some(id)
     }
     pub fn hint(&self, id: MeshId) -> Option<u16> {
-        self.entries.get(id.0).map(|m| m.hint)
+        let mesh = self.entries.get(id.0)?;
+        mesh.geometry.as_ref().map(|_| mesh.hint)
     }
     pub fn set_hint(&mut self, id: MeshId, hint: u16) -> Option<()> {
-        self.entries.get_mut(id.0)?.hint = hint;
+        let mesh = self.entries.get_mut(id.0)?;
+        mesh.geometry.as_ref()?;
+        mesh.hint = hint;
         Some(())
     }
     pub fn get(&self, id: MeshId) -> Option<&Geometry> {
-        self.entries.get(id.0).map(|m| &m.geometry)
+        self.entries.get(id.0)?.geometry.as_ref()
     }
     pub fn get_mut(&mut self, id: MeshId) -> Option<&mut Geometry> {
-        self.entries.get_mut(id.0).map(|m| &mut m.geometry)
+        self.entries.get_mut(id.0)?.geometry.as_mut()
+    }
+    /// Retire owned geometry without renumbering handles or invalidating aliases.
+    /// Named/shared geometry is protected from class-local destruction.
+    pub fn release_private(&mut self, id: MeshId) -> Option<()> {
+        let mesh = self.entries.get_mut(id.0)?;
+        if mesh.shared {
+            return None;
+        }
+        mesh.geometry.take()?;
+        Some(())
     }
 }
 

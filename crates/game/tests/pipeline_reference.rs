@@ -475,6 +475,7 @@ fn compare(vehicle: bool) {
                 vertices: &[[-128, 20, 0], [0, 40, 0], [128, 80, 0]],
             };
             let mut deform = deformation::State {
+                records_attached: true,
                 pose: deformation::Pose {
                     origin: origins[0],
                     ..deformation::Pose::default()

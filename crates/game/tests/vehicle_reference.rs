@@ -188,6 +188,7 @@ impl SurfaceSnapshot {
             },
             meshes,
             surface: scene_collision::Deformable {
+                runtime: tankracer_game::crush::State::default(),
                 config,
                 state,
                 mesh,
@@ -196,6 +197,7 @@ impl SurfaceSnapshot {
                     bounds: sample_bounds,
                     edge_cap,
                     state: deformation::State {
+                        records_attached: true,
                         pose: deformation::Pose {
                             origin: position,
                             inverse_basis: matrix.0,

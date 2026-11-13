@@ -1322,3 +1322,79 @@ factories, then complete vehicle prefix/after-pose and independent world ticks.
 $env:TANKRACER_ENTITY_FACTORY_REFERENCE=(Resolve-Path build/native/entity_factory_reference.exe).Path
 cargo test -p tankracer-game --test entity_factory_reference --locked -- --ignored --nocapture
 ```
+
+## Concrete Crush records and lifecycle components
+
+`crush` implements the actual record tick and its entity-table binding. Blink
+states 0/1 subtract dt only while timer > dt; toggling adds 500 to the old timer
+without subtracting dt. State 2 compares the first color channel as **signed i8**,
+then retires or subtracts dt into all three bytes. Unknown states are not counted
+as retired. Siren retirement uses the strict 11,026 boundary and wrapping dt*8;
+a nonzero overshoot below the boundary clears on the following update (an exact
+zero can stop immediately). Record/flag/queue writes
+retain their original ordering on traversal or notification failures.
+
+`deformation::State::records_attached` represents the live buffer independently
+of its declared record count. Tick detaches it before enqueueing stop. Sampling
+then skips retained records while still reading the same current mesh; drawing
+must observe this flag too. Sampling, record ticking and constructor data use one
+authoritative buffer. The siren timer moved from duplicated startup metadata
+into the surface runtime component. Highlight mode is true only for mode == 1.
+
+Crush enter appends collision/drawing memberships before requesting activation;
+the class owner must then call the real activation interface. Leave removes first
+occurrences in source order and requests deferred stop only for an attached
+buffer. Its result is notification presence, rather than a guest node pointer;
+node-address identity is not part of this typed interface. Owned destruction
+detaches vertex flags, releases a private mesh and detaches records **before**
+the parent-class method. The common Obstacle/Model parent destructor is still
+pending; `destroy_owned` deliberately exposes this prefix, not a completed
+destructor. Mesh retirement does not renumber handles or release shared/named
+geometry; live getters reject retired private geometry.
+
+One redundant camera query was removed: in the valid native path its only effect
+is conditionally writing zero to the audio-channel field, which is already zero
+when the conditional write is skipped. Rust clears that field directly. This
+preserves semantic output for both near/far cameras; C read-fault ordering is
+outside the typed-resource boundary. No whole-frame speedup claim is made.
+
+**178 scenarios / 840 updates / 52,350 semantic words match production C**:
+140 error prefixes, 218 detached-buffer observations and 445 callbacks. Tests
+combine sampling, tick, activation, deferred stop/drain, highlight and owned
+cleanup. They cover signed-byte fading, blink/wrap sequences, siren overshoot,
+duplicate memberships, partial removal, notification failures, activation/parent
+failures and private/shared destruction. The real entity scheduler dispatches
+the real Crush tick binding. Parent callbacks are explicit scripted boundaries;
+leave's node return and set-flag's object return are normalized to presence or
+logical identity. No pointer-numeric equivalence is claimed.
+
+The real archive constructor oracle now also compares **154 constructed Crush
+objects / 28 glow records / 302 record ticks**, with all 154 buffers detached.
+It activates each authored record through the real sampler, performs up to two
+dt=1500 boundary updates to cross retirement/siren branches, and samples again.
+These are deliberate short module sequences, not normal-duration race frames.
+Initial surrounding flags/notifications remain C boundary inputs; actual surface
+data is constructed from archives in Rust. C alone uses a copied arena plus a
+disjoint allocation range above the declared original 8 MiB, leaving native
+startup and its allocator intact. Rust receives semantic fields, never that
+arena. Constructor-only placement coverage is retained separately.
+
+Regression: connected vehicle 1,254 records / 8,716,157 words; both 6,144-record
+contact suites; 6,144 deformation records; and 2,937 parent constructions match.
+Workspace tests, native/all-target and Wasm game Clippy, unchanged-C verification
+and release browser build pass. No renderer or GL pipeline state changed;
+no new GPU claim.
+No map acceleration data added; full live Wasm budget aggregation stays pending.
+
+M3 remains open. Concrete activation/parent bindings, common Obstacle methods,
+authored class/attachment startup, full shared RNG replay and complete vehicle
+prefix/after-pose still need connecting before the moving proxy runs independently.
+Do not treat the new enter/destructor prefixes as a complete game lifecycle.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_crush.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/crush_reference.exe
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
+$env:TANKRACER_CRUSH_REFERENCE=(Resolve-Path build/native/crush_reference.exe).Path
+$env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
+cargo test -p tankracer-game --test crush_reference --test scene_startup_reference --locked -- --ignored --nocapture
+```

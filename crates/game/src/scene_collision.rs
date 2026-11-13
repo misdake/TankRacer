@@ -1,7 +1,7 @@
 //! Concrete gameplay bindings for collision interfaces. No original code pointers.
 pub use crate::breakable::{BREAKABLE_HIT, ENABLE_TICK};
 use crate::{
-    contact_pipeline, deformable_hit, deformation,
+    contact_pipeline, crush, deformable_hit, deformation,
     dispatch::MethodId,
     object_query::{Collider, EntityId},
     obstacle_collision::Invocation,
@@ -25,6 +25,7 @@ pub struct Deformable {
     pub mesh: MeshId,
     pub vertex_flags: Vec<u8>,
     pub sampling: Sampling,
+    pub runtime: crush::State,
 }
 
 /// Scene components parallel the collision handles; absent entries belong to
@@ -152,6 +153,7 @@ mod tests {
             surfaces: Surfaces {
                 meshes,
                 entries: vec![Some(Deformable {
+                    runtime: crush::State::default(),
                     config: deformable_hit::Config {
                         floor: 0,
                         compression: 64,
@@ -166,6 +168,7 @@ mod tests {
                         bounds: [[-500, 500]; 2],
                         edge_cap: 65536,
                         state: deformation::State {
+                            records_attached: true,
                             records: vec![deformation::Record {
                                 world_position: [0; 3],
                                 timer: 0,

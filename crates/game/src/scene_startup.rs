@@ -1,7 +1,7 @@
 //! Authored class construction. Resource resolution, geometry ownership and RNG
 //! remain explicit; no original-memory arena or test snapshot initializes state.
 use crate::{
-    deformable_hit, deformation,
+    crush, deformable_hit, deformation,
     dispatch::ClassId,
     fixed::trunc_shift,
     geometry::Bounds,
@@ -60,7 +60,6 @@ pub struct Crush {
     pub surface: Deformable,
     pub visibility: Visibility,
     pub ground_height: i32,
-    pub siren_timer: i32,
 }
 /// Noncollision components retained after installing the authoritative collider
 /// and deformable state. The scheduler/render scene owns these handles too.
@@ -69,7 +68,6 @@ pub struct PlacedCrush {
     pub source: Arc<Model>,
     pub visibility: Visibility,
     pub ground_height: i32,
-    pub siren_timer: i32,
 }
 pub(crate) fn value(values: &mut Values<'_>) -> Result<i32, Error> {
     values.integer().ok_or(Error::MissingValue)
@@ -252,7 +250,6 @@ impl Crush {
             source: self.source,
             visibility: self.visibility,
             ground_height: self.ground_height,
-            siren_timer: self.siren_timer,
         })
     }
     /// Complete component construction for shipped Crush parameters. Membership
@@ -326,8 +323,12 @@ impl Crush {
             source,
             visibility,
             ground_height,
-            siren_timer,
             surface: Deformable {
+                runtime: crush::State {
+                    siren_timer,
+                    private_mesh: p.find(":multi_crush").is_some(),
+                    ..crush::State::default()
+                },
                 config: deformable_hit::Config {
                     floor: p.integer(":crush_limit").map_or(50, |v| v >> 3),
                     compression: p.integer(":crush_amount").unwrap_or(1),
@@ -342,6 +343,7 @@ impl Crush {
                     bounds: sampling_bounds,
                     edge_cap: p.integer(":max_height").unwrap_or(45000).clamp(0, 65535),
                     state: deformation::State {
+                        records_attached: p.find(":police_glow").is_some(),
                         pose: deformation::Pose {
                             origin: pose.position,
                             inverse_basis: pose.matrix.0,

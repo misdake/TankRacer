@@ -41,6 +41,9 @@ pub struct State {
     pub pose: Pose,
     /// Resource loading must validate at most 65536 records, the source limit.
     pub records: Vec<Record>,
+    /// Retirement detaches the live buffer without changing its declared count.
+    /// Sampling/rendering must ignore retained records after this becomes false.
+    pub records_attached: bool,
     pub dirty: u8,
 }
 
@@ -93,7 +96,12 @@ impl State {
             }
         }
         let mut activated_records = 0;
-        for record in &mut self.records {
+        let records = if self.records_attached {
+            self.records.as_mut_slice()
+        } else {
+            &mut []
+        };
+        for record in records {
             let activate = match record.state {
                 0 => true,
                 1 => {
@@ -136,6 +144,7 @@ mod tests {
         };
         let mut state = State {
             pose: Pose::default(),
+            records_attached: true,
             records: vec![
                 Record {
                     world_position: [0; 3],

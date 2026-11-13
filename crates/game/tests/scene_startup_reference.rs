@@ -1,10 +1,12 @@
 use std::{fs, path::PathBuf, process::Command};
 use tankracer_assets::{archive::Archive, level::Level, model::ShapeArchive, terrain::TerrainData};
 use tankracer_game::{
+    crush,
     dispatch::{Class, ClassId},
+    lifecycle::{Queues, Ticks},
     object_query::EntityId,
     obstacle_collision::{Grid, World},
-    scene_collision::{DEFORMABLE_HIT, Surfaces},
+    scene_collision::{DEFORMABLE_HIT, Deformable, Surfaces},
     scene_meshes::Meshes,
     scene_startup::{Crush, Resources},
     vehicle_model::{Bundles, ModelBank},
@@ -30,6 +32,71 @@ impl<'a> Reader<'a> {
             assert_eq!(self.word() as i32, value, "{label} [{i}]");
         }
     }
+    fn runtime(
+        &mut self,
+        surface: &Deformable,
+        entity: EntityId,
+        ticks: &mut Ticks<EntityId>,
+        queues: &mut Queues<EntityId>,
+        initial: bool,
+    ) {
+        // Surrounding unported constructors supply only initial membership
+        // boundaries. Surface/record state is always built from authored data.
+        if initial {
+            ticks.flags[entity.0 as usize] = self.word();
+        } else {
+            self.check(ticks.flags[entity.0 as usize], "live flags");
+        }
+        self.check(u32::from(surface.sampling.state.dirty), "live dirty");
+        self.check(
+            u32::from(surface.sampling.state.records_attached),
+            "live record buffer",
+        );
+        self.ints(
+            [
+                surface.runtime.siren_timer,
+                surface.runtime.sound_channel as i32,
+            ],
+            "live siren",
+        );
+        self.check(
+            u32::from(surface.runtime.private_mesh),
+            "private mesh ownership",
+        );
+        self.check(
+            u32::from(!surface.vertex_flags.is_empty()),
+            "live vertex flags",
+        );
+        for record in &surface.sampling.state.records {
+            self.ints(
+                record.position.into_iter().chain(record.world_position),
+                "live record positions",
+            );
+            self.check(
+                u32::from_le_bytes([
+                    record.state,
+                    record.color[0],
+                    record.color[1],
+                    record.color[2],
+                ]),
+                "live state/color",
+            );
+            self.ints([record.timer], "live record timer");
+        }
+        let count = self.word();
+        if initial {
+            queues.notifications = (0..count).map(|_| EntityId(self.word())).collect();
+        } else {
+            assert_eq!(
+                count as usize,
+                queues.notifications.len(),
+                "live notification count"
+            );
+            for id in &queues.notifications {
+                self.check(id.0, "live notification order");
+            }
+        }
+    }
 }
 
 #[test]
@@ -38,7 +105,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
     let executable =
         std::env::var_os("TANKRACER_SCENE_STARTUP_REFERENCE").expect("scene constructor oracle");
-    let (mut count, mut glows, mut shared) = (0, 0, 0);
+    let (mut count, mut glows, mut shared, mut runtime_updates, mut detached) = (0, 0, 0, 0, 0);
     for (map, name) in [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ]
@@ -84,7 +151,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SC01");
+            assert_eq!(&output.stdout[..4], b"SC02");
             let mut r = Reader(&output.stdout[4..]);
             let mut aliases = Vec::new();
             let mut constructed = Vec::new();
@@ -97,7 +164,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     .expect("C produced more Crush objects than authored file");
                 assert_eq!(parameters, record.parameters, "{name} {entity:?}");
                 r.check(0_u32, "native constructor status");
-                let built = Crush::build(
+                let mut built = Crush::build(
                     record,
                     entity,
                     &mut Resources {
@@ -154,7 +221,7 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     &format!("{label} entered"),
                 );
                 r.ints(
-                    [built.ground_height, built.siren_timer],
+                    [built.ground_height, built.surface.runtime.siren_timer],
                     &format!("{label} ground/siren"),
                 );
                 let s = &built.surface;
@@ -171,7 +238,11 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     s.sampling.bounds.into_iter().flatten(),
                     &format!("{label} sampling bounds"),
                 );
-                for value in [s.state.dirty, 0, s.sampling.state.dirty] {
+                for value in [
+                    s.state.dirty,
+                    u8::from(s.runtime.highlighted),
+                    s.sampling.state.dirty,
+                ] {
                     r.check(u32::from(value), &format!("{label} dirty"));
                 }
                 r.check(s.state.last_vehicle.map_or(0, |e| e.0), "last vehicle");
@@ -209,6 +280,68 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
                     r.check(u32::from(flags), &format!("{label} vertex flags"));
                 }
                 r.check(random, &format!("{label} RNG"));
+                let saved_sampling = built.surface.sampling.state.clone();
+                let saved_runtime = built.surface.runtime.clone();
+                let mut ticks = Ticks::<EntityId> {
+                    flags: vec![0; entity.0 as usize + 1],
+                    ..Default::default()
+                };
+                let mut queues = Queues::default();
+                r.runtime(&built.surface, entity, &mut ticks, &mut queues, true);
+                let geometry = tankracer_game::deformation::Geometry {
+                    sample_bounds: built.surface.sampling.bounds,
+                    edges: [
+                        built.collider.bounds.min[0],
+                        built.collider.bounds.max[0],
+                        built.collider.bounds.min[2],
+                        built.collider.bounds.max[2],
+                    ],
+                    edge_cap: built.surface.sampling.edge_cap,
+                    vertices: &meshes.get(built.surface.mesh).unwrap().vertices,
+                };
+                for i in 0..built.surface.sampling.state.records.len() {
+                    let world = built.surface.sampling.state.records[i].world_position;
+                    built.surface.sampling.state.sample(&geometry, world);
+                }
+                r.runtime(&built.surface, entity, &mut ticks, &mut queues, false);
+                for _ in 0..2 {
+                    let status = if built.surface.sampling.state.records.is_empty()
+                        || built.surface.sampling.state.records_attached
+                    {
+                        runtime_updates += 1;
+                        crush::tick(
+                            &mut built.surface,
+                            1500,
+                            entity,
+                            &mut ticks,
+                            &mut queues,
+                            100000,
+                        )
+                        .map_or_else(crush::code, |_| 0)
+                    } else {
+                        -1
+                    };
+                    r.ints([status], "authored record tick status");
+                    r.runtime(&built.surface, entity, &mut ticks, &mut queues, false);
+                }
+                let activated = if let Some(record) = built.surface.sampling.state.records.first() {
+                    let world = record.world_position;
+                    built
+                        .surface
+                        .sampling
+                        .state
+                        .sample(&geometry, world)
+                        .activated_records
+                } else {
+                    0
+                };
+                r.check(activated, "post-retirement activation");
+                r.runtime(&built.surface, entity, &mut ticks, &mut queues, false);
+                detached += usize::from(!built.surface.sampling.state.records_attached);
+                // Preserve constructor-only placement coverage after the independent
+                // short sequence; these small component clones exist only in tests.
+                built.surface.sampling.state = saved_sampling;
+                built.surface.runtime = saved_runtime;
                 count += 1;
                 constructed.push(built);
             }
@@ -249,6 +382,6 @@ fn authored_crush_components_mesh_sharing_records_and_rng_match_real_map_constru
     }
     assert!(count > 40 && glows > 0);
     eprintln!(
-        "{count} authored Crush constructions / {glows} glow records / {shared} shared-mesh pairs exact against real C startup"
+        "{count} authored Crush constructions / {glows} glow records / {shared} shared-mesh pairs / {runtime_updates} runtime ticks / {detached} detached buffers exact against real C startup"
     );
 }

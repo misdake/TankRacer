@@ -92,6 +92,7 @@ fn strict_windows_wrapping_clamps_and_record_mutations_match_c() {
                 .collect::<Vec<_>>(),
         };
         let mut state = State {
+            records_attached: true,
             pose,
             records: (0..8)
                 .map(|j| Record {

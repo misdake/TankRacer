@@ -7,6 +7,7 @@ pub mod collision;
 pub mod collision_effects;
 pub mod contact;
 pub mod contact_pipeline;
+pub mod crush;
 pub mod damage;
 pub mod deformable_hit;
 pub mod deformation;
