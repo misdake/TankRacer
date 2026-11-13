@@ -2,25 +2,22 @@
 
 ## Current checkpoint
 
-- Active: **M3 — physics**. Contact/drive verified; vehicle is not running.
-- Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world, atlas and
-  free camera (`e98e429`). Actual scene: 5 draws, 8,762 visible triangles.
-- Verified M2: all eight maps' geometry and valid SUR pixels match C; 133 GPU
-  pixel cases pass. Detailed evidence: [assets](rust-assets.md),
-  [renderer](rust-renderer.md).
-- M3 verified: typed terrain/secondary grids, auxiliary sampling, deformation,
-  complete material/contact/suspension pipeline (`53a558b`). Detailed contracts,
-  C evidence and commands: [physics](rust-physics.md).
-- Authored configs (`342460a`): all 57 vehicle keys / 15 tanks / 100 surface
-  factors and override widths match C; real parameters feed contact tests.
-- Drive (`1416a89`): 9,600 four-tick/branch records match C across all fifteen tanks.
-- Math/attitude/velocity (`50bb0fe`): 56,025 C records match; shared tables 41,474 bytes.
-- Latest: part poses, articulation/lean and contact hull ported; 26,624 C records
-  match, including mesh writes and partial errors. Native/Wasm checks pass.
+- Active: **M3 — physics**. Verified modules and model construction exist;
+  the complete moving Rust vehicle is **not running**.
+- Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world/atlas/free
+  camera (`e98e429`): 5 draws, 8,762 visible triangles; 133 GPU pixel cases pass.
+- M3 verified against C: terrain/secondary queries, deformation, contact and
+  suspension; authored vehicle/surface configs; drive, fixed-point math,
+  attitude/velocity, part poses, articulation/lean and contact hull.
+- Latest checkpoint **`2099509`**: common SM/BSM decoder and typed vehicle model
+  assembly. 435 models / 10,430 triangles and 60 full native starts match C.
+  Workspace tests, native/Wasm Clippy and existing browser regressions pass.
+- Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
+  [physics](rust-physics.md) and [renderer](rust-renderer.md); keep them out of this summary.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: SS/SM model resources and derived contacts/bounds → damage/motion/collision
+- Next: damage → motion/collision → complete per-tick vehicle orchestration
   → browser proxy. No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
