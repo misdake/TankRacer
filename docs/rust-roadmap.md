@@ -17,18 +17,19 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`c8d96ca`**. Common scene-object lifecycle and Crush now
-  use real parent/activation/destructor bindings on shared components. 664 short
-  scenarios / 1,672 operations match the production C dispatcher. Authored parent,
-  Crush, factory and connected-vehicle regressions, workspace tests, native/Wasm
-  lint, unchanged-C checks and browser build pass. Details: [physics](rust-physics.md).
-- Still missing: fresh class allocation, authored reader/subclass/attachment
-  factories, auxiliary face/backup motion and complete startup/shared RNG replay.
+- Last verified code: **`d436d8f`**. Ordinary Obstacle allocation, authored reader
+  and constructor now use the shared factory/lifecycle. 24 fresh scripts / 144
+  objects / 96 checkpoints and all 56 authored ordinary objects match C; the live
+  comparison caught/fixed a missing deferred-stop call. Lifecycle, authored parent,
+  Crush and connected-vehicle regressions, workspace tests, native/Wasm lint,
+  unchanged-C checks and browser build pass. Details: [physics](rust-physics.md).
+- Still missing: Crush/Fall-family and other subclass allocation/readers,
+  attachments, auxiliary face/backup motion and complete startup/shared RNG replay.
   Breakable collision callbacks must share the entity scheduler/symbol context;
   vehicle prefix/after-pose and world startup remain incomplete. Class-slot tests
   are scoped; complete bootstrap and fragment/animation GPU rendering are pending.
-- **Next runnable increment:** bind authored class allocation/readers and
-  attachments to this lifecycle, then connect vehicle prefix/after-pose and
+- **Next runnable increment:** extend the fresh reader to Crush/Fall-family
+  and attachments on this same owner, then connect vehicle prefix/after-pose and
   scheduler -> independent moving proxy. Do not leave tested modules disconnected.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
   ownership, RNG consumption and the distinction between activation/impact limits.
