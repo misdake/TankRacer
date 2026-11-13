@@ -6,17 +6,14 @@
   the complete moving Rust vehicle is **not running**.
 - Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world/atlas/free
   camera (`e98e429`): 5 draws, 8,762 visible triangles; 133 GPU pixel cases pass.
-- M3 verified against C: terrain/secondary queries, deformation, contact and
-  suspension; authored vehicle/surface configs; drive, fixed-point math,
-  attitude/velocity, poses/articulation/lean/hull, real model assembly and damage;
-  object queries, wall/pair/ground response and tank query/overlap dispatch.
-  Queries include all eight actual native worlds / 664 colliders.
-- Scene response (`d836ea7`): obstacle/deformable response, logical method slots and
-  real deformable mesh compression/material/timer/RNG. 6,144 flow + 4,096 actual
-  method records match C; composed Rust binding and native/Wasm checks pass.
-- Latest **`22ad404`**: real breakable hit/attachment chains, spatial insert/remove
-  and tick membership. 8,192 membership + 4,096 real hit/flow records match C;
-  native/Wasm checks pass. Entity dispatch keeps its distinct failure contract.
+- M3 verified against C: terrain/contact/suspension, drive/fixed-point math,
+  vehicle poses/model assembly/damage, ordered object queries and collision
+  response, deformable objects, breakable hit chains and spatial/tick membership.
+- Last verified code: **`22ad404`**. Membership + breakable hit/flow: 12,288 C
+  reference records; native/Wasm checks pass. Earlier evidence is linked below.
+- In progress, **uncommitted and not yet qualified here**: impact particles,
+  shared line pool and their C comparison tests. Inspect the worktree and test
+  results before treating these as complete.
 - Remaining scene gaps include real impact particles, auxiliary/destruction
   effects, object motion ticks and the full scheduler; probes do not complete them.
   Rust world construction and the complete moving vehicle are still unfinished.
@@ -80,3 +77,7 @@ recovery. Update the checkbox, current checkpoint, verification/commit and next
 concrete task. Check the worktree before resuming; distinguish verified work,
 pending changes and remaining scope. Keep this summary short and move detailed
 evidence into the linked documents. Then proceed to the next runnable increment.
+
+At each checkpoint, answer: **What runs now? What passed? What is still missing?
+What is the next runnable increment?** Recheck the constraints above before
+choosing that increment. A tested helper alone does not complete a milestone.
