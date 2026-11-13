@@ -1040,3 +1040,62 @@ production C files unchanged (97 modules, two audio packs). Renderer code was
 not changed; no new GPU or performance qualification is claimed. The scoped
 view/store lookup adds no per-frame vertex allocation or precomputed map cache.
 The native C reproduction command in the previous section still applies.
+
+
+## Authored Crush construction and stable scene geometry
+
+`scene_startup::Crush::build` now constructs actual class components from a
+`level::Object`, archived shape bundles, the decoded terrain graph and the shared
+RNG. It creates the collider/bounds/weight, lap visibility, surface material/sort
+alias, sampling bounds, compression/floor/edge limits, per-vertex drift flags,
+police-glow records (local and world positions, colors, state and timer), ground
+height and siren envelope timer. General Obstacle type/shatter extensions are
+explicitly rejected if introduced on Crush; they are not successful no-ops.
+
+`scene_meshes::Meshes` owns current geometry behind stable handles. Source-name
+bindings share geometry; `:multi_crush` makes an independent copy of the current
+source. This distinction is gameplay-visible: two unqualified copies would lose
+shared deformation. Visibility hints share/copy with their meshes too. Immutable
+`Model` provenance remains available for materials/normals/bounds. Contact, hit
+methods and future rendering all access the scene store, without RefCell or
+per-frame vertex copies. The previous contact-scoped lifetime contract remains.
+The same-instance sample/hit test and a new shared/private allocation test pass.
+
+`Crush::install` moves authoritative components into the existing collision
+world and class table, preserving construction order. Active objects enter the
+ordered deformable list; lap-delayed ones do not. None enters the ordinary
+obstacle grid. Render/scheduler metadata survives in `PlacedCrush`; complete
+lap events, enter/leave/destroy/tick scheduling and rendering are still pending.
+Installation rejects inconsistent stores or a missing real hit binding.
+
+**154 actual C class constructions / 28 glow records / 10 shared-mesh pairs
+match across 22 nonempty map/CUP configurations.** The two CIRCUIT bronze/silver
+files are empty Paths-only placeholders; they remain covered by the authored
+record decoder but do not form runnable native worlds. The C oracle includes
+the production deformable translation unit unchanged, renaming only the resource
+constructor symbol so a wrapper can capture its actual input/output during real
+host map startup. No constructor formula is copied into the oracle. Inputs to
+Rust are original authored records/resources plus each C boundary's RNG seed;
+all compared persistent component values, vertex coordinates, geometry alias relations
+and outgoing RNG match. Tests also install the resulting components in Rust.
+This is class-construction boundary parity, not complete Rust startup/RNG replay
+through the other classes; it does not qualify an independent moving game.
+
+After the arena/record-layout change, the connected physics test still matches
+1,254 records / 8,716,157 words (37 real hits, 33 later sampling borrows), and
+6,144 deformation cases plus both 6,144-case contact suites pass. Workspace tests,
+native/all-target Clippy, Wasm game Clippy and unchanged-production-C verification
+pass. Renderer behavior is unchanged. New geometry/records are original resource
+and dynamic component storage, not a new spatial acceleration cache; full live
+Wasm memory accounting and whole-frame profiling remain future work.
+
+```powershell
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
+$env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
+cargo test -p tankracer-game --test scene_startup_reference -- --ignored --nocapture
+```
+
+Next: common Obstacle parameters and other class construction, named entity
+resolution and world membership/scheduler, then the remaining vehicle prefix and
+after-pose operations. M3 remains open until an independently initialized moving
+proxy runs; neither this constructor nor the connected phase alone closes it.

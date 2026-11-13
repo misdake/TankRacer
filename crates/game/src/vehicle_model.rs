@@ -48,7 +48,7 @@ pub struct ModelBank {
     models: HashMap<String, Arc<Model>>,
 }
 impl ModelBank {
-    fn load(
+    pub(crate) fn load(
         &mut self,
         source: &impl ShapeSource,
         space: Space,

@@ -5,8 +5,8 @@ use crate::{
     dispatch::MethodId,
     object_query::{Collider, EntityId},
     obstacle_collision::Invocation,
+    scene_meshes::{MeshId, Meshes},
 };
-use tankracer_assets::mesh::Geometry;
 
 /// A logical binding assigned by the Rust class catalogue, unrelated to PE IDs.
 pub const DEFORMABLE_HIT: MethodId = MethodId(0);
@@ -22,15 +22,17 @@ pub struct Sampling {
 pub struct Deformable {
     pub config: deformable_hit::Config,
     pub state: deformable_hit::State,
-    pub mesh: Geometry,
+    pub mesh: MeshId,
     pub vertex_flags: Vec<u8>,
     pub sampling: Sampling,
 }
 
 /// Scene components parallel the collision handles; absent entries belong to
 /// other classes. Contact views end before methods regain mutable mesh access.
+#[derive(Default)]
 pub struct Surfaces {
     pub entries: Vec<Option<Deformable>>,
+    pub meshes: Meshes,
 }
 impl Surfaces {
     pub fn with_sampling<R>(
@@ -66,7 +68,7 @@ impl Surfaces {
                     collider.bounds.max[2],
                 ],
                 edge_cap: surface.sampling.edge_cap,
-                vertices: &surface.mesh.vertices,
+                vertices: &self.meshes.get(surface.mesh).ok_or(-1)?.vertices,
             },
             state: &mut surface.sampling.state,
         };
@@ -77,13 +79,13 @@ impl Surfaces {
             .get_mut(call.target.0)
             .and_then(Option::as_mut)
             .ok_or(-1)?
-            .collide(call)
+            .collide(&mut self.meshes, call)
     }
 }
 impl Deformable {
     /// Execute the real method and return its sound-trigger event. Playback is
     /// a host operation; the game-owned RNG/timer writes have already committed.
-    pub fn collide(&mut self, call: Invocation<'_>) -> Result<bool, i32> {
+    pub fn collide(&mut self, meshes: &mut Meshes, call: Invocation<'_>) -> Result<bool, i32> {
         let collider = call.world.colliders.get(call.target.0).ok_or(-1)?;
         let sound = self
             .state
@@ -91,7 +93,7 @@ impl Deformable {
                 self.config,
                 collider,
                 deformable_hit::Mesh {
-                    vertices: &mut self.mesh.vertices,
+                    vertices: &mut meshes.get_mut(self.mesh).ok_or(-1)?.vertices,
                     flags: &self.vertex_flags,
                 },
                 deformable_hit::Vehicle {
@@ -121,6 +123,7 @@ mod tests {
         pose::Pose,
     };
     use std::sync::Arc;
+    use tankracer_assets::mesh::Geometry;
     struct Methods {
         surfaces: Surfaces,
         sounds: usize,
@@ -140,8 +143,14 @@ mod tests {
     }
     #[test]
     fn query_dispatch_real_mesh_method_and_shared_rng_compose_using_base_position() {
+        let mut meshes = Meshes::default();
+        let mesh = meshes.insert(Geometry {
+            vertices: vec![[0, 200, 0]],
+            triangles: Vec::new(),
+        });
         let mut methods = Methods {
             surfaces: Surfaces {
+                meshes,
                 entries: vec![Some(Deformable {
                     config: deformable_hit::Config {
                         floor: 0,
@@ -151,16 +160,15 @@ mod tests {
                         has_sound: true,
                     },
                     state: deformable_hit::State::default(),
-                    mesh: Geometry {
-                        vertices: vec![[0, 200, 0]],
-                        triangles: Vec::new(),
-                    },
+                    mesh,
                     vertex_flags: vec![4],
                     sampling: Sampling {
                         bounds: [[-500, 500]; 2],
                         edge_cap: 65536,
                         state: deformation::State {
                             records: vec![deformation::Record {
+                                world_position: [0; 3],
+                                timer: 0,
                                 position: [0; 3],
                                 state: 0,
                                 color: [9; 3],
@@ -252,7 +260,10 @@ mod tests {
             Ok(Some(ObstacleId(0)))
         );
         let surface = methods.surfaces.entries[0].as_ref().unwrap();
-        assert_eq!(surface.mesh.vertices, [[1, 193, 1]]);
+        assert_eq!(
+            methods.surfaces.meshes.get(surface.mesh).unwrap().vertices,
+            [[1, 193, 1]]
+        );
         assert_eq!(surface.state.last_vehicle, Some(EntityId(1)));
         assert_eq!(surface.state.dirty, 1);
         let second = methods

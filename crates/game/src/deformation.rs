@@ -27,9 +27,11 @@ impl Default for Pose {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Record {
     pub position: [i32; 3],
+    pub world_position: [i32; 3],
+    pub timer: i32,
     pub state: u8,
     pub color: [u8; 3],
 }
@@ -136,16 +138,22 @@ mod tests {
             pose: Pose::default(),
             records: vec![
                 Record {
+                    world_position: [0; 3],
+                    timer: 0,
                     position: [800, 0, 0],
                     state: 1,
                     color: [9; 3],
                 },
                 Record {
+                    world_position: [0; 3],
+                    timer: 0,
                     position: [50, 0, 0],
                     state: 1,
                     color: [9; 3],
                 },
                 Record {
+                    world_position: [0; 3],
+                    timer: 0,
                     position: [i32::MAX; 3],
                     state: 0,
                     color: [9; 3],

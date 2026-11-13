@@ -16,8 +16,8 @@ use tankracer_game::{
     impact_particles::{self, Batch, Particle},
     math::Matrix,
     object_query::{Bounds, Collider, EntityId, ObstacleId, Tank, TankId},
-    obstacle_collision as obstacle, pose, powertrain, scene_collision, suspension, tank_collision,
-    vehicle, velocity,
+    obstacle_collision as obstacle, pose, powertrain, scene_collision, scene_meshes, suspension,
+    tank_collision, vehicle, velocity,
 };
 #[path = "common/motion.rs"]
 mod common;
@@ -118,6 +118,7 @@ struct SurfaceSnapshot {
     collider: Collider,
     properties: obstacle::Object,
     surface: scene_collision::Deformable,
+    meshes: scene_meshes::Meshes,
 }
 impl SurfaceSnapshot {
     fn read(r: &mut Reader) -> Self {
@@ -157,6 +158,8 @@ impl SurfaceSnapshot {
                 let position = r.vector();
                 let c = r.word().to_le_bytes();
                 deformation::Record {
+                    world_position: [0; 3],
+                    timer: 0,
                     position,
                     state: c[0],
                     color: [c[1], c[2], c[3]],
@@ -165,6 +168,8 @@ impl SurfaceSnapshot {
             .collect();
         let mesh = geometry(r);
         let vertex_flags = (0..mesh.vertices.len()).map(|_| r.word() as u8).collect();
+        let mut meshes = scene_meshes::Meshes::default();
+        let mesh = meshes.insert(mesh);
         Self {
             collider: Collider {
                 entity,
@@ -181,6 +186,7 @@ impl SurfaceSnapshot {
                 flags: 0,
                 mesh_bounds,
             },
+            meshes,
             surface: scene_collision::Deformable {
                 config,
                 state,
@@ -245,7 +251,7 @@ impl SurfaceSnapshot {
                 p.state, p.color[0], p.color[1], p.color[2],
             ]));
         }
-        geometry_words(out, &s.mesh);
+        geometry_words(out, self.meshes.get(s.mesh).unwrap());
         out.extend(s.vertex_flags.iter().copied().map(u32::from));
     }
 }
@@ -1009,7 +1015,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             let original_vertices = before
                 .surface
                 .as_ref()
-                .map(|s| s.surface.mesh.vertices.clone());
+                .map(|s| s.meshes.get(s.surface.mesh).unwrap().vertices.clone());
             let bumps = cfg.surfaces.entries.map(|s| s.bump.into());
             let terrain_world = contact_pipeline::World {
                 terrain: &terrain,
@@ -1027,9 +1033,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                 },
                 deformables: Vec::new(),
             };
-            let mut surfaces = scene_collision::Surfaces {
-                entries: Vec::new(),
-            };
+            let mut surfaces = scene_collision::Surfaces::default();
             if let Some(surface) = before.surface.take() {
                 objects.colliders.push(surface.collider);
                 objects.objects.push(surface.properties);
@@ -1038,6 +1042,7 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
                     methods: vec![Some(scene_collision::DEFORMABLE_HIT)],
                 }));
                 objects.deformables.push(ObstacleId(0));
+                surfaces.meshes = surface.meshes;
                 surfaces.entries.push(Some(surface.surface));
             }
             let mut corners: Vec<_> = before
@@ -1150,12 +1155,22 @@ fn connected_physics_real_particles_damage_and_peer_writes_match_c() {
             drop(targets);
             if let Some(surface) = scene.surfaces.entries.first_mut().and_then(Option::take) {
                 surface_changes += usize::from(
-                    original_vertices.as_deref() != Some(surface.mesh.vertices.as_slice()),
+                    original_vertices.as_deref()
+                        != Some(
+                            scene
+                                .surfaces
+                                .meshes
+                                .get(surface.mesh)
+                                .unwrap()
+                                .vertices
+                                .as_slice(),
+                        ),
                 );
                 before.surface = Some(SurfaceSnapshot {
                     collider: objects.colliders[0],
                     properties: objects.objects[0],
                     surface,
+                    meshes: std::mem::take(&mut scene.surfaces.meshes),
                 });
             }
             surface_hits += scene.hits;

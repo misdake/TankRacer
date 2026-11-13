@@ -130,3 +130,13 @@ gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_level.c buil
 $env:TANKRACER_LEVEL_REFERENCE=(Resolve-Path build/native/level_reference.exe).Path
 cargo test -p tankracer-game --test level_reference -- --ignored --nocapture
 ```
+
+
+Class-specific parameter reads now use `parameters::Parameters`, separate from
+the outer file/config lexer: exact case/first match, spaces/tabs, parentheses,
+quoted-token rules, wrapping integer and first-byte boolean conversion, and the
+native final-token `more` condition. It borrows parameter text without an AST or
+string copies. The actual shipped Crush constructor comparisons exercise it;
+focused lexer tests also cover CR/LF attachment, repeated/case-distinct keys,
+quoted names and an unreadable final integer. Other Obstacle constructors remain
+pending; see the latest [physics checkpoint](rust-physics.md).

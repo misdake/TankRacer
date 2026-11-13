@@ -482,16 +482,22 @@ fn compare(vehicle: bool) {
                 dirty: 0,
                 records: vec![
                     deformation::Record {
+                        world_position: [0; 3],
+                        timer: 0,
                         position: [0; 3],
                         state: 0,
                         color: [11; 3],
                     },
                     deformation::Record {
+                        world_position: [0; 3],
+                        timer: 0,
                         position: [0; 3],
                         state: 1,
                         color: [22; 3],
                     },
                     deformation::Record {
+                        world_position: [0; 3],
+                        timer: 0,
                         position: [i32::MAX; 3],
                         state: 1,
                         color: [33; 3],

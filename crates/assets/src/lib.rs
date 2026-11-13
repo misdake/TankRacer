@@ -6,6 +6,7 @@ pub mod config;
 pub mod level;
 pub mod mesh;
 pub mod model;
+pub mod parameters;
 pub mod surface;
 pub mod terrain;
 pub mod world;

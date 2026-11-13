@@ -95,6 +95,8 @@ fn strict_windows_wrapping_clamps_and_record_mutations_match_c() {
             pose,
             records: (0..8)
                 .map(|j| Record {
+                    world_position: [0; 3],
+                    timer: 0,
                     position: if i < 1024 {
                         [
                             boundary[(i + j) % boundary.len()],
