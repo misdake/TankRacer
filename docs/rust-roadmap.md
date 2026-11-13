@@ -17,19 +17,20 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`33dce6a`**. Shared pickup fade matches C on 96 scenarios /
-  768 operations, including follow/early-return gates and 43 error prefixes.
-  Shared debris, spray/smoke, energy, prefix, quad/light/mark, fresh construction
-  (122 / 83,936 words) and connected physics are qualified parts.
-  Native/Wasm lint, unit/build and C preservation pass; no running-car claim.
+- Last verified code: **`09798c4`**. Complete single-view active/inactive after-pose
+  chains match C on 40 scenarios / 320 calls: every component changes, 40 error
+  prefixes and per-call RNG counts match. Earlier kernels, fresh construction
+  (122 / 83,936 words) and connected physics are qualified separately.
+  Workspace/native/Wasm/build and C preservation pass; no running-car claim.
   Shared shield startup still requires its original 180-draw initialization.
-- **Next runnable increment:** complete after-pose coordinator -> bind the fresh player/prefix
-  into scene identity/scheduler -> moving browser proxy.
+- **Next runnable increment:** wire the full chain into connected-physics
+  comparison (its old service still only ticks impacts) -> bind the fresh
+  player/prefix into scene identity/scheduler -> moving browser proxy.
   M3 stays open until this runs without C or test snapshots. Bring additional
   readers forward only when required by that slice.
 - Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
-  full startup/shared RNG replay, pickup activation/projection/backup/restore, fragment drawing and
-  long-name/header aliases. Keep these explicit through M5-M7.
+  full startup/shared RNG replay, pickup activation/projection/backup/restore,
+  fragment drawing and long-name/header aliases. Keep these explicit through M5-M7.
 - Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
   graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
   claiming budget compliance. Original resources/GPU/dynamic memory are separate.
