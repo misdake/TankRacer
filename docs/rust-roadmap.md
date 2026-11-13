@@ -10,24 +10,24 @@
   vehicle poses/model assembly/damage, ordered object queries and collision
   response, deformable objects, breakable hit chains, spatial/tick membership,
   impact particles/shared line pool and real ground-effect bindings; composed
-  post-collision motion/poses/hull, plus vehicle contact and powertrain bindings.
-- Last verified code: **`ed3856a`**. 4,800 powertrain + 6,144 actual vehicle-contact
-  C records match; earlier motion boundary checks remain qualified. Existing
-  drive/pipeline regressions, workspace tests, native/Wasm Clippy and unchanged-C
-  verification pass. Shared vehicle fields now have explicit commit boundaries;
-  the complete Rust vehicle update caller is still missing.
-- Remaining scene gaps include tank/obstacle particle bindings,
-  auxiliary/destruction effects, object motion ticks and the full scheduler;
-  probes do not complete them.
+  post-collision motion/poses/hull, contact/powertrain bindings and the connected
+  active physics caller with shared real collision particles/damage.
+- Last verified code: **`98e9dd0`**. 1,254 connected C phase records match across
+  15 cars / eight maps, with alternating actors and 603 peer-velocity writes.
+  Existing motion regression, workspace tests, native/Wasm Clippy and unchanged-C
+  verification pass. This is post-prefix physics; the test's object lists are empty.
+- Remaining: real scene hit/class-method integration, pre-contact timers/abilities,
+  complete after-pose effects, object motion ticks and scheduler. Probes do not
+  complete those methods, nor does this phase test prove a full game replay.
   Rust world construction and the complete moving vehicle are still unfinished.
 - Detailed contracts, counts and reproduction commands live in [assets](rust-assets.md),
   [physics](rust-physics.md) and [renderer](rust-renderer.md); keep them out of this summary.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: one active update caller joining contact → powertrain → ordered
-  collisions → motion, with real collision-effect bindings; add pre-contact
-  timers/abilities and after-pose effects, then Rust world construction → proxy.
+- Next: real scene bindings and authored Rust world construction, sharing one
+  current deformable mesh for sampling/rendering; complete the pre-contact and
+  after-pose game operations → independent moving proxy.
   No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes
