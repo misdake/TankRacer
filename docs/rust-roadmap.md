@@ -2,27 +2,23 @@
 
 ## Current checkpoint
 
-- Active: **M3 — physics**. Queries/suspension verified; vehicle is not running.
+- Active: **M3 — physics**. Contact/drive verified; vehicle is not running.
 - Completed: M1 build/render shell (`38841c4`); M2 ENGLAND static world, atlas and
   free camera (`e98e429`). Actual scene: 5 draws, 8,762 visible triangles.
 - Verified M2: all eight maps' geometry and valid SUR pixels match C; 133 GPU
   pixel cases pass. Detailed evidence: [assets](rust-assets.md),
   [renderer](rust-renderer.md).
-- M3 terrain: typed primary graph; now 218,594 real-map points
-  match C's three query interfaces, plus arithmetic fixtures (`7e4594b`). Contracts, test
-  commands and limitations: [physics](rust-physics.md).
-- M3 contact/suspension (`9f638a2`): 26,153 arithmetic/short sequence records and
-  11,172 auxiliary samples match C. Secondary grid/fallback also ported: 535,896
-  real-map + 2,800 fixture queries match C (`e8e5e71`).
-- M3 deformation and complete contact pipeline ported: 6,144 deformation records
-  and 6,144 composed records across eight maps match C, including partial errors,
-  effect/RNG order and actual mutations (`53a558b`). Vehicle is not running.
-- Typed authored configs: all 57 vehicle keys / 15 tanks and 100 surface factors,
-  512 C override/width cases exact. Real coefficients now feed contact tests.
+- M3 verified: typed terrain/secondary grids, auxiliary sampling, deformation,
+  complete material/contact/suspension pipeline (`53a558b`). Detailed contracts,
+  C evidence and commands: [physics](rust-physics.md).
+- Authored configs (`342460a`): all 57 vehicle keys / 15 tanks / 100 surface
+  factors and override widths match C; real parameters feed contact tests.
+- Latest: full drive stage ported; 9,600 four-tick/branch records match C across
+  all fifteen tanks, including gears/weather/errors. Native/Wasm checks pass.
 - Budget: render acceleration/metadata **376,808 bytes in Wasm**. Complete
   collision graphs cost 175–330 KB/map native and share the same map limit;
   not yet in the live Wasm counter. GPU resource bytes are counted separately.
-- Next: typed drive state and damping/gear/traction/steering → pose/motion/collision
+- Next: model/pose resources → attitude/yaw/world velocity/motion/collision
   → browser proxy. No permanent original-memory arena or C runtime dependency.
   M3 stays open until the proxy runs.
 - The existing C/browser game remains the working reference. Rust output goes

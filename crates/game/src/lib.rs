@@ -3,6 +3,7 @@
 pub mod contact;
 pub mod contact_pipeline;
 pub mod deformation;
+pub mod drive;
 mod fixed;
 pub mod geometry;
 pub mod sampling;

@@ -218,6 +218,44 @@ $env:TANKRACER_CONFIG_REFERENCE=(Resolve-Path build/native/config_reference.exe)
 cargo test -p tankracer-assets --test config_reference -- --ignored --nocapture
 ```
 
-Next: typed drive state and exact damping/gear/traction/steering, pose/motion and
-collision, then browser proxy. Authored physics parameters are now available;
-model loading/vehicle construction still remain. No new per-map acceleration.
+Typed-config checkpoint: `342460a`.
+
+## Body damping, engine and traction
+
+`drive::State` owns body-space velocity, angular rates, track/engine speed, boost
+target, slip, gear, acceleration and current load. `Input` and `Environment`
+explicitly supply controls and sampled contacts. `Tuning::default` names the
+original gear/damping constants; the oracle independently checks all eighteen
+words against the immutable C catalogue before comparing steps.
+
+`State::step` ports the full drive stage through steering/understeer. It allocates
+no memory and makes no address callbacks. Exact details include signed WORD
+forces, 32-bit products, masked shifts, per-surface truncation before arithmetic
+averaging, weather selector priority, and alternate yaw's reuse of the forward
+damping descriptor's high bytes. Track decay, body damping and target approach
+have distinct formulas and stay distinct. The strict gear thresholds and bounded
+top-gear loop retain the C error/partial-output contract. Launch, boost, drag,
+braking, special double-traction and fallback-contact branches are all present.
+
+The drive oracle loads each authored tank and SURFS.DAT through C, applies the
+same explicit overrides, then independently updates the requested pre-state.
+9,600 records across all fifteen tanks and four-tick sequences match all sixteen
+state fields/statuses exactly. Coverage includes all five gears, all seven dry/
+rain/snow slide selectors, hill roll, ordinary/alternate controls, launch/boost,
+airborne/fallback contacts, integer boundaries and x86 shift masking. Deliberate
+invalid weather and gear-limit fixtures prove error timing too. Ordinary tests
+explain threshold strictness, signed averaging and alternate descriptor reuse.
+
+```sh
+gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc tests/reference_drive.c build/native/libtankracer_core.a -o build/native/drive_reference
+```
+
+```powershell
+$env:TANKRACER_DRIVE_REFERENCE=(Resolve-Path build/native/drive_reference.exe).Path
+cargo test -p tankracer-game --test drive_reference -- --ignored --nocapture
+```
+
+Next: model/pose resources, exact attitude/yaw/world-velocity/motion and collision,
+then vehicle construction and browser proxy. Contact and drive are verified stages,
+not yet a complete moving Rust vehicle. No new per-map acceleration or whole-frame
+performance claim; top-gear work can be profiled once the complete frame runs.

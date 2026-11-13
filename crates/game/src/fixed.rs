@@ -46,3 +46,29 @@ pub fn trunc_shift(value: i32, shift: u32) -> i32 {
         value.wrapping_shr(shift)
     }
 }
+
+pub fn rate_step(value: i32, force: i32, dt: i32) -> i32 {
+    let amount = force.wrapping_mul(dt);
+    if value > amount {
+        value.wrapping_sub(amount)
+    } else if value < amount.wrapping_neg() {
+        value.wrapping_add(amount)
+    } else {
+        0
+    }
+}
+pub fn decay(value: i32, shift: u8, dt: i32) -> i32 {
+    let result = value.wrapping_sub(value.wrapping_mul(dt).wrapping_shr(u32::from(shift)));
+    if (value < 0 && result > 0) || (value > 0 && result < 0) {
+        0
+    } else {
+        result
+    }
+}
+pub fn damp(value: i32, descriptor: tankracer_assets::config::Damping, dt: i32) -> i32 {
+    decay(
+        rate_step(value, i32::from(descriptor.step), dt),
+        descriptor.shift,
+        dt,
+    )
+}
