@@ -2,13 +2,18 @@
 
 ## Current checkpoint
 
-- Active: **M2 — static world**, starting with ENGLAND resource inspection.
+- Active: **M2 — static world**; first geometry import increment verified.
 - C reference committed; source-byte preservation fixed (`052ba81`).
+- M1 implementation commit: `38841c4`.
 - M1 verified: 3 native tests (all 15 archives and budget bounds), native/Wasm
   Clippy without warnings, 114 browser GPU pixel cases and 3 canvas layouts.
   Production Wasm is 85,660 bytes and omits GPU probes; C hashes remain exact.
-- Next: decode original BSM geometry/material references in Rust, compare with
-  C resource interpretation, then display actual ENGLAND terrain with a free camera.
+- M2 geometry: direct BSM decoder matches the complete C loader on all eight
+  maps, 80,439 triangles (vertices/origins/normals/colors/indices/UV/flags/materials).
+  Native inspector: `cargo run -p tankracer-assets --bin inspect-world --
+  assets/game/LEVELS/ENGLAND/FASTFILE.DAT`. Details: `rust-assets.md`.
+- Next: coordinate/unit convention; SUR decode vs C; material/sampler
+  classification; display actual ENGLAND geometry with a free camera. M2 is not done.
 - The existing C/browser game remains the working reference. Rust output goes
   to `build/rust/site`; no automatic push or replacement of the reference site.
 
