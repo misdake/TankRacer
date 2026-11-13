@@ -1458,3 +1458,67 @@ world owner. M3 remains open until the moving proxy actually runs independently.
 $env:TANKRACER_SCENE_OBJECTS_REFERENCE=(Resolve-Path build/native/scene_objects_reference.exe).Path
 cargo test -p tankracer-game --test scene_objects_reference --locked -- --ignored --nocapture
 ```
+
+## Fresh ordinary Obstacle factory and authored reader
+
+`scene_loading::Registry` binds World -> TrWorld -> GenObst -> Obstacle using
+named Rust interface slots and immutable method tables. `Loader` creates blank
+typed components through the shared entity factory, runs actual inherited
+initialization, publishes the authored name, loads the model/pose, and invokes
+the real constructor chain. Its resource services own the model cache, original
+archives, materials, terrain and shared RNG; no C arena initializes Rust objects.
+Unsupported subclasses fail explicitly rather than inheriting ordinary behavior.
+
+The ordering is now executable: activate first, apply common visibility/sort/
+solidity, append/remove the temporary ordinary-draw membership, choose lap entry
+or exit, then build parent-owned bounds/presets/auxiliary/debris. The existing
+qualified resource builder accepts the already-decided visibility so it cannot
+draw the lap RNG twice. The live constructor preserves the cell established by
+the earlier enter/leave call. Its final virtual method requests deferred stop.
+That last call was missing from component-only construction: the first live
+comparison found native flags 56 versus Rust 24. Installing the real notification
+binding corrected the flags and LIFO stop order.
+
+The fresh World oracle uses production static/bootstrap functions, the complete
+C class catalogue, the actual FSTPC reader, native dispatcher and a new entity
+table. **24 scripts / 144 constructed objects / 96 lifecycle checkpoints /
+19,932 semantic words match**, including ID-table growth, anonymous names,
+static/dynamic allocation, varied default/overridden visibility, wrapping scalar
+widths, lap -99 shared RNG, delayed entry/removal, deferred stop, deactivation
+and destruction. A single RNG seed starts each script; no per-object snapshot or
+seed resets are supplied. Nil-shape scripts intentionally isolate those rules
+from resource I/O. All 64 grid lists and all draw/lap/tick/queue orders are checked.
+
+The OS03 real-map constructor oracle additionally filters memberships to the
+ordinary objects seen so far. **All 56 authored ordinary Obstacle records** across
+the 22 nonempty map/CUP files pass through fresh Rust allocation/initialization/
+reader bindings, with geometry, scalars, auxiliary/debris, resource request order,
+RNG and filtered live memberships matching. Their IDs and entering RNG seeds
+remain boundaries from the surrounding unported world. The original **2,937
+parent constructions** and **1,949 placements** remain qualified separately;
+those include subclasses and must not be presented as 2,937 complete factories.
+
+A native unit test also verifies that unsupported classes allocate nothing and
+that a bad model retains the created/name-bound object at the failed reader slot,
+before activation or pose writes; normal destruction can retire that object.
+Typed resource failures after later construction stages are not a general proof
+of native allocator/read-fault prefix equivalence.
+
+Regression: shared lifecycle, entity factory, Crush construction/runtime and
+connected vehicle oracles pass, as do workspace tests, native/Wasm Clippy,
+unchanged-C verification and browser build. No renderer or map acceleration data
+changed. Browser Wasm stays 183,221 B and still renders the static scene only.
+
+Next: actual Crush and Fall-family allocation/readers, attachment binding and
+runtime methods on this same owner; then whole-world startup/RNG and the complete
+vehicle update. Generic C destruction leaves lap-list references for its world
+owner to retire; plugin teardown must clean its owned lap entries too. M3 remains
+open, and this loader does not yet accept the complete object file.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_loading.c build/native/libtankracer_core.a -lm -o build/native/scene_loading_reference.exe
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
+$env:TANKRACER_SCENE_LOADING_REFERENCE=(Resolve-Path build/native/scene_loading_reference.exe).Path
+$env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_startup_reference.exe).Path
+cargo test -p tankracer-game --test scene_loading_reference --test obstacle_startup_reference --locked -- --ignored --nocapture
+```

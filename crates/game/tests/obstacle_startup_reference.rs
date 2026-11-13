@@ -5,9 +5,11 @@ use tankracer_assets::{
 };
 use tankracer_game::{
     dispatch::{Class, ClassId},
+    entity_factory,
     object_query::EntityId,
     obstacle_collision::{Grid, World},
     obstacle_startup::{Environment, Initial, MaterialId, Materials, Obstacle},
+    scene_loading,
     scene_meshes::Meshes,
     scene_startup::Resources,
     vehicle_model::{Bundles, ModelBank, Space},
@@ -76,7 +78,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
         .expect("Obstacle constructor oracle");
     let (mut objects, mut auxiliaries, mut debris, mut pieces, mut sprites, mut animations) =
         (0, 0, 0, 0, 0, 0);
-    let (mut absent_pieces, mut terry_pieces, mut grid_placed) = (0, 0, 0);
+    let (mut absent_pieces, mut terry_pieces, mut grid_placed, mut live_loaded) = (0, 0, 0, 0);
     for (map, name) in [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ]
@@ -120,7 +122,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"OS02");
+            assert_eq!(&output.stdout[..4], b"OS03");
             let mut r = Reader(&output.stdout[4..]);
             let mut models = ModelBank::default();
             for name in [
@@ -140,6 +142,13 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                 models.load(&source, Space::Shared, "cwarp.sm").unwrap();
             }
             let mut meshes = Meshes::default();
+            let registry = scene_loading::Registry::default();
+            let mut live_scene = registry.scene(Grid {
+                origin: terrain.origin.map(|v| v.wrapping_mul(8)),
+                shifts: terrain.shifts.map(|v| u32::from(v) + 3),
+                cells: std::array::from_fn(|_| vec![]),
+            });
+            let mut live_state = entity_factory::State::new(4).unwrap();
             let mut placements = Vec::new();
             let mut collision_world = World {
                 colliders: vec![],
@@ -159,6 +168,7 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
             while r.word() != 0 {
                 let entity = EntityId(r.word());
                 let mut random = r.word();
+                let initial_random = random;
                 let class = r.text();
                 let params = r.text();
                 let position = r.ints::<3>();
@@ -338,6 +348,133 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
                     debris += 1;
                 }
                 r.check([random as i32], &format!("{label} random"));
+                if r.word() != 0 {
+                    // IDs and the surrounding world's entry seed are boundary
+                    // inputs. Allocation/defaults, name binding, pose, resources,
+                    // RNG consumption and ordered memberships run in Rust.
+                    assert!(class.eq_ignore_ascii_case("Obstacle"));
+                    assert_eq!(
+                        [
+                            initial.weight,
+                            initial.threshold,
+                            initial.activity,
+                            i32::from(initial.sort_position)
+                        ],
+                        [0, 0, 0, -8]
+                    );
+                    live_state.entities.sequential = true;
+                    live_state.entities.next_requested = entity;
+                    let mut live_random = initial_random;
+                    let mut live_requests = Requests {
+                        expected: requests.expected.clone(),
+                        cursor: 0,
+                    };
+                    let loaded = scene_loading::Loader::new(
+                        &mut live_scene,
+                        scene_loading::Resources {
+                            source: &source,
+                            models: &mut models,
+                            terrain: &terrain,
+                            random: &mut live_random,
+                            catalog: &catalog,
+                            materials: &mut live_requests,
+                            matrix_tail: Some([0; 3]),
+                        },
+                        &registry,
+                    )
+                    .load(&mut live_state, *record)
+                    .unwrap_or_else(|e| panic!("{label} live loader: {e:?}"));
+                    assert_eq!(loaded, entity);
+                    assert_eq!(live_requests.cursor, live_requests.expected.len());
+                    assert_eq!(live_random, random, "{label} live RNG");
+                    let id = live_state.entities.record(entity).unwrap().object.unwrap();
+                    let collider = &live_scene.world.colliders[id.0];
+                    let object = live_scene.objects[id.0].as_ref().unwrap();
+                    let properties = &live_scene.world.objects[id.0];
+                    assert_eq!(collider.pose, built.collider.pose, "{label} live pose");
+                    assert_eq!(
+                        collider.bounds, built.collider.bounds,
+                        "{label} live bounds"
+                    );
+                    assert_eq!(
+                        collider.radius, built.collider.radius,
+                        "{label} live radius"
+                    );
+                    assert_eq!(
+                        object.data.cell.map_or(u32::MAX, |c| c.packed()),
+                        cell,
+                        "{label} live cell"
+                    );
+                    assert_eq!(
+                        [properties.weight, properties.threshold, properties.activity],
+                        [built.weight, built.minimum_activation, built.activity]
+                    );
+                    assert_eq!(
+                        [
+                            i32::from(object.data.sort_position),
+                            i32::from(object.data.visibility.distance),
+                            i32::from(object.data.visibility.add_lap),
+                            i32::from(object.data.visibility.remove_lap),
+                            i32::from(object.data.visibility.entered),
+                            i32::from(object.data.collision_margin)
+                        ],
+                        [
+                            i32::from(built.sort_position),
+                            i32::from(built.visibility.distance),
+                            i32::from(built.visibility.add_lap),
+                            i32::from(built.visibility.remove_lap),
+                            i32::from(built.visibility.entered),
+                            i32::from(built.collision_margin)
+                        ]
+                    );
+                    assert_eq!(
+                        format!("{:?}", object.data.auxiliary),
+                        format!("{:?}", built.auxiliary)
+                    );
+                    assert_eq!(
+                        format!("{:?}", object.data.debris),
+                        format!("{:?}", built.debris)
+                    );
+                    assert!(match (&object.data.source, &built.source) {
+                        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                        (None, None) => true,
+                        _ => false,
+                    });
+                    r.check(
+                        [live_state.ticks.flags[entity.0 as usize] as i32],
+                        "live flags",
+                    );
+                    for list in [
+                        &live_scene.ordinary,
+                        &live_scene.special,
+                        &live_scene.lap_objects,
+                    ] {
+                        let expected = list
+                            .iter()
+                            .map(|id| live_scene.world.colliders[id.0].entity.0);
+                        check_list(&mut r, expected, &label);
+                    }
+                    check_list(&mut r, live_state.ticks.order.iter().map(|v| v.0), &label);
+                    check_list(
+                        &mut r,
+                        live_state.queues.notifications.iter().map(|v| v.0),
+                        &label,
+                    );
+                    check_list(
+                        &mut r,
+                        live_state.queues.destruction.iter().map(|v| v.0),
+                        &label,
+                    );
+                    for cell in &live_scene.world.grid.cells {
+                        check_list(
+                            &mut r,
+                            cell.iter()
+                                .map(|id| live_scene.world.colliders[id.0].entity.0),
+                            &label,
+                        );
+                    }
+                    live_loaded += 1;
+                }
                 objects += 1;
                 if ["Obstacle", "Fall", "Bounce", "Spin"]
                     .iter()
@@ -367,6 +504,13 @@ fn authored_parent_parameters_auxiliary_debris_and_rng_match_actual_c_startup() 
         sprites > 0 && animations > 0 && absent_pieces > 0 && terry_pieces > 0 && grid_placed > 0
     );
     eprintln!(
-        "{objects} common Obstacle constructions; auxiliary={auxiliaries}, debris={debris}, pieces={pieces}, sprites={sprites}, animations={animations}, absent pieces={absent_pieces}, terry pieces={terry_pieces}, installed={grid_placed}; exact C outputs/RNG"
+        "{objects} common Obstacle constructions; auxiliary={auxiliaries}, debris={debris}, pieces={pieces}, sprites={sprites}, animations={animations}, absent pieces={absent_pieces}, terry pieces={terry_pieces}, installed={grid_placed}, fresh live ordinary={live_loaded}; exact C outputs/RNG"
     );
+}
+fn check_list(r: &mut Reader<'_>, values: impl Iterator<Item = u32>, label: &str) {
+    let expected: Vec<_> = values.collect();
+    assert_eq!(r.word() as usize, expected.len(), "{label} live list count");
+    for id in expected {
+        assert_eq!(r.word(), id, "{label} live list order");
+    }
 }

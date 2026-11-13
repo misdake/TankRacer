@@ -190,8 +190,7 @@ impl Obstacle {
         env: &mut Environment<'_>,
     ) -> Result<Self, Error> {
         let p = Parameters::new(record.parameters).map_err(|_| Error::Parameters)?;
-        let pose = Pose::from_level(record);
-        let mut visibility = if record.class.eq_ignore_ascii_case("Powerup") {
+        let visibility = if record.class.eq_ignore_ascii_case("Powerup") {
             // 410730 removes Powerup from the ordinary render list and returns
             // before generic lap rules; its own constructor controls respawn.
             Visibility {
@@ -203,6 +202,20 @@ impl Obstacle {
         } else {
             scene_startup::visibility(p, r.random)?
         };
+        Self::build_visible(record, entity, initial, visibility, r, env)
+    }
+    /// The live reader has already run activation/lap membership. Reuse that
+    /// visibility state without consuming its RNG a second time.
+    pub(crate) fn build_visible<S: ShapeSource>(
+        record: &level::Object<'_>,
+        entity: EntityId,
+        initial: Initial,
+        mut visibility: Visibility,
+        r: &mut Resources<'_, S>,
+        env: &mut Environment<'_>,
+    ) -> Result<Self, Error> {
+        let p = Parameters::new(record.parameters).map_err(|_| Error::Parameters)?;
+        let pose = Pose::from_level(record);
         let source = if record.shape.eq_ignore_ascii_case("nil") {
             None
         } else {

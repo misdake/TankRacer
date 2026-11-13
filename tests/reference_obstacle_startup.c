@@ -7,6 +7,27 @@
 #undef frame_object_native
 #include "reference_game.h"
 typedef struct material_log { frame_object_material_name run;void *ctx;uint32_t count,id[32],mode[32];unsigned char name[32][64]; } material_log;
+static uint32_t ordinary_ids[4096],ordinary_count;
+static int ordinary_id(uint32_t entity)
+{uint32_t i;for(i=0;i<ordinary_count;i++)if(ordinary_ids[i]==entity)return 1;return 0;}
+static void emit_ordinary_list(uint32_t head)
+{
+    uint32_t node=reference_game_word(head,4),n=0,used=0;
+    while(node!=head){if(used++==100000)exit(5);if(ordinary_id(reference_game_word(node+8,4)))n++;node=reference_game_word(node,4);}
+    oracle_put(n);node=reference_game_word(head,4);
+    while(node!=head){n=reference_game_word(node+8,4);if(ordinary_id(n))oracle_put(n);node=reference_game_word(node,4);}
+}
+static void emit_ordinary_membership(uint32_t entity,uint32_t o,uint32_t klass)
+{
+    uint32_t i,is_ordinary=strcmp((const char *)tank_data()+klass,"Obstacle")==0;
+    static const uint32_t lists[]={0x54b48c,0x54b488,0x53e4b4,0x55b6a8,0x55b6bc,0x55b6b8};
+    oracle_put(is_ordinary);if(!is_ordinary)return;
+    if(ordinary_count==4096)exit(5);
+    ordinary_ids[ordinary_count++]=entity;
+    oracle_put(reference_game_word(o+16,4));
+    for(i=0;i<6;i++)emit_ordinary_list(reference_game_word(lists[i],4));
+    for(i=0;i<64;i++)emit_ordinary_list(reference_game_word(0x544e70+i*4,4));
+}
 static int log_material(void *ctx,const unsigned char *name,uint32_t n,uint32_t mode,uint32_t *out)
 {
     material_log *log=(material_log *)ctx;uint32_t i=log->count++;int status;
@@ -71,11 +92,11 @@ int frame_object_native(void *ctx,uint32_t target,uint32_t entity,uint32_t has_p
     status=oracle_object_construct(c->base.read,c->base.write,c->base.data_ctx,entity,payload,&c->base.services,&resources,out);
     oracle_put((uint32_t)status);if(status)return status;
     oracle_put(log.count);for(i=0;i<log.count;i++){oracle_put(log.id[i]);oracle_put(log.mode[i]);emit_text(log.name[i],(uint32_t)strlen((char *)log.name[i]));}
-    emit_components(o);oracle_put(reference_game_word(0x55b6ac,4));return 0;
+    emit_components(o);oracle_put(reference_game_word(0x55b6ac,4));emit_ordinary_membership(entity,o,klass);return 0;
 }
 int main(int argc,char **argv)
 {
-    int status;if(argc!=4)return 2;oracle_binary();fwrite("OS02",1,4,stdout);
+    int status;if(argc!=4)return 2;oracle_binary();fwrite("OS03",1,4,stdout);
     status=reference_game_start_cup(argv[1],(uint32_t)strtoul(argv[2],0,10),(uint32_t)strtoul(argv[3],0,10),1,0,0);
     if(status)return status;
     oracle_put(0);tank_destroy();return 0;

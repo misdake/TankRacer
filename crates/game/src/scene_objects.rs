@@ -65,6 +65,7 @@ pub struct Scene {
     pub objects: Vec<Option<Object>>,
     pub ordinary: Vec<ObstacleId>,
     pub special: Vec<ObstacleId>,
+    pub lap_objects: Vec<ObstacleId>,
     pub parents: Parents,
     pub interfaces: Interfaces,
     pub dt: i32,
@@ -77,6 +78,7 @@ impl Scene {
             objects: Vec::new(),
             ordinary: Vec::new(),
             special: Vec::new(),
+            lap_objects: Vec::new(),
             parents,
             interfaces,
             dt: 0,
@@ -133,10 +135,10 @@ impl Scene {
             ground_height: Some(placed.ground_height),
         })
     }
-    fn object(&self, id: ObstacleId) -> Result<&Object, i32> {
+    pub(crate) fn object(&self, id: ObstacleId) -> Result<&Object, i32> {
         self.objects.get(id.0).and_then(Option::as_ref).ok_or(-1)
     }
-    fn object_mut(&mut self, id: ObstacleId) -> Result<&mut Object, i32> {
+    pub(crate) fn object_mut(&mut self, id: ObstacleId) -> Result<&mut Object, i32> {
         self.objects
             .get_mut(id.0)
             .and_then(Option::as_mut)
