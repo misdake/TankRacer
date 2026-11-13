@@ -9,19 +9,20 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
   free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
   The complete moving Rust vehicle is **not running**.
-- Last verified code: **`3c1b5df`**. Typed entity IDs/free-chain reuse and class
-  factory connect to shared live scheduling; eight common base methods match C.
-  155 scenarios / 1,718 operations qualify recursive constructors, release and
-  failure prefixes. Existing lifecycle/name/collision regressions, workspace
-  tests, native/Wasm lint, unchanged-C checks and browser build pass. Detailed
-  contracts and earlier physics/resource qualification: [physics](rust-physics.md).
-- Still missing: concrete subclass methods, authored class/attachment factories,
-  complete startup and shared RNG replay, vehicle timer/ability prefix and
-  after-pose effects. Class constructor tests still supply scripted callbacks
-  or C boundary inputs. Factory name publication is unit-qualified; full native
-  world-reader parity is pending. New fragment/animation rendering is pending.
-- **Next runnable increment:** concrete Obstacle/Crush lifecycle and record
-  retirement, authored class/attachment bindings and complete world membership;
+- Last verified code: **`82bbcb1`**. Concrete Crush record tick/retirement and
+  sampling share one buffer, with private/shared geometry cleanup. 178 scenarios /
+  840 updates and 154 authored constructions / 302 short runtime ticks match C.
+  Connected vehicle/contact/deformation/parent regressions, workspace tests,
+  native/Wasm lint, unchanged-C checks and browser build pass. Detailed contracts
+  and earlier entity/physics qualification: [physics](rust-physics.md).
+- Still missing: common Obstacle/Model parent lifecycle and concrete subclass
+  bindings, authored class/attachment factories, complete startup/shared RNG
+  replay and vehicle prefix/after-pose effects. Crush enter/destruction expose
+  prefixes; activation/parent callbacks are still boundaries in their tests.
+  Surrounding constructor/membership inputs still come partly from C. Full native
+  world-reader parity and new fragment/animation GPU rendering remain pending.
+- **Next runnable increment:** common Obstacle parent lifecycle, real class
+  activation/destructor bindings, authored attachments and world membership;
   connect vehicle prefix/after-pose and scheduler -> independent moving proxy.
   M3 stays open until it runs without C or test snapshots. Preserve shared mesh
   ownership, RNG consumption and the distinction between activation/impact limits.
