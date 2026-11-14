@@ -32,21 +32,19 @@ Updated: **2026-11-14**. Read this together with `git status`.
 - **M1/M2 complete; M3 active.** Runnable Rust/Wasm vehicle proxy, terrain and
   live Obstacle/Crush/Fall/Bounce/Closer/Spin scenery; Mover motion is connected.
   Arrows drive; C switches follow/free camera; `/?inspect` stays static.
-- **Committed baseline: `79e295d`** (checkpoint commit `9b48e7e`). Eight-map
-  scenery comparison: 240 updates / 4,175,411 fields. Mover movement and the
-  declared nonexploding BIO variation pass. Duplicate static sort cache released.
-- **Uncommitted increment:** original BIO exploding Mover hit, explosion
+- **Verified code: `2ef20f7`.** Original BIO exploding Mover hit, explosion
   allocation/update/smoke/retirement/slot replacement, vehicle impulse and debris
-  activation. Existing test logs report 348 updates / 7,462,914 matching fields,
-  70 blast scenarios, browser pass and a 690,915 B production Wasm. These are
-  recovered results, not a substitute for reviewing the current diff. Explosion
-  sprites and full 3D fragment drawing are still pending; no image-parity claim.
-  Evidence: `build/tests/rust-explosion-*.log`, `build/rust/tests/browser.json`.
-- **Resume here:** review and finish that increment; put detailed evidence in
-  `rust-physics.md`, correct stale README claims, commit only verified changes,
-  then replace this checkpoint with its actual code commit. Next audit remaining
-  M3 collision/startup dependencies and connect the next necessary owner path.
-  Do not expand M3 into all later effects or declare it closed from helper tests.
+  activation run. Eight maps / 348 updates / 7,462,914 fields match C; blast:
+  70 scenarios. Workspace tests/lints and C preservation pass. Browser checks:
+  144 GPU cases, native/Wasm final fields and ten short scenery probes. Production
+  Wasm: 690,915 B. Explosion sprites/full fragment drawing remain pending;
+  no full image-parity claim. Details are in the specialist docs.
+- **Next runnable increment:** replace browser-generated drive values with the
+  original Player input state machine (countdown, forward/reverse/brake and
+  steering rates), bound before parent vehicle physics. Qualify branches and
+  short input sequences against C while preserving the direct-physics test API.
+  Then continue required Player/startup dependencies. Do not expand M3 into all
+  later effects or declare it closed from helper tests.
 - **Still missing:** full Player/race startup and lifecycle, complete world
   RNG/allocation order, real vehicle rendering, pickups/weapons/race rules,
   optional scenery, opponents/menus/audio and all-map full-game qualification.
