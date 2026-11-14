@@ -26,21 +26,24 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 ## Current checkpoint
 
 - **M3 active; M1/M2 complete.** The browser drives a Rust/Wasm vehicle proxy
-  with real Obstacle/Crush/Fall collision scenery: 111 actors constructed, 94
+  with real Obstacle/Crush/Fall/Bounce scenery: 140 actors constructed, 117
   in current render lists. Live poses/current mutable meshes feed read-only
   rendering. Arrows drive; C toggles follow/free camera; `/?inspect` stays static.
-- Last verified code: **`b233a56`**. `npm run test:rust` passes, including 144 GPU
-  pixel cases, 120-update native/Wasm final-field comparison, identical-pose
-  reloads and three 12-update Fall/Crush collision/render sequences. Stationary
-  repaint uploads zero indices, vertices and instances. SR01 still matches C:
-  8 maps / 68 updates / 906,126 fields. C preservation passes. These checks do
-  not qualify complete race startup or full per-frame browser state parity.
-- Default probe: **385 draws / 9,895 triangles**, including 34 scenery
-  opaque/masked draws and 346 globally ordered transparent runs. Transparent
+- Last verified code: **`2a6f4cc`**. Bounce loading/hit/tick/retirement uses the
+  real owners and method table. BO01: 54 scenarios / 216 operations match C;
+  SR02: 8 maps / 132 updates / 2,140,565 fields match, including low gravity.
+  This exposed/fixed omitted OBPARAMS Moon gains (actual 3/2, not initial 1/2).
+  Native lifecycle/related suites, OC04, workspace checks and final browser/GPU
+  checks pass: 144 pixel cases, 120-update native/Wasm final fields, reloads and
+  four 12-update collision/render cases. Stationary uploads are zero. C source
+  preservation passes. These checks do not qualify full race startup or complete
+  per-frame browser state parity.
+- Default probe: **395 draws / 10,025 triangles**, including 36 scenery
+  opaque/masked draws and 354 globally ordered transparent runs. Transparent
   batching/culling remains a measured optimization task; preserve global order
   and exact material/depth states when reducing these draws.
-- **Next runnable gameplay increment:** bind required collision subclasses
-  (Bounce/Spin/Closer, etc.) through real loading/update/collision owners and
+- **Next runnable gameplay increment:** bind Closer, then Spin and other
+  required collision subclasses through real loading/update/collision owners and
   display their current meshes. Qualify branches/short sequences before closing
   M3; the loader explicitly reports deferred classes. Full Player/race startup,
   vehicle lifecycle and complete-world RNG/allocation order are still incomplete.
@@ -48,10 +51,10 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - Pending beyond it: vehicle blast response and remaining readers,
   full startup/shared RNG replay, pickup activation/projection/backup/restore,
   fragment drawing and long-name/header aliases. Keep these explicit through M5-M7.
-- Combined live ENGLAND extra map memory: **790,578 B in Wasm** = 528,848 B
+- Combined live ENGLAND extra map memory: **796,288 B in Wasm** = 534,558 B
   render/bookkeeping + 261,730 B shared collision data/Arc. Other maps still need
   combined live accounting when enabled. Original resources/GPU storage/dynamic
-  game memory remain separate. Production Wasm: **629,704 B**.
+  game memory remain separate. Production Wasm: **643,787 B**.
 - Preserve the working C/browser reference. Rust output: `build/rust/site`.
   Local milestone commits are authorized; **do not push** unless asked.
 
