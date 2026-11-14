@@ -106,6 +106,22 @@ impl Session {
             shared,
             level,
         } = files;
+        let archive = Archive::parse(level).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let maps = [
+            "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
+        ];
+        let (map, name) = maps
+            .into_iter()
+            .enumerate()
+            .find(|(_, name)| archive.get(&format!("{}B.DAT", &name[..3])).is_some())
+            .ok_or("Unknown level archive")?;
+        let cup = if map == 7 {
+            2
+        } else if [3, 5, 6].contains(&map) {
+            1
+        } else {
+            0
+        };
         let resources = vehicle_resources::prepare(
             data,
             &[bronze],
@@ -114,6 +130,7 @@ impl Session {
             BuildContext {
                 resolve: ResolveContext {
                     player: true,
+                    map: map as u32,
                     ..ResolveContext::default()
                 },
                 ambient_wobble: false,
@@ -129,7 +146,7 @@ impl Session {
         let mut startup = Startup::new(
             terrain,
             Settings {
-                map: 0,
+                map: map as u32,
                 mode: 0,
                 special: false,
                 environment_flag: 0,
@@ -144,10 +161,10 @@ impl Session {
             },
         )
         .map_err(|e| JsValue::from_str(&format!("Vehicle startup: {e:?}")))?;
-        let loaded = scenery::load(&mut startup, data, level, shared, "ENGLAND", 0)
+        let loaded = scenery::load(&mut startup, data, level, shared, name, cup)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let archive = Archive::parse(level).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let script = Level::decode(archive.get("ENGB.DAT").ok_or("Missing player level")?)
+        let script_name = format!("{}{}.DAT", &name[..3], ["B", "S", "G"][cup]);
+        let script = Level::decode(archive.get(&script_name).ok_or("Missing player level")?)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
         let spawn = script
             .objects
@@ -159,10 +176,12 @@ impl Session {
             Start::Authored => (spawn, [0; 3]),
             #[cfg(feature = "gpu-tests")]
             Start::Collision(target) => {
-                if target > 5 {
+                if target > 7 {
                     return Err("Unknown scenery collision probe".into());
                 }
-                let class = if target >= 4 {
+                let class = if target >= 6 {
+                    startup.registry.spin
+                } else if target >= 4 {
                     startup.registry.closer
                 } else if target == 3 {
                     startup.registry.bounce
@@ -193,6 +212,10 @@ impl Session {
                     position[0] += 38000;
                     position[2] += 38500;
                     [0; 3]
+                } else if target == 7 {
+                    position[0] -= 500;
+                    position[2] += 500;
+                    [600001, 0, 0]
                 } else {
                     [0, 0, 600001]
                 };

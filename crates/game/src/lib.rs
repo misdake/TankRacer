@@ -43,6 +43,7 @@ pub mod scene_startup;
 pub mod scenery;
 pub mod shatter;
 pub mod spatial;
+pub mod spin;
 pub mod suspension;
 pub mod symbols;
 pub mod tank_collision;

@@ -134,6 +134,7 @@ impl Collision<'_> {
             super::DEBRIS_HIT => self.activate_debris(call, services),
             super::BOUNCE_HIT => self.hit_bounce(call, hit, services),
             super::CLOSER_HIT => self.hit_closer(call, hit, services),
+            super::SPIN_HIT => self.hit_spin(call, hit, services),
             DEFORMABLE_HIT => {
                 // The method result/RNG/timer commit precedes the host sound.
                 let sound = self.components.surfaces.collide(reborrow(&mut call))?;
@@ -282,6 +283,82 @@ impl Collision<'_> {
                 .ok_or(-1)?
                 .state
                 .phase = crate::closer::Phase::Fragments;
+        }
+        if call.vehicle.player && environment.feedback {
+            services.feedback(
+                i32::from(call.world.colliders[id.0].radius),
+                self,
+                reborrow(&mut call),
+            )?;
+        }
+        *call.result = 0;
+        Ok(())
+    }
+    fn hit_spin(
+        &mut self,
+        mut call: Invocation<'_>,
+        environment: HitEnvironment,
+        services: &mut impl Services,
+    ) -> Result<(), i32> {
+        let id = call.target;
+        let entity = call.world.colliders.get(id.0).ok_or(-1)?.entity;
+        let vehicle = crate::bounce::Hit {
+            position: call.vehicle.base_position,
+            velocity: call.vehicle.velocity,
+            forward_velocity: call.vehicle.forward_velocity,
+            reference: call.vehicle.reference_basis,
+            external: call.vehicle.external_basis,
+        };
+        let component = self
+            .components
+            .spins
+            .get_mut(id.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)?;
+        let blocked = self
+            .lifecycle
+            .ticks
+            .flags
+            .get(entity.0 as usize)
+            .copied()
+            .ok_or(-1)?
+            & 32
+            != 0;
+        let weight = call.world.objects[id.0].weight;
+        crate::spin::hit(
+            crate::spin::Motion {
+                state: &mut component.state,
+                collider: &mut call.world.colliders[id.0],
+                activity: &mut call.world.objects[id.0].activity,
+                reference_alias: component.reference_alias,
+            },
+            component.config,
+            weight,
+            vehicle,
+            blocked,
+            || {
+                self.lifecycle
+                    .context(call.current_slot)
+                    .dispatch(
+                        entity,
+                        crate::scene_loading::ACTIVATE,
+                        None,
+                        self.environment,
+                        &mut super::lifecycle::Base,
+                    )
+                    .map_err(super::dispatch_code)?;
+                Ok(())
+            },
+        )?;
+        if self.components.object(id)?.data.auxiliary.is_some() {
+            self.invoke_slot(
+                reborrow(&mut call),
+                crate::scene_loading::AUXILIARY_CONTACT,
+                environment,
+                services,
+                true,
+            )?;
+            call.world.objects[id.0].activity = 0;
         }
         if call.vehicle.player && environment.feedback {
             services.feedback(

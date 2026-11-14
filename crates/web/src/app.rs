@@ -179,6 +179,13 @@ impl App {
                     .flatten()
                     .filter(|c| c.state.phase == tankracer_game::closer::Phase::Fragments)
                     .count() as u32,
+                scene
+                    .components
+                    .spins
+                    .iter()
+                    .flatten()
+                    .filter(|s| s.state.timer != 0)
+                    .count() as u32,
             ]
         })
     }

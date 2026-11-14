@@ -144,12 +144,12 @@ try{
    return results;
  })`);
  for(const reload of reloads){assert.equal(reload.scene.scenery_objects,driven.scene.scenery_objects);assert.ok(reload.frame.index_upload_bytes>0);}
- // SR03 starts additionally exercise Closer proximity and real shattering.
+ // SR04 starts exercise Closer plus actual SWAMP Spin edge-pivoting actors.
  const collisions=[];
- for(let target=0;target<6;target++){
+ for(let target=0;target<8;target++){
   const collision=await evaluate(`import('/main.js').then(async m=>{
-   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
-   m.app.load_collision(...files,${target});m.app.render();
+   const files=await Promise.all(['DATA','BRONZE','INGAME',${target>=6?"'SWAMP'":"'ENGLAND'"}].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_world(files[3]);m.app.load_collision(...files,${target});m.app.render();
    const uploads={vertices:0,instances:0};
    for(let tick=0;tick<12;tick++){
     m.app.step_vehicle(16,65536,0,0);m.app.render();
@@ -158,7 +158,7 @@ try{
    const state=Array.from(m.app.scenery_state());m.app.render();m.app.check_graphics();
    return {target:${target},state,uploads,stationary:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())};
   })`);
-  assert.ok(collision.state[target>=4?target-1:target===3?2:target===2?1:0]>0,JSON.stringify(collision));
+  assert.ok(collision.state[target>=6?5:target>=4?target-1:target===3?2:target===2?1:0]>0,JSON.stringify(collision));
   assert.ok(collision.uploads[target===2||target===5?'vertices':'instances']>0,JSON.stringify(collision));
   for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(collision.stationary[key],0,key);
   assert.ok(collision.scene.acceleration_bytes<1_000_000);

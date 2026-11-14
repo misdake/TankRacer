@@ -2522,3 +2522,53 @@ Spin, other required collision subclasses and full startup remain M3 work.
 $env:TANKRACER_CLOSER_REFERENCE=(Resolve-Path build/native/closer_reference.exe).Path
 cargo test -p tankracer-game --test closer_reference --locked -- --ignored --nocapture
 ```
+
+## Spin through the live runtime (2026-11-14)
+
+`spin` models sliding scenery independently of vehicle physics. The registered
+initializer/constructor preserve the Obstacle parent order, preset/override
+widths, weight, impact threshold and real activity owner. A hit derives local
+impact direction, selects pitch or roll (ties retain the previous axis),
+computes yaw from the vehicle-local impact offset, transfers velocity and
+activates through the factory. Auxiliary contact dispatch runs afterwards and
+clears ordinary motion only after success; feedback remains a device boundary.
+
+Ticks preserve the source order: yaw integration/damping, byte timer advance,
+terrain query on the old timer modulo three, matrix normalization on the new
+timer modulo ten, ground-normal alignment, edge pivot, horizontal drag, ground/
+gravity or fallback response, translation, then the signed stop condition.
+Large objects query all four transformed footprint corners until a miss; the
+last queried height is the retained edge height, not a minimum/average. Pivot
+integration uses the pre-damped angular speed. Matrix aliases are explicit and
+normalization errors retain the original partial writes. Ordinary stopping only
+queues stop; it does not add a spatial reinsertion absent from the source.
+
+**SP01** compares **88 scenarios / 295 operations / 16,386 words** with the
+unchanged C hit/tick. Cases cover impact axes/ties/signs, blocked/already-active
+activation, auxiliary dispatch, aliased/custom/null matrices, byte timer wrap,
+6,144-radius sampling boundary, exact corner coordinates/query order, terrain
+miss/fallback, slope alignment, pivots, signed/overflow arithmetic, damping,
+stopping and callback/normalization error prefixes. Terrain/lifecycle/device
+responses are declared inputs; parsing is not qualified by this kernel test.
+
+**SR04** uses the actual SWAMP trolley and EAST ticket/trolley resources through
+real constructors, terrain, scheduler and vehicle collisions. Its **27 scenarios
+/ eight maps / 204 updates / 3,316,937 fields** match C, including four targeted
+Spin sequences and five struck Spin actors. Preset construction and all earlier
+Fall/Crush/Bounce/Closer cases still pass. Complete Player/race startup remains
+outside the declared world-reader/direct-physics boundary. Arbitrary constructor
+failure prefixes and every parameter override are not separately qualified.
+
+The browser runs two additional twelve-update Spin collisions using the real
+SWAMP archive and terrain, and observes actual instance uploads. It infers map/
+cup settings from supplied archives rather than labelling every session ENGLAND;
+production startup still selects ENGLAND. The SWAMP download is test-build only.
+Related native suites, workspace checks, eight browser collision sequences,
+144 GPU cases and C preservation pass. Logs: `build/tests/rust-spin-*.log`.
+Mover (a Spin subclass) and remaining full startup/lifecycle work are next.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_spin.c build/native/libtankracer_core.a -lm -o build/native/spin_reference.exe
+$env:TANKRACER_SPIN_REFERENCE=(Resolve-Path build/native/spin_reference.exe).Path
+cargo test -p tankracer-game --test spin_reference --locked -- --ignored --nocapture
+```

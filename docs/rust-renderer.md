@@ -244,3 +244,28 @@ at **811,681 B**, still below 1 MB; source resources/dynamic game data/GPU bytes
 remain separately accounted. Production Wasm is **658,917 B**; controlled
 collision starts and GPU probes remain test-only. Full lighting, vehicle/camera
 rendering and complete image parity are not established by this increment.
+
+## M3 Spin increment (2026-11-14)
+
+SWAMP trolley instances now render the authoritative Spin poses after real
+collisions. Two twelve-update browser probes exercise Z/X incoming vehicle
+velocities; each uploads **1,280 B** of changed matrices and no vertices.
+The stationary repaints upload zero indices/vertices/instances, with actual
+WebGL error checks. Existing eight depth functions, 81 blend transitions and
+144 pixel cases pass. These tests establish state/pose delivery and pipeline
+behavior, not complete SWAMP lighting or image parity.
+
+The SWAMP views draw **83 actors / 1,392 actor triangles**; the final probes have
+**657 / 655 draws**, **12,118 total triangles**, 14 scenery opaque/masked draws
+and **639 / 637 transparent runs**. This reinforces the measured need to reduce
+transparent draws while preserving global order. Actor frustum/distance culling
+and complete lighting remain pending.
+
+Combined SWAMP extra-map data is **926,310 B** = 660,758 B rendering/bookkeeping
++ 265,552 B shared collision data. It stays under the preferred 1 MB target;
+the 2 MB runtime guard still applies. ENGLAND remains 797,177 B (811,681 B in
+the tested shattering case), 396 default draws and 10,033 triangles. Other maps
+still need combined live accounting. Original resources/dynamic simulation/GPU
+storage remain separately accounted; Spin adds no per-map query cache.
+Production Wasm is **670,727 B**; controlled starts/state probes are absent
+from its generated JavaScript exports.

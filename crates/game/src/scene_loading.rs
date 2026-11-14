@@ -60,6 +60,7 @@ const CONSTRUCT_CRUSH: MethodId = MethodId(64);
 const CONSTRUCT_FALL: MethodId = MethodId(67);
 const CONSTRUCT_BOUNCE: MethodId = MethodId(78);
 const CONSTRUCT_CLOSER: MethodId = MethodId(81);
+const CONSTRUCT_SPIN: MethodId = MethodId(85);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -72,6 +73,7 @@ pub struct Registry {
     pub player: ClassId,
     pub bounce: ClassId,
     pub closer: ClassId,
+    pub spin: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -159,6 +161,15 @@ impl Default for Registry {
         ] {
             closer.methods[slot as usize] = Some(method);
         }
+        let mut spin = obstacle.clone();
+        for (slot, method) in [
+            (INITIALIZE, methods::SPIN_INITIALIZE),
+            (CONSTRUCT, CONSTRUCT_SPIN),
+            (TICK, methods::SPIN_TICK),
+            (OBSTACLE_CONTACT, methods::SPIN_HIT),
+        ] {
+            spin.methods[slot as usize] = Some(method);
+        }
         Self {
             classes: vec![
                 Arc::new(world),
@@ -170,6 +181,7 @@ impl Default for Registry {
                 Arc::new(crate::vehicle_loading::class()),
                 Arc::new(bounce),
                 Arc::new(closer),
+                Arc::new(spin),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -180,6 +192,7 @@ impl Default for Registry {
             player: ClassId(6),
             bounce: ClassId(7),
             closer: ClassId(8),
+            spin: ClassId(9),
         }
     }
 }
@@ -195,6 +208,8 @@ impl Registry {
             Some(self.bounce)
         } else if name.eq_ignore_ascii_case("Closer") {
             Some(self.closer)
+        } else if name.eq_ignore_ascii_case("Spin") {
+            Some(self.spin)
         } else {
             None
         }
@@ -283,6 +298,7 @@ pub struct Loader<'a, S> {
 impl<'a, S: ShapeSource> Loader<'a, S> {
     pub fn new(scene: &'a mut Scene, resources: Resources<'a, S>, registry: &'a Registry) -> Self {
         scene.components.terrain = Some(Arc::clone(resources.terrain));
+        scene.components.gravity = resources.catalog.general.gravity;
         scene.components.fall_tuning = resources.catalog.fall;
         let bounce_environment = crate::bounce::Environment {
             map: 0,
@@ -415,6 +431,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         if class == self.registry.closer {
             self.scene.components.closers.resize_with(id.0 + 1, || None);
             self.scene.components.closers[id.0] = Some(crate::closer::Component::default());
+        }
+        if class == self.registry.spin {
+            self.scene.components.spins.resize_with(id.0 + 1, || None);
+            self.scene.components.spins[id.0] = Some(crate::spin::Component::default());
         }
         *call.result = 1;
         Ok(())
@@ -701,6 +721,38 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         }
         Ok(())
     }
+    fn construct_spin(
+        &mut self,
+        mut call: Invocation<'_, Handle>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.obstacle, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
+            .ok_or(-1)?;
+        let p = Parameters::new(self.record.ok_or(-1)?.parameters).map_err(|_| -1)?;
+        let component = self.scene.components.spins[id.0].as_mut().ok_or(-1)?;
+        component.config = crate::spin::Config::construct(
+            p,
+            self.resources.catalog,
+            component.config,
+            &mut self.scene.world.objects[id.0].weight,
+            &mut self.scene.components.objects[id.0]
+                .as_mut()
+                .ok_or(-1)?
+                .data
+                .impact_threshold,
+        );
+        self.scene.world.objects[id.0].activity = 0;
+        *call.result = 0;
+        Ok(())
+    }
     fn construct_closer(
         &mut self,
         mut call: Invocation<'_, Handle>,
@@ -901,6 +953,7 @@ impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
             CONSTRUCT_FALL => self.construct_fall(call, env),
             CONSTRUCT_BOUNCE => self.construct_bounce(call, env),
             CONSTRUCT_CLOSER => self.construct_closer(call, env),
+            CONSTRUCT_SPIN => self.construct_spin(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

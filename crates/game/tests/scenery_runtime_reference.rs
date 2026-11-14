@@ -88,6 +88,8 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
                 3
             } else if class == game.registry.closer {
                 4
+            } else if class == game.registry.spin {
+                5
             } else {
                 0
             },
@@ -205,6 +207,36 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
                 object.auxiliary_active as i32 as u32,
             ]);
         }
+        if class == game.registry.spin {
+            let b = game.objects.components.spins[index].as_ref().unwrap();
+            let (s, c) = (b.state, b.config);
+            append(&mut out, s.velocity);
+            out.extend([
+                s.yawing,
+                c.elasticity as i32 as u32,
+                u32::from(c.friction as u8),
+                u32::from(s.timer),
+                s.pivot_axis,
+            ]);
+            append(&mut out, [s.ground, s.edge_ground]);
+            append(&mut out, s.normal);
+            append(&mut out, s.angular_velocity);
+            append(&mut out, [i32::from(c.yaw_factor)]);
+            for g in [c.hit_x, c.hit_z, c.hit_slow, c.yaw_slow, c.flatten] {
+                append(
+                    &mut out,
+                    [i32::from(g.multiplier as i16), i32::from(g.shift as i16)],
+                );
+            }
+            append(
+                &mut out,
+                [
+                    i32::from(c.stop_yaw),
+                    c.deflection,
+                    i32::from(object.auxiliary_active),
+                ],
+            );
+        }
         let geometry = data
             .mesh
             .and_then(|id| game.objects.components.surfaces.meshes.get(id));
@@ -281,6 +313,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
     let mut bounced = 0;
     let mut closing = 0;
     let mut shattered = 0;
+    let mut spun = 0;
     for (map, name) in names.iter().enumerate() {
         let mut scenarios: Vec<_> = if map == 0 {
             (0..8).map(|target| (target, false)).collect()
@@ -288,6 +321,9 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             vec![(0, false)]
         };
         scenarios.push((if map == 0 { 4 } else { 0 }, true));
+        if [2, 3].contains(&map) {
+            scenarios.extend([(8, false), (9, false)]);
+        }
         for (target, low_gravity) in scenarios {
             let cup = if map == 7 {
                 2
@@ -322,11 +358,9 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             )
             .unwrap();
             let mut script = String::from("FSTPC 5\n");
-            for r in level
-                .objects
-                .iter()
-                .filter(|r| ["Obstacle", "Crush", "Fall", "Bounce", "Closer"].contains(&r.class))
-            {
+            for r in level.objects.iter().filter(|r| {
+                ["Obstacle", "Crush", "Fall", "Bounce", "Closer", "Spin"].contains(&r.class)
+            }) {
                 let p = r.position.map(|v| v as f64 / 1024.);
                 let a = r.angles.map(|v| v as i32 / 182);
                 script.push_str(&format!(
@@ -338,7 +372,9 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let mut spawn = [0; 3];
             let mut velocity = [0; 3];
             if target != 0 {
-                let wanted = if target >= 6 {
+                let wanted = if target >= 8 {
+                    startup.registry.spin
+                } else if target >= 6 {
                     startup.registry.closer
                 } else if target >= 4 {
                     startup.registry.bounce
@@ -373,6 +409,11 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                     spawn[0] += 38000;
                     spawn[2] += 38500;
                     velocity = [0; 3];
+                }
+                if target == 9 {
+                    spawn[0] -= 500;
+                    spawn[2] += 500;
+                    velocity = [600001, 0, 0];
                 }
             }
             let resources = vehicle_resources::prepare(
@@ -443,7 +484,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SR03");
+            assert_eq!(&output.stdout[..4], b"SR04");
             let mut r = common::Reader {
                 words: output.stdout[4..]
                     .chunks_exact(4)
@@ -527,11 +568,23 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 assert!(phase.contains(&tankracer_game::closer::Phase::Fragments));
                 shattered += 1;
             }
+            if target >= 8 {
+                let hits = game
+                    .objects
+                    .components
+                    .spins
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.state.timer != 0)
+                    .count();
+                assert!(hits > 0, "targeted Spin must update");
+                spun += hits;
+            }
         }
     }
     assert!(activated > 0, "real Fall collision must execute");
     assert!(deformed > 0, "real deformable hit must execute");
     println!(
-        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce, {closing} closing / {shattered} shattered Closer"
+        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce, {closing} closing / {shattered} shattered Closer, {spun} hit Spin"
     );
 }

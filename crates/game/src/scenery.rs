@@ -49,8 +49,8 @@ impl Loaded {
 }
 fn deferred(class: &str) -> bool {
     [
-        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bomber", "Train", "Flock", "Powerup", "Spin",
-        "Mover", "BckgrdOb", "Lamps", "Player", "AITank",
+        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bomber", "Train", "Flock", "Powerup", "Mover",
+        "BckgrdOb", "Lamps", "Player", "AITank",
     ]
     .iter()
     .any(|c| class.eq_ignore_ascii_case(c))
