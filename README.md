@@ -2,7 +2,8 @@
 
 A Rust rewrite is in progress, starting with a small world-space WebGL 2
 renderer. The runnable C game below remains the reference during migration.
-The short plan and current checkpoint are in [the roadmap](docs/rust-roadmap.md).
+The short plan and current checkpoint are in [the roadmap](docs/rust-roadmap.md),
+with fixed deliverables in [the milestone plan](docs/rust-milestones.md).
 Re-read it after each completed increment and after context recovery; the
 repository instructions in `AGENTS.md` require this checkpoint routine.
 
@@ -14,14 +15,18 @@ node tools/serve.mjs 8133 build/rust/site
 
 Open http://127.0.0.1:8133. The Rust build runs precise terrain/vehicle physics
 in Wasm, with a simple box proxy on ENGLAND. Arrow keys drive; A applies the
-original handbrake; C toggles a free
-camera (drag to look, WASD to move, Q/E down/up, Shift to move faster).
+original handbrake; C toggles a free camera (drag to look, WASD to move,
+Q/E down/up, Shift to move faster).
 Keyboard actions now use the original Player throttle/brake/steering rates and
 forward/reverse switching. The proxy still starts immediately; the input kernel
 also supports countdown/fast-start rules for the later race controller.
-Use `/?inspect` for static-world inspection. Authored Obstacle/Crush/Fall/Bounce/Closer/Spin actors
-now run and render from live meshes/poses. Remaining collision subclasses, real
-vehicle rendering and race rules are still pending. Rust 1.95,
+Use `/?inspect` for static-world inspection. Authored Obstacle/Crush/Fall/Bounce/Closer/Spin/Mover
+actors run from live state; WayPoint graphs/grid/weather are loaded for later
+race integration. **M1-M3 are accepted:** the independent moving-physics proxy
+is delivered. [M3 acceptance](docs/rust-m3-acceptance.md) records exact evidence
+and limits. **Next is M4.1:** real body/turret/gun rendering. Full Player/race
+startup, pickups/weapons, optional content, AI, menus/audio and full CUP remain
+later milestones. Rust 1.95,
 Node.js 22+ and `wasm-pack` are required. `Cargo.lock` fixes crate versions.
 Run `npm run test:rust` for native resource tests, lint checks and actual browser
 GPU pixel tests (set `CHROME` if Chromium is not in a standard location).

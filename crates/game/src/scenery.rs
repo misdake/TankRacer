@@ -1,4 +1,4 @@
-//! Authored collision scenery bootstrap. Deferred classes remain explicit.
+//! Authored collision scenery and route bootstrap. Deferred classes stay explicit.
 use crate::{
     object_query::EntityId,
     obstacle_startup::{MaterialId, Materials},
@@ -49,15 +49,15 @@ impl Loaded {
 }
 fn deferred(class: &str) -> bool {
     [
-        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bomber", "Train", "Flock", "Powerup",
-        "BckgrdOb", "Lamps", "Player", "AITank",
+        "Noisy", "Smoker", "Trackcam", "Bomber", "Train", "Flock", "Powerup", "BckgrdOb", "Lamps",
+        "Player", "AITank",
     ]
     .iter()
     .any(|c| class.eq_ignore_ascii_case(c))
 }
 /// Construct supported classes in file order, then drain the real startup
 /// queues before placing a player. Unknown classes are rejected before mutation.
-/// Remaining collision subclasses must be implemented before M3 is complete.
+/// Deferred content belongs to the later race, optional-content and CUP stages.
 pub fn load(
     startup: &mut Startup,
     data: &[u8],
@@ -115,6 +115,12 @@ pub fn load(
     }
     let low_gravity = startup.low_gravity();
     startup.objects.components.explosion_resources.map_fog = [2, 5, 7].contains(&map_index);
+    startup
+        .objects
+        .components
+        .waypoints
+        .initialize_grid(&startup.terrain, 100000)
+        .map_err(|e| format!("waypoint grid: {e}"))?;
     let mut loader = Loader::new(
         &mut startup.objects,
         scene_loading::Resources {
@@ -143,6 +149,19 @@ pub fn load(
             .map_err(|e| format!("{} {}: {e:?}", record.class, record.name))?;
         loaded.entities.push(entity);
         *loaded.classes.entry(record.class.into()).or_default() += 1;
+    }
+    if !startup.objects.components.waypoints.order.is_empty() {
+        startup
+            .objects
+            .components
+            .waypoints
+            .link(
+                &startup.identity.symbols,
+                &startup.identity.entities,
+                &startup.objects.world.colliders,
+                100000,
+            )
+            .map_err(|e| format!("waypoint linkage: {e}"))?;
     }
     startup
         .identity

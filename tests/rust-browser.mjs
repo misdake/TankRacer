@@ -137,7 +137,8 @@ try{
  assert.equal(driven.frame.draws,5+driven.scene.scenery_opaque_draws+driven.scene.transparent_runs);
  assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+12);
  assert.ok(driven.scene.acceleration_bytes<1_000_000);
- assert.equal(driven.scene.acceleration_bytes,driven.scene.render_acceleration_bytes+driven.scene.collision_acceleration_bytes);
+ assert.ok(driven.scene.route_acceleration_bytes>0);
+ assert.equal(driven.scene.acceleration_bytes,driven.scene.render_acceleration_bytes+driven.scene.collision_acceleration_bytes+driven.scene.route_acceleration_bytes);
  const still=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
  for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(still[key],0,key);
  await writeFile(path.join(output,'drive.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
@@ -181,7 +182,7 @@ try{
    return results;
  })`);
  for(const reload of reloads){assert.equal(reload.scene.scenery_objects,driven.scene.scenery_objects);assert.ok(reload.frame.index_upload_bytes>0);}
- // SR06: actual BIO exploding contact; FX/3D debris drawing remains a later stage.
+ // SR07: WayPoint participates in shared identity; FX/3D debris drawing is later.
  const collisions=[];
  report.collisions=collisions;
  for(let target=0;target<10;target++){
@@ -202,6 +203,7 @@ try{
   else assert.ok(collision.uploads[target===2||target===5?'vertices':'instances']>0,JSON.stringify(collision));
   for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(collision.stationary[key],0,key);
   assert.ok(collision.scene.acceleration_bytes<1_000_000,JSON.stringify(collision.scene));
+  assert.equal(collision.scene.acceleration_bytes,collision.scene.render_acceleration_bytes+collision.scene.collision_acceleration_bytes+collision.scene.route_acceleration_bytes);
   await writeFile(path.join(output,`collision-${target}.png`),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  }
  assert.deepEqual(errors,[]);assert.equal(requests.filter(url=>new URL(url).pathname.startsWith('/api/')).length,0);

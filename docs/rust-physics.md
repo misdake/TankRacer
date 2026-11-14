@@ -1,5 +1,11 @@
 # M3 physics checkpoints
 
+Current status: **M3 accepted, 2026-11-14**, against the original independent
+moving-proxy scope. See [acceptance](rust-m3-acceptance.md) for current evidence
+and explicit limits, and [milestones](rust-milestones.md) for remaining owners.
+The sections below are historical module evidence; earlier pending statements
+describe their own checkpoint, not the current remaining-work list.
+
 ## Primary terrain graph and queries
 
 `assets::terrain` decodes the original ordered primary collision chain, 8x8
@@ -2833,3 +2839,40 @@ progress can run on actual resources; an isolated progress helper is insufficien
 $env:TANKRACER_PLAYER_COLLISION_REFERENCE=(Resolve-Path build/native/player_collision_reference.exe).Path
 cargo test -p tankracer-game --test player_collision_reference --locked -- --ignored --nocapture
 ```
+
+## WayPoint tail and M3 acceptance (2026-11-14)
+
+WayPoint is registered in the common factory with its real TrWorld parent,
+forward symbols, startup stop notification and static allocation policy. It
+stores no second position/matrix: route queries borrow canonical colliders.
+Construction removes ordinary drawing membership and clears its mesh; draining
+the shared queue disables its tick. All supported actors still load in file order.
+
+The source 8x8 grid prepends each point and retains ordered candidate scans.
+Linking resolves both names, marks alternate branches, chooses the last eligible
+lap start, numbers the main circuit, selects the explicit/fallback backwards
+checkpoint and fills weather. Weather carries between laps until overridden;
+gate size truncates whole units before Q10 conversion. Strict crossing/width/
+facing comparisons and the distinct 2D/3D approximate metrics are retained.
+Unsupported malformed records with more than two links are explicit errors;
+undefined parser-address fallback inputs are not invented as typed game values.
+
+**WP02:** 774 points / 29,412 queries / 102,544 words match C over all 24 B/S/G
+resources. Twenty-two contain circuits; unused CIRCUIT B/S files verify the
+empty graph's `-4` link boundary. Query budgets 0/1/3/10 and normal limits,
+coordinate thresholds/wrap, forward/branch crossings and route/nearest selection
+are checked. There are 307 accepted crossings and 6,785 route selections in this
+matrix. These counts qualify route inputs/queries, not Player lap progression.
+
+**SR07:** 348 updates / 8,103,619 fields match C with WayPoint present in the real
+identity/scheduler domain. Snapshots share one route codec and include link/grid/
+weather state. Existing collision, deformation, explosion and retirement probes
+still execute. This remains a controlled supported-class scene before complete
+race startup, rather than the original whole-level allocation/RNG sequence.
+
+Closing native regressions, browser/Wasm and GPU checks pass. Resident route data
+and live aggregates are included in [M3 acceptance](rust-m3-acceptance.md), all
+below 1 MB on the three live-tested maps. No gameplay/RNG approximation or render
+pipeline change was introduced to close the milestone. WayPoint is advance M5
+bootstrap; full Player/race ownership stays assigned there. M3's original moving
+proxy exit is now met; the next delivery is M4.1 vehicle geometry.

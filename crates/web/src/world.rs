@@ -22,6 +22,7 @@ pub struct WorldView {
     order: Order,
     transparent_objects: Vec<transparency::Object>,
     scenery_bytes: usize,
+    route_bytes: usize,
     scenery_objects: usize,
     scenery_triangles: usize,
     scenery_opaque_draws: usize,
@@ -82,6 +83,7 @@ impl WorldView {
             order: Order::default(),
             transparent_objects: Vec::new(),
             scenery_bytes: 0,
+            route_bytes: 0,
             scenery_objects: 0,
             scenery_triangles: 0,
             scenery_opaque_draws: 0,
@@ -135,6 +137,7 @@ impl WorldView {
                     }
                 }
             }
+            self.route_bytes = session.game.objects.components.waypoints.resident_bytes();
             self.scenery_bytes = session.scenery.resident_bytes()
                 + session
                     .game
@@ -147,7 +150,7 @@ impl WorldView {
                 + self.transparent_objects.capacity() * std::mem::size_of::<transparency::Object>();
             let mut budget = MapBudget::default();
             budget
-                .account(self.acceleration_bytes + self.scenery_bytes)
+                .account(self.acceleration_bytes + self.scenery_bytes + self.route_bytes)
                 .map_err(JsValue::from_str)?;
             self.scenery_objects = session.scenery.objects;
             self.scenery_triangles = session.scenery.triangles;
@@ -229,6 +232,7 @@ impl WorldView {
         self.order = Order::default();
         self.transparent_objects.clear();
         self.scenery_bytes = 0;
+        self.route_bytes = 0;
         self.scenery_objects = 0;
         self.scenery_triangles = 0;
         self.scenery_opaque_draws = 0;
@@ -237,7 +241,7 @@ impl WorldView {
     pub fn stats(&self) -> String {
         let s = &self.scene.stats;
         format!(
-            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{}}}",
+            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"route_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{}}}",
             s.source_meshes,
             s.source_triangles,
             s.rendered_triangles,
@@ -246,13 +250,14 @@ impl WorldView {
             s.unique_vertices,
             s.vertex_bytes,
             s.index_bytes,
-            self.acceleration_bytes + self.scenery_bytes,
+            self.acceleration_bytes + self.scenery_bytes + self.route_bytes,
             self.scene.atlas.width,
             self.scene.atlas.height,
             self.acceleration_bytes + self.scenery_bytes
                 - self.terrain.resident_bytes()
                 - 2 * std::mem::size_of::<usize>(),
             self.terrain.resident_bytes() + 2 * std::mem::size_of::<usize>(),
+            self.route_bytes,
             self.scenery_objects,
             self.scenery_triangles,
             self.scenery_bytes,

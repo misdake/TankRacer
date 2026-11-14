@@ -138,6 +138,7 @@ pub struct Components {
     pub explosion_world: crate::explosion::World,
     pub explosion_resources: crate::explosion::Resources,
     pub explosion_class: Option<ClassId>,
+    pub waypoints: crate::waypoint::Routes,
     pub camera_position: [i32; 3],
     pub gravity: i32,
     pub umbrella_mesh: Option<MeshId>,
@@ -181,6 +182,7 @@ impl Scene {
                 explosion_world: crate::explosion::World::default(),
                 explosion_resources: crate::explosion::Resources::default(),
                 explosion_class: None,
+                waypoints: crate::waypoint::Routes::default(),
                 camera_position: [0; 3],
                 gravity: 5,
                 umbrella_mesh: None,
@@ -476,6 +478,9 @@ impl Methods<Handle> for View<'_> {
                     *state = None;
                 }
                 if let Some(state) = self.components.explosions.get_mut(id.0) {
+                    *state = None;
+                }
+                if let Some(state) = self.components.waypoints.points.get_mut(id.0) {
                     *state = None;
                 }
             }

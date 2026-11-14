@@ -1,8 +1,9 @@
 # Rust renderer
 
-Current live scenery integration and its limits are recorded in
-[M3 authored scenery](#m3-authored-scenery-2026-11-14). Earlier sections describe
-the static-world and proxy foundations and their original measurements.
+Current M3 delivery and limits are recorded in [acceptance](rust-m3-acceptance.md).
+The next stage is M4.1 real vehicle geometry. Sections below describe successive
+renderer increments and their original measurements; the latest baseline is in
+the closing section, not each earlier checkpoint.
 
 The Rust browser shell uses `assets` for immutable source data, `scene` for
 native-testable game-specific preparation/camera, `render` for typed geometry,
@@ -342,3 +343,21 @@ state only. Browser/GL and native/Wasm comparisons still pass; current productio
 Wasm is **694,304 B**. Map acceleration budgets and renderer state are unchanged.
 The race-active gate is distinct from driving/countdown; actual HUD rendering
 and complete race transitions are still later work.
+
+## M3 accepted with route bootstrap (2026-11-14)
+
+WayPoint uses shared identity/poses and is removed from drawing/ticking by the
+actual constructor/notification path. The renderer counts its typed records,
+ordered grid and weather table separately as `route_acceleration_bytes` and
+checks the aggregate budget. Live totals are ENGLAND **767,405 B** (route 4,400),
+SWAMP **879,594 B** (route 4,416) and BIO **949,420 B** (route 2,864); tested
+ENGLAND shattering peak **781,909 B**. Other maps' full live totals are pending.
+
+The default view remains 396 draws / 10,033 triangles, with 22 pipeline changes.
+All 144 GPU pixel cases, eight depth comparisons, 81 blend transitions, ten
+scenery probes, native/Wasm final fields, DOM A press/release, reloads and zero
+idle uploads pass. Production Wasm is **703,997 B**, without controlled test
+exports. The complete acceptance scope is in `rust-m3-acceptance.md`.
+
+M1-M3 are closed. Actual body/turret/gun rendering starts M4.1 using the already
+owned model/pose data; full race/effect/plugin work stays in its later stages.

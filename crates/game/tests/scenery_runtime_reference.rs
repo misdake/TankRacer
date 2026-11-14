@@ -28,6 +28,8 @@ use tankracer_game::{
 mod common;
 #[path = "common/player.rs"]
 mod player_codec;
+#[path = "common/waypoint.rs"]
+mod route_codec;
 struct Headless<'a>(&'a scenery::Loaded);
 impl Services for Headless<'_> {
     fn auxiliary_model(
@@ -87,6 +89,11 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
         let properties = &game.objects.world.objects[index];
         let data = &object.data;
         let class = properties.class;
+        if class == game.registry.waypoint {
+            out.extend([7, game.identity.ticks.flags[collider.entity.0 as usize]]);
+            sections.push((format!("waypoint {index}"), out));
+            continue;
+        }
         out.extend([
             if class == game.registry.fall {
                 2
@@ -361,6 +368,10 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
         ]);
     }
     sections.push(("explosions".into(), out));
+    sections.push((
+        "waypoints".into(),
+        route_codec::snapshot(&game.objects, &game.identity),
+    ));
     sections
 }
 fn sprite(out: &mut Vec<u32>, s: &tankracer_game::explosion::Sprite) {
@@ -462,7 +473,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let loaded = scenery::load(&mut startup, &data, &file, &shared, name, cup).unwrap();
             let n = loaded.entities.len();
             if map == 0 {
-                assert_eq!(n, 141);
+                assert_eq!(n, 177);
                 assert_eq!(loaded.classes.get("Fall"), Some(&96));
                 assert_eq!(loaded.classes.get("Bounce"), Some(&29));
             }
@@ -475,7 +486,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let mut script = String::from("FSTPC 5\n");
             for r in level.objects.iter().filter(|r| {
                 [
-                    "Obstacle", "Crush", "Fall", "Bounce", "Closer", "Spin", "Mover",
+                    "Obstacle", "Crush", "Fall", "Bounce", "Closer", "Spin", "Mover", "WayPoint",
                 ]
                 .contains(&r.class)
             }) {
@@ -645,7 +656,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SR06");
+            assert_eq!(&output.stdout[..4], b"SR07");
             let mut r = common::Reader {
                 words: output.stdout[4..]
                     .chunks_exact(4)

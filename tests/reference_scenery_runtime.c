@@ -11,12 +11,13 @@
 #include "frame_scene_effects.h"
 #include "frame_vehicle_scene.h"
 #include "frame_native.h"
+#include "frame_actors.h"
 static const frame_entity_factory_services *services;
 static frame_data_read read_data;
 static frame_data_write write_data;
 static void *data_ctx;
 static unsigned char script[40000],*ram;
-static uint32_t script_size,world_loaded,object,entity,scenery_count,fall_class,crush_class,bounce_class,closer_class,spin_class,mover_class,explosion_class;
+static uint32_t script_size,world_loaded,object,entity,scenery_count,fall_class,crush_class,bounce_class,closer_class,spin_class,mover_class,explosion_class,waypoint_class;
 static uint32_t low_gravity;
 static uint32_t word(uint32_t a){return reference_game_word(a,4);}
 static void set(uint32_t a,uint32_t v,unsigned n){oracle_set(ram+a,v,n);}
@@ -25,6 +26,7 @@ static void emit(uint32_t a,unsigned n){unsigned i;for(i=0;i<n;i++)oracle_put(wo
 static void narrow(uint32_t a,unsigned n){uint32_t v=reference_game_word(a,n);oracle_put(n==2&&v>32767?v|0xffff0000u:v);}
 #include "reference_motion_io.h"
 #include "reference_player_io.h"
+#include "reference_waypoint_io.h"
 int frame_world_load_span(frame_data_read r,frame_data_write w,void *c,uint32_t f,uint32_t l,const unsigned char *b,uint32_t n,const frame_entity_factory_services *e,uint32_t *out,uint32_t *used)
 {
     int status;(void)b;(void)n;
@@ -58,6 +60,7 @@ static void scenery(void)
     for(id=1;id<=scenery_count;id++){
         o=object_of(id);oracle_put(o!=0);if(!o)continue;
         r=word(word(0x55c694)+id*8u);klass=word(r);
+        if(klass==waypoint_class){oracle_put(7);emit(o+16,1);continue;}
         oracle_put(klass==fall_class?2u:klass==crush_class?1u:klass==bounce_class?3u:klass==closer_class?4u:klass==spin_class?5u:klass==mover_class?6u:0u);
         emit(o+16,1);emit(o,3);emit(o+24,9);basis=word(o+20);oracle_put(basis!=0);
         if(basis)emit(basis,9);else for(i=0;i<9;i++)oracle_put(i%4==0?4096u:0u);
@@ -114,7 +117,7 @@ static void explosions(void){
         emit(o+0x35a,1);narrow(o+0x362,1);emit(o+0x363,2);
     }
 }
-static void snapshot(void){player_state();emit(object+0x10c2,1);emit(object+0xdaf,1);narrow(object+0xded,1);emit(0x55b6ac,1);emit(0x546000,1);scenery();explosions();}
+static void snapshot(void){player_state();emit(object+0x10c2,1);emit(object+0xdaf,1);narrow(object+0xded,1);emit(0x55b6ac,1);emit(0x546000,1);scenery();explosions();waypoint_state();}
 int main(int argc,char **argv)
 {
     uint32_t map,car,steps,control,i,result,spawn[3],velocity[3],camera[3];int status;
@@ -129,6 +132,7 @@ int main(int argc,char **argv)
     status=reference_game_start(argv[1],map,car,0);if(status!=4||!world_loaded)return 6;
     ram=(unsigned char *)(uintptr_t)tank_data();
     if(word(0x55c68c)!=scenery_count)return 6;
+    check(frame_waypoint_link(read_data,write_data,data_ctx,services));
     check(frame_entities_drain_queues(read_data,write_data,data_ctx,services->method,services->method_ctx,services->release,services->system_ctx,100000));
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Fall",5,services,&fall_class));
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Crush",6,services,&crush_class));
@@ -137,6 +141,7 @@ int main(int argc,char **argv)
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Spin",5,services,&spin_class));
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Mover",6,services,&mover_class));
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Explode",8,services,&explosion_class));
+    check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"WayPoint",9,services,&waypoint_class));
     check(frame_player_create(read_data,write_data,data_ctx,0,services,&entity));set(0x53e8b8,entity,4);object=object_of(entity);
     for(i=0;i<3;i++){set(object+0x78+i*4u,spawn[i],4);set(object+i*4u,spawn[i],4);}
     check(services->method(services->method_ctx,0x4350a0u,entity,1,0x5303c0u,&result));
@@ -148,7 +153,7 @@ int main(int argc,char **argv)
     set(0x54b4b0,1,4);set(0x58e7cc,0,4);set(0x53e8b4,0,1);set(0x53e8b0,0,1);set(0x545ffc,0,4);set(0x58e7ac,0,4);
     set(0x55c688,0,4); /* End the controlled level arena before dynamic effects. */
     if(control==15||control==20){uint32_t k;for(k=0;k<16;k++){set(0x590564,control==20?(15-k)%7:0,4);check(frame_explosion_spawn(read_data,write_data,data_ctx,object,0,0,services,&((frame_native_context *)services->method_ctx)->explosion,&result));}set(0x590564,0,4);check(frame_entities_drain_queues(read_data,write_data,data_ctx,services->method,services->method_ctx,services->release,services->system_ctx,100000));}
-    fwrite("SR06",1,4,stdout);oracle_put(entity);snapshot();
+    fwrite("SR07",1,4,stdout);oracle_put(entity);snapshot();
     for(i=0;i<steps;i++){
         if(control==19&&i==12){uint32_t id,p,o;for(id=1;id<word(0x55c690);id++){p=word(word(0x55c694)+id*8);if(!p||word(p)!=explosion_class||!word(p+4))continue;o=word(p+4);set(o+0x362,9,1);set(o+0x35a,96,4);}}
         if((control==14||control==16||control==17)&&i==12){uint32_t id,o,j,p;

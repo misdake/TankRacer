@@ -59,6 +59,7 @@ const CONSTRUCT_BOUNCE: MethodId = MethodId(78);
 const CONSTRUCT_CLOSER: MethodId = MethodId(81);
 const CONSTRUCT_SPIN: MethodId = MethodId(85);
 const CONSTRUCT_MOVER: MethodId = MethodId(89);
+const CONSTRUCT_WAYPOINT: MethodId = MethodId(94);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -74,6 +75,7 @@ pub struct Registry {
     pub spin: ClassId,
     pub mover: ClassId,
     pub explosion: ClassId,
+    pub waypoint: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -183,6 +185,8 @@ impl Default for Registry {
         explosion.methods[ALLOCATE as usize] = Some(methods::EXPLOSION_ALLOCATE);
         explosion.methods[TICK as usize] = Some(methods::EXPLOSION_TICK);
         explosion.methods[RELEASE as usize] = Some(methods::RELEASE_ID);
+        let mut waypoint = render_world.clone();
+        waypoint.methods[CONSTRUCT as usize] = Some(CONSTRUCT_WAYPOINT);
         Self {
             classes: vec![
                 Arc::new(world),
@@ -197,6 +201,7 @@ impl Default for Registry {
                 Arc::new(spin),
                 Arc::new(mover),
                 Arc::new(explosion),
+                Arc::new(waypoint),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -210,12 +215,15 @@ impl Default for Registry {
             spin: ClassId(9),
             mover: ClassId(10),
             explosion: ClassId(11),
+            waypoint: ClassId(12),
         }
     }
 }
 impl Registry {
     pub fn scenery_class(&self, name: &str) -> Option<ClassId> {
-        if name.eq_ignore_ascii_case("Obstacle") {
+        if name.eq_ignore_ascii_case("WayPoint") {
+            Some(self.waypoint)
+        } else if name.eq_ignore_ascii_case("Obstacle") {
             Some(self.obstacle)
         } else if name.eq_ignore_ascii_case("Crush") {
             Some(self.crush)
@@ -400,6 +408,14 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             self.scene.components.movers.resize_with(id.0 + 1, || None);
             self.scene.components.movers[id.0] = Some(crate::mover::State::default());
         }
+        if class == self.registry.waypoint {
+            self.scene
+                .components
+                .waypoints
+                .points
+                .resize_with(id.0 + 1, || None);
+            self.scene.components.waypoints.points[id.0] = Some(crate::waypoint::Point::default());
+        }
         *call.result = 1;
         Ok(())
     }
@@ -519,6 +535,46 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             }
         }
         *call.result = 0;
+        Ok(())
+    }
+    fn construct_waypoint(
+        &mut self,
+        mut call: Invocation<'_, Handle>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.render_world, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
+            .ok_or(-1)?;
+        let p = Parameters::new(self.record.ok_or(-1)?.parameters).map_err(|_| -1)?;
+        self.scene.components.waypoints.point_mut(id)?.configure(
+            p,
+            call.context.symbols,
+            env.work_limit,
+        )?;
+        if p.find(":backwards_check").is_some() {
+            self.scene.components.waypoints.backwards_check = Some(call.entity);
+        }
+        self.scene
+            .components
+            .waypoints
+            .insert(id, self.scene.world.colliders[id.0].pose.position)?;
+        let data = &mut self.scene.components.object_mut(id)?.data;
+        data.mesh = None;
+        data.source = None;
+        spatial::remove_first(&mut self.scene.components.ordinary, &id, env.work_limit)
+            .map_err(spatial_code)?;
+        call.context
+            .queues
+            .queue(call.context.ticks, call.entity, false, env.work_limit)
+            .map_err(|_| -3)?;
+        *call.result = call.entity.0;
         Ok(())
     }
     fn construct_obstacle(
@@ -964,6 +1020,7 @@ impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
             CONSTRUCT_CLOSER => self.construct_closer(call, env),
             CONSTRUCT_SPIN => self.construct_spin(call, env),
             CONSTRUCT_MOVER => self.construct_mover(call, env),
+            CONSTRUCT_WAYPOINT => self.construct_waypoint(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

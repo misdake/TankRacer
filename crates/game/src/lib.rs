@@ -64,3 +64,4 @@ pub mod vehicle_runtime;
 pub mod vehicle_scene;
 pub mod vehicle_startup;
 pub mod velocity;
+pub mod waypoint;
