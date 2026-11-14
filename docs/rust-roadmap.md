@@ -25,33 +25,33 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 
 ## Current checkpoint
 
-- **M3 active; M1/M2 complete.** Browser now drives a fresh Rust/Wasm vehicle on
-  ENGLAND, displayed as a simple proxy: 6 draws / 8,774 triangles. Arrows drive;
-  C toggles follow/free camera. `/?inspect` keeps the static inspection view.
-- Last verified code: **`afb6db8`**. Native `drive ... --scenery` now constructs
-  real Obstacle/Crush/Fall before the player (111 ENGLAND actors). Scheduler,
-  queues, collision and mutable meshes share owners; Fall reads actual vehicle
-  poses. SR01: 8 maps / 68 updates / 906,126 fields match C, including real Fall
-  hits and Crush deformation. Eleven native suites and `npm run test:rust` pass,
-  including existing VR01 and 133 GPU cases. C preservation passes. Production
-  Wasm: **493,755 B**. The browser has **not enabled these scenery actors yet**.
-- **Unverified worktree:** `scene_meshes.rs` adds material/version render views;
-  `vehicle_model.rs` exposes cached models. These are unfinished browser-scenery
-  preparation, not part of the verified checkpoint. Inspect/test them before use.
-- **Next runnable increment:** enable this qualified scenery bootstrap in the
-  browser with read-only render views of live transforms/current meshes. Batch
-  compatible objects, account retained metadata and verify collision/render
-  changes. Then complete required collision subclasses (Bounce/Spin/Closer,
-  etc.) before closing M3; the loader explicitly reports deferred classes.
-  Full Player/race startup, vehicle lifecycle and complete-world RNG/allocation
-  order are still incomplete. Real vehicle meshes/cameras remain M4.
+- **M3 active; M1/M2 complete.** The browser drives a Rust/Wasm vehicle proxy
+  with real Obstacle/Crush/Fall collision scenery: 111 actors constructed, 94
+  in current render lists. Live poses/current mutable meshes feed read-only
+  rendering. Arrows drive; C toggles follow/free camera; `/?inspect` stays static.
+- Last verified code: **`b233a56`**. `npm run test:rust` passes, including 144 GPU
+  pixel cases, 120-update native/Wasm final-field comparison, identical-pose
+  reloads and three 12-update Fall/Crush collision/render sequences. Stationary
+  repaint uploads zero indices, vertices and instances. SR01 still matches C:
+  8 maps / 68 updates / 906,126 fields. C preservation passes. These checks do
+  not qualify complete race startup or full per-frame browser state parity.
+- Default probe: **385 draws / 9,895 triangles**, including 34 scenery
+  opaque/masked draws and 346 globally ordered transparent runs. Transparent
+  batching/culling remains a measured optimization task; preserve global order
+  and exact material/depth states when reducing these draws.
+- **Next runnable gameplay increment:** bind required collision subclasses
+  (Bounce/Spin/Closer, etc.) through real loading/update/collision owners and
+  display their current meshes. Qualify branches/short sequences before closing
+  M3; the loader explicitly reports deferred classes. Full Player/race startup,
+  vehicle lifecycle and complete-world RNG/allocation order are still incomplete.
+  Real vehicle meshes/cameras remain M4.
 - Pending beyond it: vehicle blast response and remaining readers,
   full startup/shared RNG replay, pickup activation/projection/backup/restore,
   fragment drawing and long-name/header aliases. Keep these explicit through M5-M7.
-- Combined live ENGLAND extra map memory: **638,906 B in Wasm** = 377,176 B
-  render/browser metadata + 261,730 B collision data/Arc. One terrain graph is
-  shared. Other maps still need combined live accounting when enabled.
-  Original resources/GPU storage/dynamic game memory remain separate.
+- Combined live ENGLAND extra map memory: **790,578 B in Wasm** = 528,848 B
+  render/bookkeeping + 261,730 B shared collision data/Arc. Other maps still need
+  combined live accounting when enabled. Original resources/GPU storage/dynamic
+  game memory remain separate. Production Wasm: **629,704 B**.
 - Preserve the working C/browser reference. Rust output: `build/rust/site`.
   Local milestone commits are authorized; **do not push** unless asked.
 
