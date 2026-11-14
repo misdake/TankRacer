@@ -336,3 +336,9 @@ checks physics/RNG and final control fields and asserts override activation.
 All existing GPU/GL, scenery, reload and idle-upload checks pass. No rendering
 state, batching or per-map preprocessing changed. Production Wasm: **693,690 B**.
 The vehicle is still a proxy: original vehicle/light geometry is pending M4.
+
+The subsequent Player collision-indication prefix changes authoritative update
+state only. Browser/GL and native/Wasm comparisons still pass; current production
+Wasm is **694,304 B**. Map acceleration budgets and renderer state are unchanged.
+The race-active gate is distinct from driving/countdown; actual HUD rendering
+and complete race transitions are still later work.

@@ -15,6 +15,7 @@
 #include "physics_entities.h"
 #include "frame_player_input.h"
 #include "frame_player_state.h"
+#include "frame_player_collision.h"
 static unsigned char *ram,fresh[0x1128];
 static uint32_t object,entity,poses,actors[1],count=1,after_calls;
 static int controls;
@@ -82,7 +83,12 @@ int main(int argc,char **argv)
     for(i=0;i<3;i++){set(0x74aee0+i*4u,0,4);set(0x74af18+i*4u,i==2?4096u:0,4);}
     set(0x55b6ac,0,4);
     if(controls){set(0x53ccdc,0,4);set(0x53cca8,0,4);set(0x544fb8,0,4);for(i=0;i<16;i++)set(0x592000+i*4u,i,4);}
-    if(controls==2){set(object+0x50,20000,4);set(object+0x58,500000,4);set(object+0xe4,20000,4);set(object+0xec,500000,4);}
+    if(controls==2){
+        set(object+0x50,20000,4);set(object+0x58,500000,4);set(object+0xe4,20000,4);set(object+0xec,500000,4);
+        set(object+0x107e,300,4);set(object+0x118,80,4);
+        set(object+0xfc,64000,4);set(object+0x100,(uint32_t)-32000,4);set(object+0x104,2000,4);
+        set(object+0x108,50000,4);set(object+0x114,(uint32_t)-50000,4);
+    }
     status=frame_results_route_random(read_data,write_data,0);if(status)return 7;
     status=frame_bootstrap_environment(read_data,write_data,0,0x438d60,material,0);if(status)return 7;
     status=frame_bootstrap_environment(read_data,write_data,0,0x4427c0,material,0);if(status)return 7;
@@ -103,7 +109,11 @@ int main(int argc,char **argv)
             set(0x74b601,i%12u==10u,1);set(0x74b602,(i%12u>=4u&&i%12u<8u)||i%12u==10u,1);
             set(0x74b60f,controls==2&&i%12u>=4u&&i%12u<8u,1);
             status=frame_player_input_step(read_data,write_data,0,object,&rates,&result);if(status)return 8;
-            if(result.driving){status=frame_player_aux_brake(read_data,write_data,0,object,result.auxiliary_down);if(status)return 8;}
+            set(0x53e3fc,controls!=2||i%12u!=7u,4);
+            if(result.driving){
+                status=frame_player_collision_state(read_data,write_data,0,object);if(status)return 8;
+                status=frame_player_aux_brake(read_data,write_data,0,object,result.auxiliary_down);if(status)return 8;
+            }
         }else{
             set(object+0x94,i%12u<8u?65536u:0,4);set(object+0x98,i%12u==9u?65536u:0,4);
             set(object+0x9c,i%12u>=4u&&i%12u<8u?12000u:0,4);

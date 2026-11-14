@@ -2793,3 +2793,43 @@ contributions before parent physics. Full Player/race startup remains unfinished
 $env:TANKRACER_PLAYER_BRAKE_REFERENCE=(Resolve-Path build/native/player_brake_reference.exe).Path
 cargo test -p tankracer-game --test player_brake_reference --locked -- --ignored --nocapture
 ```
+
+## Player collision-indication prefix (2026-11-14)
+
+`player_collision` now consumes the actual preceding ground/tank deltas and
+obstacle impulse, before auxiliary brake and parent Tank physics. In an active
+race the signed marker decays by dt, then each magnitude strictly above 30,000
+adds `(change-30000)>>11`; the final upper cap is 1,250. The obstacle value is
+already a signed response magnitude: no abs or vehicle-speed substitution.
+The existing unsigned-magnitude approximation is reused from `geometry`, with
+dominant-axis ties and MIN/overflow behavior qualified against the Player helper.
+Impact indication decays separately and preserves its source signed comparison.
+The existing canonical collision fields own every write, not another flag bank.
+
+The runtime has an explicit `race_active` gate distinct from driving/countdown.
+The current proxy initializes it true; the future race controller must own its
+transitions. The raw physics API remains outside the Player prefix. No complete
+race-state or HUD-rendering claim follows from the indicator update alone.
+
+**PC01:** 114 cases / 912 operations / 10,944 words match unchanged C. Cases
+cover gate bypass, exact thresholds/quantization, all dominant-axis ties,
+unsigned abs extremes, marker cap and signed decay/wrap. The fresh-runtime
+comparison still passes **2,880 updates / 18,041,268 fields** on eight maps and
+fifteen cars. High-speed scenarios now declare initial collision deltas/marker
+and exercise active-gate changes; an assertion requires the prefix to consume
+those initial values. Source/Rust run the actual input -> indication -> brake ->
+parent sequence, while route/lap/environment and full Player lifecycle remain
+outside this oracle boundary.
+
+Workspace checks, actual browser keyboard/handbrake, native/Wasm final fields,
+GPU/GL, ten short scenery probes and idle-upload checks pass. Production Wasm:
+**694,304 B**; no added map precomputation. Logs:
+`build/tests/rust-player-collision-*.log`. Next required startup dependency is
+authored WayPoint construction/linkage and its ordered grid before route/lap
+progress can run on actual resources; an isolated progress helper is insufficient.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_collision.c build/native/libtankracer_core.a -lm -o build/native/player_collision_reference.exe
+$env:TANKRACER_PLAYER_COLLISION_REFERENCE=(Resolve-Path build/native/player_collision_reference.exe).Path
+cargo test -p tankracer-game --test player_collision_reference --locked -- --ignored --nocapture
+```

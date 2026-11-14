@@ -210,6 +210,11 @@ fn fresh_resource_only_runtime_matches_native_updates() {
             let v = &mut game.vehicles.entries[0].as_mut().unwrap().physics;
             v.motion.velocity = [20000, 0, 500000];
             v.powertrain.local_velocity = [20000, 0, 500000];
+            v.collision.collision_size = 300;
+            v.collision.impact_accumulator = 80;
+            v.collision.ground_delta = [64000, -32000, 2000];
+            v.collision.tank_delta = [50000, 0, 0];
+            v.collision.obstacle_impulse = -50000;
         }
         let mut braked = false;
         for tick in 0..=steps {
@@ -217,6 +222,7 @@ fn fresh_resource_only_runtime_matches_native_updates() {
                 let i = tick - 1;
                 assert_eq!(r.word(), 0, "C status map={map} car={car} tick={tick}");
                 assert_eq!(r.word(), 1, "C after-pose calls");
+                game.race_active = controls != 2 || i % 12 != 7;
                 let result = if controls != 0 {
                     game.step_keys(
                         player_input::Keys {
@@ -245,6 +251,18 @@ fn fresh_resource_only_runtime_matches_native_updates() {
                     )
                 };
                 result.unwrap();
+                if controls == 2 && tick == 1 {
+                    assert_ne!(
+                        game.vehicles.entries[0]
+                            .as_ref()
+                            .unwrap()
+                            .physics
+                            .collision
+                            .collision_size,
+                        300,
+                        "Player indication prefix must consume initial collision inputs"
+                    );
+                }
                 updates += 1;
             }
             braked |= game.vehicles.entries[0]

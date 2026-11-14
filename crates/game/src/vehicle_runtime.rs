@@ -77,6 +77,9 @@ pub struct SinglePlayer {
     pub shared: Shared,
     pub player: TankId,
     pub frame: u32,
+    /// Global race-rule gate, distinct from the Player's driving/countdown flag.
+    /// The current proxy starts in an active race; later race ownership sets it.
+    pub race_active: bool,
     pub camera_position: [i32; 3],
     pub camera_forward: [i32; 3],
     pub settings: Settings,
@@ -287,6 +290,7 @@ impl SinglePlayer {
             shared,
             player,
             frame: 0,
+            race_active: true,
             camera_position: [0; 3],
             camera_forward: [0, 0, 4096],
             settings,
@@ -344,6 +348,7 @@ impl SinglePlayer {
             .hit_environment(self.objects.components.fall_tuning, false, 65536);
         let mut execution = Execution {
             keys,
+            race_active: self.race_active,
             vehicles: &mut self.vehicles,
             objects: &mut self.objects,
             shared: &mut self.shared,
@@ -381,6 +386,7 @@ impl SinglePlayer {
 }
 struct Execution<'a, D> {
     keys: Option<(player_input::Keys, i32)>,
+    race_active: bool,
     vehicles: &'a mut Store,
     objects: &'a mut scene_objects::Scene,
     shared: &'a mut Shared,
@@ -472,6 +478,7 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
                 &mut keys,
             )?;
             if outcome.driving {
+                crate::player_collision::step(&mut v.collision, self.frame.dt, self.race_active);
                 let fast = outcome.auxiliary_down
                     && v.powertrain.local_velocity[2].wrapping_abs() > 250000;
                 let restoring =
