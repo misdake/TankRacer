@@ -13,6 +13,8 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - Grow one runnable slice at a time: build/render shell -> static world ->
   physics/collisions -> vehicles/cameras -> race rules/effects -> detachable
   scenery -> opponents/menus/all maps -> optimization and packaging.
+- Treat this as a clean rewrite: readable modules and explicit ownership,
+  rather than translating the old command stream into a new wrapper.
 - Keep physics, update order and RNG exact; allow small visual differences,
   never incorrect blend/depth states. Minor scenery must support config and
   runtime toggles with complete cleanup.
@@ -25,44 +27,36 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 
 ## Current checkpoint
 
-- **M3 active; M1/M2 complete.** Rust/Wasm drives a vehicle proxy with real
-  Obstacle/Crush/Fall/Bounce/Closer/Spin scenery. ENGLAND: 141 constructed actors,
-  118 rendered; controlled SWAMP/BIO browser views render 83/72 actors. Mover
-  construction/motion/nonexploding Spin handoff is connected; explosive hits fail
-  explicitly and remain unfinished.
-  Live poses/current meshes feed read-only rendering. Arrows drive; C switches
-  follow/free camera; `/?inspect` stays static.
-- Verified code: **`79e295d`**. MV01: 51 scenarios / 177 operations match C.
-  SR05: eight maps / 240 updates / 4,175,411 fields match, including original
-  BIO movement and a declared no-explosion resource variation for Spin handoff.
-  Static-only sort cache is now released when the joint live sorter takes over;
-  exact world index order and idempotent memory release are tested.
-- Related native suites, workspace tests/lints, source preservation and browser
-  checks pass: 144 GPU cases, 120-update native/Wasm final fields, reloads and
-  eight collision plus one BIO movement 12-update cases; stationary uploads zero.
-  Full race startup,
-  per-frame browser state parity and full image parity remain unqualified.
-- **Next runnable increment:** real explosion entity allocation/RNG, update and
-  retirement; bind Mover's original BIO explosive hit and debris transition.
-  The current `-5` missing binding must not become a successful no-op. Mover is
-  not complete until that path passes owner integration. Then remaining
-  collision/startup bindings, using actual owners and current meshes. Check branches
-  and short sequences. Full Player/race startup, vehicle lifecycle and complete
-  world RNG/allocation order remain incomplete; M3 is not closed. M4 adds real
-  vehicle meshes/cameras. The loader reports deferred classes explicitly.
-- Carry forward through M5-M7: blast response/remaining readers, pickup
-  activation/projection/backup/restore, full fragment drawing and name aliases.
-- Default probe: **396 draws / 10,033 triangles**; 37 scenery opaque/masked
-  draws and 354 globally ordered transparent runs. Reduce transparent draws and
-  add culling while preserving ordering and exact material/depth states.
-- Extra live map data after releasing duplicate caches: **ENGLAND 762,997 B**
-  (777,501 B shattering peak), **SWAMP 875,170 B**, **BIO 946,548 B**. BIO saves
-  57,120 B; its motion view has 503 draws / 11,522 triangles. Other maps need
-  live accounting; transparent batching remains pending. Resources/GPU/dynamic
-  game memory are separate. Production Wasm: **681,225 B**. Detailed contracts/
-  evidence belong in the specialist docs.
-- Preserve the working C/browser reference. Rust output: `build/rust/site`.
-  Local milestone commits are authorized; **do not push** unless asked.
+Updated: **2026-11-14**. Read this together with `git status`.
+
+- **M1/M2 complete; M3 active.** Runnable Rust/Wasm vehicle proxy, terrain and
+  live Obstacle/Crush/Fall/Bounce/Closer/Spin scenery; Mover motion is connected.
+  Arrows drive; C switches follow/free camera; `/?inspect` stays static.
+- **Committed baseline: `79e295d`** (checkpoint commit `9b48e7e`). Eight-map
+  scenery comparison: 240 updates / 4,175,411 fields. Mover movement and the
+  declared nonexploding BIO variation pass. Duplicate static sort cache released.
+- **Uncommitted increment:** original BIO exploding Mover hit, explosion
+  allocation/update/smoke/retirement/slot replacement, vehicle impulse and debris
+  activation. Existing test logs report 348 updates / 7,462,914 matching fields,
+  70 blast scenarios, browser pass and a 690,915 B production Wasm. These are
+  recovered results, not a substitute for reviewing the current diff. Explosion
+  sprites and full 3D fragment drawing are still pending; no image-parity claim.
+  Evidence: `build/tests/rust-explosion-*.log`, `build/rust/tests/browser.json`.
+- **Resume here:** review and finish that increment; put detailed evidence in
+  `rust-physics.md`, correct stale README claims, commit only verified changes,
+  then replace this checkpoint with its actual code commit. Next audit remaining
+  M3 collision/startup dependencies and connect the next necessary owner path.
+  Do not expand M3 into all later effects or declare it closed from helper tests.
+- **Still missing:** full Player/race startup and lifecycle, complete world
+  RNG/allocation order, real vehicle rendering, pickups/weapons/race rules,
+  optional scenery, opponents/menus/audio and all-map full-game qualification.
+  Per-frame browser state parity and full image parity are unqualified.
+- **Optimization baseline:** ENGLAND 396 draws / 10,033 triangles. Extra live
+  map data: ENGLAND 762,997 B (777,501 B shattering peak), SWAMP 875,170 B,
+  BIO 946,548 B. Other maps need accounting; transparent batching/culling remain
+  pending. Keep original resources, GPU and dynamic game memory separate.
+- Rust output: `build/rust/site`; preserve the C/browser reference. Local
+  increment commits are authorized; **do not push** unless asked.
 
 ## Incremental delivery
 
