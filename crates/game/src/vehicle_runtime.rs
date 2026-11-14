@@ -98,6 +98,74 @@ struct Profile {
     light_offset: [i32; 3],
     bumps: [contact::Coefficient; 10],
 }
+/// World ownership is established before placing the player. Authored readers
+/// and plugins use this same factory, geometry store and RNG during bootstrap.
+pub struct Startup {
+    pub identity: factory::State<Handle>,
+    pub registry: Registry,
+    pub objects: scene_objects::Scene,
+    pub terrain: Arc<TerrainData>,
+    pub shared: Shared,
+    settings: Settings,
+}
+impl Startup {
+    pub fn map(&self) -> u32 {
+        self.settings.map
+    }
+    pub fn new(terrain: Arc<TerrainData>, settings: Settings) -> Result<Self, Error> {
+        if settings.map >= 8 || !(0..=1).contains(&settings.mode) {
+            return Err(Error::UnsupportedConfiguration);
+        }
+        let registry = Registry::default();
+        let identity = factory::State::new(128).map_err(Error::Factory)?;
+        let mut random = settings.seed;
+        // Results initialization precedes environment shield initialization.
+        // Intervening authored-world RNG remains a later full-startup concern.
+        let noise = contact_pipeline::initialize_noise(&mut random);
+        let mut shield = shield::State::default();
+        shield.initialize(&mut random);
+        let shared = Shared {
+            random,
+            noise,
+            pool: crate::effect_pool::Pool::default(),
+            impacts: impact_particles::State::default(),
+            impact_vehicle: impact_particles::Vehicle {
+                entity: EntityId(0),
+                contacts: [[0; 3]; 4],
+                forward_velocity: 0,
+                external_basis: None,
+                cooldown: 0,
+            },
+            damage: damage::State::default(),
+            debris: debris::State::default(),
+            pickup: pickup::State::default(),
+            temporary: temporary::State::default(),
+            shield,
+            view: prefix::View::default(),
+            camera: boost::Camera::default(),
+            spin: spin::Shared::default(),
+            boost: boost::Shared::default(),
+            debris_sound: None,
+        };
+        let mut objects = registry.scene(obstacle::Grid {
+            origin: terrain.origin.map(|v| v.wrapping_mul(8)),
+            shifts: terrain.shifts.map(|v| u32::from(v) + 3),
+            cells: std::array::from_fn(|_| Vec::new()),
+        });
+        objects.components.terrain = Some(Arc::clone(&terrain));
+        Ok(Self {
+            identity,
+            registry,
+            objects,
+            terrain,
+            shared,
+            settings,
+        })
+    }
+    pub fn finish(self, surfaces: Surfaces, request: Request) -> Result<SinglePlayer, Error> {
+        SinglePlayer::from_startup(self, surfaces, request)
+    }
+}
 impl SinglePlayer {
     pub fn new(
         terrain: Arc<TerrainData>,
@@ -105,14 +173,20 @@ impl SinglePlayer {
         request: Request,
         settings: Settings,
     ) -> Result<Self, Error> {
-        if settings.map >= 8
-            || !(0..=1).contains(&settings.mode)
-            || request.environment.session_active
-        {
+        Startup::new(terrain, settings)?.finish(surfaces, request)
+    }
+    fn from_startup(startup: Startup, surfaces: Surfaces, request: Request) -> Result<Self, Error> {
+        if request.environment.session_active {
             return Err(Error::UnsupportedConfiguration);
         }
-        let registry = Registry::default();
-        let mut identity = factory::State::new(128).map_err(Error::Factory)?;
+        let Startup {
+            mut identity,
+            registry,
+            objects,
+            terrain,
+            mut shared,
+            settings,
+        } = startup;
         let mut vehicles = Store::default();
         let (_, player) = vehicles
             .create_single_player(&mut identity, &registry, request, 100000)
@@ -191,41 +265,13 @@ impl SinglePlayer {
             overlap_bounds: model.geometry_bounds,
             contacts: v.physics.motion.contacts.map(|p| p.world),
         };
-        let mut random = settings.seed;
-        // Results initialization precedes environment shield initialization.
-        // Intervening authored-world RNG remains a later full-startup concern.
-        let noise = contact_pipeline::initialize_noise(&mut random);
-        let mut shield = shield::State::default();
-        shield.initialize(&mut random);
-        let shared = Shared {
-            random,
-            noise,
-            pool: crate::effect_pool::Pool::default(),
-            impacts: impact_particles::State::default(),
-            impact_vehicle: impact_particles::Vehicle {
-                entity: v.physics.entity,
-                contacts: tank.contacts,
-                forward_velocity: 0,
-                external_basis: tank.collider.external_basis,
-                cooldown: 0,
-            },
-            damage: damage::State::default(),
-            debris: debris::State::default(),
-            pickup: pickup::State::default(),
-            temporary: temporary::State::default(),
-            shield,
-            view: prefix::View::default(),
-            camera: boost::Camera::default(),
-            spin: spin::Shared::default(),
-            boost: boost::Shared::default(),
-            debris_sound: None,
+        shared.impact_vehicle = impact_particles::Vehicle {
+            entity: v.physics.entity,
+            contacts: tank.contacts,
+            forward_velocity: 0,
+            external_basis: tank.collider.external_basis,
+            cooldown: 0,
         };
-        let mut objects = registry.scene(obstacle::Grid {
-            origin: terrain.origin.map(|v| v.wrapping_mul(8)),
-            shifts: terrain.shifts.map(|v| u32::from(v) + 3),
-            cells: std::array::from_fn(|_| Vec::new()),
-        });
-        objects.components.terrain = Some(Arc::clone(&terrain));
         Ok(Self {
             identity,
             registry,
@@ -287,13 +333,14 @@ impl SinglePlayer {
             hit,
             breakable_class: self.registry.fall,
         };
+        let environment = self.registry.environment(100000);
         self.identity
             .context()
-            .tick(
-                scene_loading::TICK,
-                self.registry.environment(100000),
-                &mut execution,
-            )
+            .tick(scene_loading::TICK, environment, &mut execution)
+            .map_err(Error::Factory)?;
+        self.identity
+            .context()
+            .drain(scene_loading::STOP, environment, &mut execution)
             .map_err(Error::Factory)
     }
 }
@@ -351,7 +398,7 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
                 Some(Handle::Vehicle(_)) => vehicle_loading::Lifecycle.invoke(method, call, env),
                 _ => self
                     .objects
-                    .updates(&mut self.shared.random)
+                    .updates_with_vehicles(&mut self.shared.random, self.vehicles)
                     .invoke(method, call, env),
             };
         }

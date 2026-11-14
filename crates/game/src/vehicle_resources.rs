@@ -12,7 +12,7 @@ pub struct Prepared {
     pub model: VehicleModel,
     pub surfaces: Surfaces,
 }
-fn shapes(bytes: &[u8]) -> Result<ShapeArchive<'_>, Box<dyn Error>> {
+pub(crate) fn shapes(bytes: &[u8]) -> Result<ShapeArchive<'_>, Box<dyn Error>> {
     let archive = Archive::parse(bytes)?;
     let file = archive
         .entries()

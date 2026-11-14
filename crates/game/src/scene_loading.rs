@@ -159,6 +159,17 @@ impl Default for Registry {
     }
 }
 impl Registry {
+    pub fn scenery_class(&self, name: &str) -> Option<ClassId> {
+        if name.eq_ignore_ascii_case("Obstacle") {
+            Some(self.obstacle)
+        } else if name.eq_ignore_ascii_case("Crush") {
+            Some(self.crush)
+        } else if name.eq_ignore_ascii_case("Fall") {
+            Some(self.fall)
+        } else {
+            None
+        }
+    }
     pub fn hit_environment(
         &self,
         tuning: fall::Tuning,
@@ -261,15 +272,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         state: &mut factory::State<Handle>,
         record: level::Object<'a>,
     ) -> Result<EntityId, Error> {
-        let class = if record.class.eq_ignore_ascii_case("Obstacle") {
-            self.registry.obstacle
-        } else if record.class.eq_ignore_ascii_case("Crush") {
-            self.registry.crush
-        } else if record.class.eq_ignore_ascii_case("Fall") {
-            self.registry.fall
-        } else {
-            return Err(Error::UnsupportedClass(record.class.into()));
-        };
+        let class = self
+            .registry
+            .scenery_class(record.class)
+            .ok_or_else(|| Error::UnsupportedClass(record.class.into()))?;
         self.record = Some(record);
         self.failure = None;
         let registry = self.registry;

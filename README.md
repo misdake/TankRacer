@@ -20,6 +20,16 @@ Run `npm run test:rust` for native resource tests, lint checks and actual browse
 GPU pixel tests (set `CHROME` if Chromium is not in a standard location).
 GPU probes compile only with `gpu-tests`; test builds have a separate output.
 
+The native Rust probe can additionally load the currently supported authored
+collision scenery before placing the player:
+
+```sh
+cargo run -p tankracer-game --example drive --release --locked -- assets/game 0 1 120 --scenery
+```
+
+It reports loaded/deferred classes explicitly. This path is not yet enabled in
+the browser, and does not run complete race rules or the deferred subclasses.
+
 See [the renderer notes](docs/rust-renderer.md) for the current architecture.
 
 ## C reference

@@ -8,15 +8,24 @@ use tankracer_game::{
     obstacle_collision::Invocation,
     pose,
     scene_objects::collision::{self, Collision, Sound},
+    scenery,
     vehicle_loading::Request,
     vehicle_model::BuildContext,
     vehicle_resources,
-    vehicle_runtime::{Devices, Settings, SinglePlayer},
+    vehicle_runtime::{Devices, Settings, Startup},
     vehicle_scene::spray,
     vehicle_startup::Environment,
 };
-struct Headless;
-impl collision::Services for Headless {
+struct Headless<'a> {
+    scenery: Option<&'a scenery::Loaded>,
+}
+impl collision::Services for Headless<'_> {
+    fn auxiliary_model(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<std::sync::Arc<tankracer_assets::model::Model>>, i32> {
+        Ok(self.scenery.and_then(|s| s.auxiliary_model(name)))
+    }
     fn sound(&mut self, _: Sound, _: &mut Collision<'_>, _: Invocation<'_>) -> Result<(), i32> {
         Ok(())
     }
@@ -24,7 +33,7 @@ impl collision::Services for Headless {
         Ok(())
     }
 }
-impl Devices for Headless {
+impl Devices for Headless<'_> {
     fn surface_feedback(&mut self) -> Result<(), i32> {
         Ok(())
     }
@@ -41,6 +50,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let map: usize = args.get(1).map(|v| v.parse()).transpose()?.unwrap_or(0);
     let car: usize = args.get(2).map(|v| v.parse()).transpose()?.unwrap_or(1);
     let ticks: usize = args.get(3).map(|v| v.parse()).transpose()?.unwrap_or(240);
+    let with_scenery = args.get(4).is_some_and(|v| v == "--scenery");
     let maps = [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ];
@@ -96,20 +106,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             session_active: false,
         },
     )?;
-    let mut game = SinglePlayer::new(
+    let mut startup = Startup::new(
         terrain,
-        resources.surfaces,
-        Request {
-            model: resources.model,
-            spawn,
-            static_allocation: true,
-            environment: Environment {
-                ambient_wobble: false,
-                session_active: false,
-                ambient_phase: 0,
-                gun_pivot: [0; 3],
-            },
-        },
         Settings {
             map: map as u32,
             mode: 0,
@@ -126,6 +124,37 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )
     .map_err(|e| format!("startup: {e:?}"))?;
+    let scenery = with_scenery
+        .then(|| {
+            scenery::load(
+                &mut startup,
+                &data_file,
+                &level_file,
+                &shared,
+                maps[map],
+                cup,
+            )
+        })
+        .transpose()?;
+    if let Some(scene) = &scenery {
+        eprintln!("loaded {:?}; deferred {:?}", scene.classes, scene.deferred);
+    }
+    let mut game = startup
+        .finish(
+            resources.surfaces,
+            Request {
+                model: resources.model,
+                spawn,
+                static_allocation: true,
+                environment: Environment {
+                    ambient_wobble: false,
+                    session_active: false,
+                    ambient_phase: 0,
+                    gun_pivot: [0; 3],
+                },
+            },
+        )
+        .map_err(|e| format!("vehicle: {e:?}"))?;
     let initial = game.vehicles.entries[0]
         .as_ref()
         .ok_or("missing player")?
@@ -148,7 +177,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             16,
             true,
-            &mut Headless,
+            &mut Headless {
+                scenery: scenery.as_ref(),
+            },
         )
         .map_err(|e| format!("tick {tick}: {e:?}"))?;
         grounded += usize::from(

@@ -59,9 +59,22 @@ impl View<'_> {
                 let peer = peer
                     .and_then(|p| call.context.entities.record(p))
                     .and_then(|r| r.object)
-                    .and_then(Handle::obstacle)
                     .ok_or(-1)?;
-                self.world.colliders.get(peer.0).ok_or(-1)?.pose.matrix
+                match peer {
+                    Handle::Obstacle(id) => self.world.colliders.get(id.0).ok_or(-1)?.pose.matrix,
+                    Handle::Vehicle(id) => {
+                        self.vehicles
+                            .ok_or(-1)?
+                            .entries
+                            .get(id.0)
+                            .and_then(Option::as_ref)
+                            .ok_or(-1)?
+                            .physics
+                            .motion
+                            .poses
+                            .reference
+                    }
+                }
             } else {
                 Matrix::IDENTITY
             };

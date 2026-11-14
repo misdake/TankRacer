@@ -98,6 +98,7 @@ pub struct View<'a> {
     pub execution: Execution<'a>,
     pub world: &'a mut World,
     pub components: &'a mut Components,
+    pub vehicles: Option<&'a crate::vehicle_loading::Store>,
 }
 pub struct Components {
     pub surfaces: Surfaces,
@@ -146,6 +147,7 @@ impl Scene {
             execution: Execution::Lifecycle,
             world: &mut self.world,
             components: &mut self.components,
+            vehicles: None,
         }
     }
     pub fn updates<'a>(&'a mut self, random: &'a mut u32) -> View<'a> {
@@ -153,7 +155,17 @@ impl Scene {
             world: &mut self.world,
             components: &mut self.components,
             execution: Execution::Simulation { random },
+            vehicles: None,
         }
+    }
+    pub fn updates_with_vehicles<'a>(
+        &'a mut self,
+        random: &'a mut u32,
+        vehicles: &'a crate::vehicle_loading::Store,
+    ) -> View<'a> {
+        let mut view = self.updates(random);
+        view.vehicles = Some(vehicles);
+        view
     }
     pub fn install_obstacle(
         &mut self,

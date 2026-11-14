@@ -33,10 +33,11 @@ pub fn encode(player: &Player) -> Vec<u32> {
     }
     let c = &v.collision;
     append(&mut out, [v.yaw_lock, i32::from(c.disabled), c.timer]);
-    out.push(c.collision_size);
+    // Keep the C semantic order; zero-only constructor cases cannot detect a swap.
+    out.push(c.impact_accumulator as u32);
     out.extend([
+        c.collision_size,
         c.material as u32,
-        c.impact_accumulator as u32,
         u32::from(c.deformable.is_some()),
         c.obstacle_impulse as u32,
     ]);

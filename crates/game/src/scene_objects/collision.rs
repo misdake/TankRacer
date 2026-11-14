@@ -199,6 +199,7 @@ impl Collision<'_> {
         let payload = has_payload.then_some(Payload::Entity(call.vehicle.entity));
         self.components.dt = call.dt;
         View {
+            vehicles: None,
             execution: Execution::Simulation {
                 random: call.random,
             },

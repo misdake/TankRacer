@@ -38,6 +38,7 @@ pub mod scene_loading;
 pub mod scene_meshes;
 pub mod scene_objects;
 pub mod scene_startup;
+pub mod scenery;
 pub mod shatter;
 pub mod spatial;
 pub mod suspension;

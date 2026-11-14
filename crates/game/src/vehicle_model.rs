@@ -48,6 +48,9 @@ pub struct ModelBank {
     models: HashMap<String, Arc<Model>>,
 }
 impl ModelBank {
+    pub fn get(&self, name: &str) -> Option<&Arc<Model>> {
+        self.models.get(&name.to_ascii_lowercase())
+    }
     /// Scene file loading (500850) permits an absent/empty resource to yield a
     /// null shape. Callers requiring geometry must validate that separately.
     pub fn load_optional(

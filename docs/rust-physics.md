@@ -2349,3 +2349,63 @@ a read-only proxy view and a shared terrain Arc; see the renderer's M3 section
 for the actual browser verification and its narrower final-field comparison.
 Authored object collision binding is the next M3 slice. Full Player/race rules,
 remaining lifecycle methods and complete-world startup RNG are still pending.
+
+## Authored scenery with the native vehicle (2026-11-14)
+
+`vehicle_runtime::Startup` establishes one factory, registry, terrain, scene and
+RNG before placing a player. `scenery::load` constructs actual Obstacle/Crush/Fall
+records in file order, prepares the canonical sign binding and drains the real
+startup queues. `finish` then installs the fresh player into that same identity
+domain. Normal frame execution now drains stop/destruction queues after ticks.
+Fall's follow-up tick borrows the actual vehicle store to resolve its recorded
+last vehicle's reference basis; it no longer assumes every tagged handle is an
+obstacle. No per-frame vehicle state or geometry clones were introduced.
+
+The `drive ... --scenery` executable runs the connected path without C, dumps or
+an emulator. Default ENGLAND loads **111 actors: 96 Fall, 10 Crush, 5 Obstacle**.
+Materials reserve logical identities only for resources present in level/shared
+archives; auxiliary models are decoded and retained for their real hit boundary.
+The current native test build measured about 1.5-2.7 microseconds/update over
+120 updates on this host, excluding resource loading/rendering. This small probe
+is not a whole-game benchmark. Its final seed is `3575138284`; scenery construction
+consumes the shared stream, so the older empty-scene seed must not be substituted.
+
+This remains a partial-world stage. ENGLAND explicitly defers Bounce (29), Bomber
+(5), Closer (1), Flock (3), Noisy (1), Powerup (30), Smoker (1), Trackcam (21),
+Train (2) and WayPoint (36). Unknown classes fail before entity mutation.
+Other supplied maps also report their actual deferred classes. Bounce/Spin and
+other collision subclasses need real bindings; unsupported blast/player methods
+still fail. The browser has **not** enabled these new scenery actors yet.
+Do not claim complete scenery, full startup RNG/allocation order or M3 completion.
+
+**SR01: all eight valid CUP/map selections, 11 scenarios / 68 updates / 906,126
+fields**, including two activated Fall actors and two deformed Crush actors,
+compare equal. Both sides construct from resources; no snapshot initializes Rust.
+The C fixture feeds the controlled three-class scene to the unchanged World
+reader, deliberately stops before lap linking, creates a real Player, and runs
+the actual scheduler/queue methods. Its Player tick selects the same direct
+physics phase as the Rust M3 controller. Compared state includes the player's
+codec, scenery colliders/current vertices, Fall motion, selected Crush hit and
+sampling fields, memberships,
+tick/stop/destroy lists and RNG at each short checkpoint. Default cases run four
+updates; three targeted collision cases run twelve. Shared global visual pools
+are covered separately by the earlier connected/full-chain suites.
+
+The joint test exposed a test-codec defect: three collision statistics had been
+serialized in the wrong order by the fresh-player codec. Constructor-only zeros
+hid it; the existing connected-physics codec was already correct. The shared
+fresh-player codec now uses accumulator, size, material order. Production physics
+did not need a field swap. VS05 and VR01 still pass with unchanged word counts.
+Eleven affected native suites pass, plus `npm run test:rust` and C preservation.
+The current browser still uses its empty scenery path and 638,906 B map metadata;
+production Wasm is now 493,755 B. Account new scenery/render metadata before
+enabling that path in the browser. Read-only render views for these actors are
+the next runnable increment, followed by required collision subclasses. Read
+current `surfaces.meshes` geometry and live transforms; the immutable original
+model is not the rendered state after deformation or fragmentation.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
+$env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
+cargo test -p tankracer-game --test scenery_runtime_reference --locked -- --ignored --nocapture
+```
