@@ -442,6 +442,8 @@ fn real_hit_activation_spatial_removal_nested_chains_and_failed_prefixes_match_c
                 entity: EntityId(1),
                 class: ClassId(3),
                 base_position: [0; 3],
+                angular: [0; 3],
+                blast: Default::default(),
                 reference_basis: tankracer_game::math::Matrix::IDENTITY,
                 external_basis: None,
                 position: [-4000, 0, 0],

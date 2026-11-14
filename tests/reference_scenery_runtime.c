@@ -10,12 +10,13 @@
 #include "frame_bootstrap.h"
 #include "frame_scene_effects.h"
 #include "frame_vehicle_scene.h"
+#include "frame_native.h"
 static const frame_entity_factory_services *services;
 static frame_data_read read_data;
 static frame_data_write write_data;
 static void *data_ctx;
 static unsigned char script[40000],*ram;
-static uint32_t script_size,world_loaded,object,entity,scenery_count,fall_class,crush_class,bounce_class,closer_class,spin_class,mover_class;
+static uint32_t script_size,world_loaded,object,entity,scenery_count,fall_class,crush_class,bounce_class,closer_class,spin_class,mover_class,explosion_class;
 static uint32_t low_gravity;
 static uint32_t word(uint32_t a){return reference_game_word(a,4);}
 static void set(uint32_t a,uint32_t v,unsigned n){oracle_set(ram+a,v,n);}
@@ -42,12 +43,13 @@ static int tick(void *ctx,uint32_t target,uint32_t id,uint32_t has,uint32_t payl
     if(id==entity&&target==0x41f930u)target=0x430a30u;
     return services->method(ctx,target,id,has,payload,out);
 }
+static int scene_id(uint32_t id){uint32_t r=word(word(0x55c694)+id*8);return id<=scenery_count||(r&&word(r)==explosion_class);}
 static void list(uint32_t global,int scenery_only)
 {
     uint32_t head=word(global),p=word(head),n=0,visited=0;
-    while(p!=head){if(visited++==65536)exit(8);if(!scenery_only||word(p+8)<=scenery_count)n++;p=word(p);}
+    while(p!=head){if(visited++==65536)exit(8);if(!scenery_only||scene_id(word(p+8)))n++;p=word(p);}
     oracle_put(n);p=word(head);
-    while(p!=head){uint32_t id=word(p+8);if(!scenery_only||id<=scenery_count)oracle_put(id);p=word(p);}
+    while(p!=head){uint32_t id=word(p+8);if(!scenery_only||scene_id(id))oracle_put(id);p=word(p);}
 }
 static void scenery(void)
 {
@@ -87,6 +89,10 @@ static void scenery(void)
             if(word(o+0x88))narrow(word(o+0x88)+0x22,2);else oracle_put(0);
         }
         if(klass==mover_class)emit(o+0xf2,5);
+        v=word(o+0x8c);oracle_put(v!=0);
+        if(v){uint32_t pieces=word(v+12),count=reference_game_word(v+20,2);emit(v+24,1);narrow(v+22,2);emit(v,3);emit(v+28,3);emit(v+44,1);oracle_put(count);
+            for(i=0;i<count;i++){uint32_t p=pieces+i*104;emit(p+12,3);emit(p,3);emit(p+28,12);emit(p+88,3);emit(p+76,1);narrow(p+80,2);narrow(p+82,2);emit(p+84,1);emit(p+100,1);}
+        }
         /* Full current vertex payload catches shared/private mesh mutations. */
         n=mesh?reference_game_word(mesh,2):0;oracle_put(n);v=mesh?word(mesh+4):0;
         for(i=0;i<n;i++)for(j=0;j<3;j++)narrow(v+i*8u+j*2u,2);
@@ -95,12 +101,26 @@ static void scenery(void)
     list(0x55b6a8,0);list(0x55b6bc,0);list(0x55b6b8,0);
     for(i=0;i<64;i++)list(0x544e70+i*4u,1);
 }
-static void snapshot(void){player_state();emit(0x55b6ac,1);emit(0x546000,1);scenery();}
+static void sprite(uint32_t p){unsigned i;oracle_put(word(p)!=0);emit(p+4,3);emit(p+16,4);for(i=0;i<7;i++)narrow(p+32+i,1);narrow(p+40,2);}
+static void explosions(void){
+    uint32_t id,o,n=0,i,p;emit(0x53d12c,1);narrow(0x53d134,1);emit(0x54b4c8,1);
+    for(i=0;i<15;i++)emit(0x590580+i*8,2);
+    for(id=1;id<word(0x55c690);id++){p=word(word(0x55c694)+id*8);if(p&&word(p)==explosion_class&&word(p+4))n++;}
+    oracle_put(n);
+    for(id=1;id<word(0x55c690);id++){
+        p=word(word(0x55c694)+id*8);if(!p||word(p)!=explosion_class||!word(p+4))continue;o=word(p+4);
+        oracle_put(id);emit(o+16,1);emit(o,3);emit(o+24,9);narrow(o+120,2);sprite(o+0x7a);emit(o+80,3);emit(o+0xa4,2);narrow(o+0xad,1);
+        for(i=0;i<10;i++){p=o+0xaeu+i*66;sprite(p);emit(p+42,5);narrow(p+62,2);}
+        emit(o+0x35a,1);narrow(o+0x362,1);emit(o+0x363,2);
+    }
+}
+static void snapshot(void){player_state();emit(object+0x10c2,1);emit(object+0xdaf,1);narrow(object+0xded,1);emit(0x55b6ac,1);emit(0x546000,1);scenery();explosions();}
 int main(int argc,char **argv)
 {
-    uint32_t map,car,steps,i,result,spawn[3],velocity[3],camera[3];int status;
-    if(argc!=5)return 2;
+    uint32_t map,car,steps,control,i,result,spawn[3],velocity[3],camera[3];int status;
+    if(argc!=6)return 2;
     map=(uint32_t)strtoul(argv[2],0,10);car=(uint32_t)strtoul(argv[3],0,10);steps=(uint32_t)strtoul(argv[4],0,10);if(steps>32)return 2;
+    control=(uint32_t)strtoul(argv[5],0,10);
     oracle_binary();script_size=oracle_require();scenery_count=oracle_require();low_gravity=oracle_require();
     for(i=0;i<3;i++)spawn[i]=oracle_require();
     for(i=0;i<3;i++)velocity[i]=oracle_require();
@@ -116,6 +136,7 @@ int main(int argc,char **argv)
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Closer",7,services,&closer_class));
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Spin",5,services,&spin_class));
     check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Mover",6,services,&mover_class));
+    check(frame_class_lookup_name(read_data,write_data,data_ctx,(const unsigned char *)"Explode",8,services,&explosion_class));
     check(frame_player_create(read_data,write_data,data_ctx,0,services,&entity));set(0x53e8b8,entity,4);object=object_of(entity);
     for(i=0;i<3;i++){set(object+0x78+i*4u,spawn[i],4);set(object+i*4u,spawn[i],4);}
     check(services->method(services->method_ctx,0x4350a0u,entity,1,0x5303c0u,&result));
@@ -125,8 +146,18 @@ int main(int argc,char **argv)
     for(i=0;i<9;i++)set(0x53e8e0+i*4u,i?0u:entity,4);
     for(i=0;i<3;i++){set(object+0x84+i*4u,spawn[i],4);set(object+0x50+i*4u,velocity[i],4);set(0x74aee0+i*4u,camera[i],4);set(0x74af18+i*4u,i==2?4096u:0u,4);}
     set(0x54b4b0,1,4);set(0x58e7cc,0,4);set(0x53e8b4,0,1);set(0x53e8b0,0,1);set(0x545ffc,0,4);set(0x58e7ac,0,4);
-    fwrite("SR05",1,4,stdout);oracle_put(entity);snapshot();
+    set(0x55c688,0,4); /* End the controlled level arena before dynamic effects. */
+    if(control==15||control==20){uint32_t k;for(k=0;k<16;k++){set(0x590564,control==20?(15-k)%7:0,4);check(frame_explosion_spawn(read_data,write_data,data_ctx,object,0,0,services,&((frame_native_context *)services->method_ctx)->explosion,&result));}set(0x590564,0,4);check(frame_entities_drain_queues(read_data,write_data,data_ctx,services->method,services->method_ctx,services->release,services->system_ctx,100000));}
+    fwrite("SR06",1,4,stdout);oracle_put(entity);snapshot();
     for(i=0;i<steps;i++){
+        if(control==19&&i==12){uint32_t id,p,o;for(id=1;id<word(0x55c690);id++){p=word(word(0x55c694)+id*8);if(!p||word(p)!=explosion_class||!word(p+4))continue;o=word(p+4);set(o+0x362,9,1);set(o+0x35a,96,4);}}
+        if((control==14||control==16||control==17)&&i==12){uint32_t id,o,j,p;
+            for(id=1;id<word(0x55c690);id++){p=word(word(0x55c694)+id*8);if(!p||word(p)!=explosion_class||!word(p+4))continue;o=word(p+4);
+                set(o+0x9a,96,1);set(o+0x9b,96,1);set(o+0xa4,31,4);set(o+0x362,10,1);for(j=0;j<10;j++)set(o+0xec+j*66,0,2);
+                if(control==17){set(o+0xec,1,2);set(o+0xd2,1,1);set(o+0xd3,1,1);set(o+0xd4,1,1);}
+            }
+        }
+        if(control==16&&i==13)check(frame_explosion_spawn(read_data,write_data,data_ctx,object,0,0,services,&((frame_native_context *)services->method_ctx)->explosion,&result));
         set(0x5904fc,16,4);set(0x590564,i+1u,4);set(object+0x94,65536,4);set(object+0x98,0,4);set(object+0x9c,0,4);set(object+0xdea,1,1);
         status=frame_entities_tick(read_data,write_data,data_ctx,tick,services->method_ctx,100000);
         if(!status)status=frame_entities_drain_queues(read_data,write_data,data_ctx,services->method,services->method_ctx,services->release,services->system_ctx,100000);

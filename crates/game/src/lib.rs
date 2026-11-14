@@ -1,6 +1,7 @@
 //! Authoritative fixed-step game logic. No renderer or browser dependencies.
 
 pub mod attitude;
+pub mod blast;
 pub mod body;
 pub mod bounce;
 pub mod breakable;
@@ -18,6 +19,7 @@ pub mod drive;
 pub mod effect_pool;
 pub mod entities;
 pub mod entity_factory;
+pub mod explosion;
 pub mod fall;
 mod fixed;
 pub mod geometry;

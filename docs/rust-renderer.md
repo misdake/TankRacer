@@ -296,3 +296,21 @@ All three tested maps stay below 1 MB. Actual GPU/resource/dynamic game storage
 remains separate. Existing draw/triangle counts are unchanged. All 144 GPU
 pixel cases, eight depth functions, 81 blend transitions, reloads and GL checks
 pass. Production Wasm: **681,225 B**, without controlled-start/state probes.
+
+## M3 original BIO explosive contact (2026-11-14)
+
+The tenth controlled browser case exercises the unmodified robot's explosive
+hit. Actual simulation state contains one explosion and active debris after
+twelve updates. The renderer still draws ordinary current actor meshes/poses;
+explosion/smoke sprites and complete fragment geometry are not yet bound. This
+case does not qualify their appearance or effect blending. It checks GL state,
+real simulation progress and zero stationary uploads; existing 144 GPU cases,
+eight depth functions, 81 blend transitions and native/Wasm final fields pass.
+
+The final contact view reports 556 draws / 11,522 triangles, 20 scenery
+opaque/masked draws and 532 global transparent runs. Combined BIO extra-map
+data remains **946,548 B**; no new per-map query cache. Explosion entities are
+dynamic simulation memory, not preprocessing. ENGLAND/SWAMP budgets are unchanged.
+Production Wasm is **690,915 B**, with controlled test probes absent. Source and
+test boundaries are detailed in `rust-physics.md`; original vehicle rendering,
+full lighting, fragment/effect rendering and race integration remain pending.

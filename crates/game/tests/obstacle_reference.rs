@@ -324,6 +324,8 @@ fn responses_thresholds_synchronous_dispatch_lists_rng_and_error_prefixes_match_
                 entity: EntityId(1),
                 class: ClassId(if case % 4 == 0 { 2 } else { 0 }),
                 base_position: [0; 3],
+                angular: [0; 3],
+                blast: Default::default(),
                 reference_basis: tankracer_game::math::Matrix::IDENTITY,
                 external_basis: None,
                 position,

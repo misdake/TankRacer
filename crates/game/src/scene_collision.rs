@@ -218,6 +218,8 @@ mod tests {
             entity: EntityId(1),
             class: ClassId(1),
             base_position: [0; 3],
+            angular: [0; 3],
+            blast: Default::default(),
             reference_basis: crate::math::Matrix::IDENTITY,
             external_basis: None,
             position: [3000, 0, 0],

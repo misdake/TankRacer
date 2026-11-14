@@ -193,6 +193,14 @@ impl App {
                     .flatten()
                     .filter(|m| m.travel != 0)
                     .count() as u32,
+                scene
+                    .components
+                    .objects
+                    .iter()
+                    .flatten()
+                    .filter(|o| o.data.debris.as_ref().is_some_and(|d| d.flags & 1 != 0))
+                    .count() as u32,
+                scene.components.explosion_world.count as u32,
             ]
         })
     }

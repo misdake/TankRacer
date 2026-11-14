@@ -556,6 +556,8 @@ fn vehicle(f: &Fixture, registry: &Registry) -> obstacle::State {
         entity: EntityId(2),
         class: registry.obstacle,
         base_position: [0; 3],
+        angular: [0; 3],
+        blast: Default::default(),
         reference_basis: tankracer_game::math::Matrix::IDENTITY,
         external_basis: None,
         position: [0; 3],

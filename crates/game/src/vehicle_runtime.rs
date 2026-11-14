@@ -647,7 +647,12 @@ impl<D: Devices> collision_effects::ObjectServices for AfterPose<'_, D> {
         call: obstacle::Invocation<'_>,
         _: &mut collision_effects::Bank<'_, '_>,
     ) -> Result<(), i32> {
-        self.collision.method(method, call, self.hit, self.devices)
+        self.collision.method(
+            method,
+            call,
+            self.hit,
+            &mut SingleVehicleDevices(self.devices),
+        )
     }
     fn feedback(
         &mut self,
@@ -656,6 +661,97 @@ impl<D: Devices> collision_effects::ObjectServices for AfterPose<'_, D> {
         _: &mut u32,
     ) -> Result<(), i32> {
         self.devices.impact_feedback(intensity)
+    }
+}
+/// Game blast bindings live with the runtime's authoritative vehicle, while
+/// resource/device operations remain delegated to the host adapter.
+struct SingleVehicleDevices<'a, D>(&'a mut D);
+impl<D: Devices> scene_objects::collision::Services for SingleVehicleDevices<'_, D> {
+    fn method(
+        &mut self,
+        method: MethodId,
+        scene: &mut scene_objects::collision::Collision<'_>,
+        call: obstacle::Invocation<'_>,
+        payload: bool,
+    ) -> Result<(), i32> {
+        self.0.method(method, scene, call, payload)
+    }
+    fn auxiliary_model(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<Arc<tankracer_assets::model::Model>>, i32> {
+        self.0.auxiliary_model(name)
+    }
+    fn auxiliary_height(
+        &mut self,
+        scene: &mut scene_objects::collision::Collision<'_>,
+        call: obstacle::Invocation<'_>,
+    ) -> Result<i32, i32> {
+        self.0.auxiliary_height(scene, call)
+    }
+    fn paired_vertex_tail(&mut self) -> Option<u16> {
+        self.0.paired_vertex_tail()
+    }
+    fn blast_target(
+        &mut self,
+        slot: usize,
+        _: &mut scene_objects::collision::Collision<'_>,
+        call: obstacle::Invocation<'_>,
+    ) -> Result<Option<crate::shatter::BlastTarget>, i32> {
+        Ok((slot == 0).then_some(crate::shatter::BlastTarget {
+            entity: call.vehicle.entity,
+            position: call.vehicle.base_position,
+            protection_timer: call.vehicle.blast.protection_timer,
+        }))
+    }
+    fn blast_impulse(
+        &mut self,
+        target: EntityId,
+        scene: &mut scene_objects::collision::Collision<'_>,
+        call: obstacle::Invocation<'_>,
+    ) -> Result<(), i32> {
+        if target != call.vehicle.entity || ![0, 1].contains(&scene.components.mode) {
+            return Err(-5);
+        }
+        let source = call.world.colliders[call.target.0].pose.position;
+        let feedback = crate::blast::apply(
+            crate::blast::Target {
+                state: &mut call.vehicle.blast,
+                velocity: &mut call.vehicle.velocity,
+                angular: &mut call.vehicle.angular,
+                marker: &mut call.vehicle.collision_size,
+            },
+            crate::blast::Input {
+                position: call.vehicle.position,
+                source,
+                mode: 4,
+                damage: false,
+                max_health: 40000,
+                record_axes: false,
+                mark: true,
+            },
+            call.random,
+        )?;
+        if feedback && call.vehicle.player {
+            self.0.feedback(1, scene, call)?;
+        }
+        Ok(())
+    }
+    fn sound(
+        &mut self,
+        kind: scene_objects::collision::Sound,
+        scene: &mut scene_objects::collision::Collision<'_>,
+        call: obstacle::Invocation<'_>,
+    ) -> Result<(), i32> {
+        self.0.sound(kind, scene, call)
+    }
+    fn feedback(
+        &mut self,
+        n: i32,
+        scene: &mut scene_objects::collision::Collision<'_>,
+        call: obstacle::Invocation<'_>,
+    ) -> Result<(), i32> {
+        self.0.feedback(n, scene, call)
     }
 }
 impl<D: Devices> vehicle::Services for AfterPose<'_, D> {

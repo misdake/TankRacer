@@ -34,6 +34,7 @@ pub struct State {
     pub pose_input: motion::PoseInput,
     pub yaw_lock: i32,
     pub collision: CollisionState,
+    pub blast: crate::blast::State,
 }
 pub struct Config<'a> {
     pub contact: contact_pipeline::Config<'a>,
@@ -189,6 +190,8 @@ fn obstacle_state(s: &State) -> obstacle::State {
         position: s.motion.poses.physical_position,
         previous_position: s.motion.previous_position,
         velocity: s.motion.velocity,
+        angular: s.motion.angular,
+        blast: s.blast,
         forward_velocity: s.powertrain.local_velocity[2],
         player: s.player,
         contacts: s.motion.contacts.map(|p| p.world),
@@ -206,6 +209,8 @@ fn publish_obstacle(s: &mut State, view: obstacle::State) {
     s.motion.poses.physical_position = view.position;
     s.motion.previous_position = view.previous_position;
     s.motion.velocity = view.velocity;
+    s.motion.angular = view.angular;
+    s.blast = view.blast;
     s.powertrain.local_velocity[2] = view.forward_velocity;
     for (contact, point) in s.motion.contacts.iter_mut().zip(view.contacts) {
         contact.world = point;

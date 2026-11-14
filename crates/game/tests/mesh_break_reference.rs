@@ -576,6 +576,8 @@ fn run(
         entity: EntityId(if f.velocity.is_some() { 2 } else { 0 }),
         class: ClassId(0),
         base_position: [0; 3],
+        angular: [0; 3],
+        blast: Default::default(),
         reference_basis: tankracer_game::math::Matrix::IDENTITY,
         external_basis: None,
         position: [0; 3],

@@ -97,6 +97,10 @@ impl Player {
                 pose_input,
                 yaw_lock: 0,
                 collision: vehicle::CollisionState::default(),
+                blast: crate::blast::State {
+                    angular_enabled: true,
+                    ..Default::default()
+                },
             },
             prefix,
             model,

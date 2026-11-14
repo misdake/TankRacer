@@ -1,9 +1,11 @@
 //! Ordered scene-object lifecycle on the same components used by collision.
 //! Class tables stay immutable; parent calls and nested activation are immediate.
 use crate::scene_entity::Handle;
+mod allocation;
 mod bouncing;
 mod closing;
 pub mod collision;
+mod explosions;
 mod falling;
 mod fragments;
 mod lifecycle;
@@ -70,6 +72,8 @@ pub const SPIN_TICK: MethodId = MethodId(87);
 pub const MOVER_INITIALIZE: MethodId = MethodId(88);
 pub const MOVER_TICK: MethodId = MethodId(90);
 pub const MOVER_HIT: MethodId = MethodId(91);
+pub const EXPLOSION_ALLOCATE: MethodId = MethodId(92);
+pub const EXPLOSION_TICK: MethodId = MethodId(93);
 
 #[derive(Clone, Copy)]
 pub struct Parents {
@@ -130,6 +134,10 @@ pub struct Components {
     pub closers: Vec<Option<crate::closer::Component>>,
     pub spins: Vec<Option<crate::spin::Component>>,
     pub movers: Vec<Option<crate::mover::State>>,
+    pub explosions: Vec<Option<crate::explosion::State>>,
+    pub explosion_world: crate::explosion::World,
+    pub explosion_resources: crate::explosion::Resources,
+    pub explosion_class: Option<ClassId>,
     pub camera_position: [i32; 3],
     pub gravity: i32,
     pub umbrella_mesh: Option<MeshId>,
@@ -143,6 +151,16 @@ pub struct Components {
     pub mode: i32,
 }
 impl Scene {
+    pub fn spawn_explosion(
+        &mut self,
+        identity: &mut factory::State<Handle>,
+        position: [i32; 3],
+        random: &mut u32,
+        environment: Environment<'_>,
+    ) -> Result<crate::object_query::EntityId, i32> {
+        self.view()
+            .spawn_explosion(&mut identity.context(), position, random, environment)
+    }
     pub fn new(world: World, surfaces: Surfaces, parents: Parents, interfaces: Interfaces) -> Self {
         Self {
             world,
@@ -159,6 +177,10 @@ impl Scene {
                 closers: Vec::new(),
                 spins: Vec::new(),
                 movers: Vec::new(),
+                explosions: Vec::new(),
+                explosion_world: crate::explosion::World::default(),
+                explosion_resources: crate::explosion::Resources::default(),
+                explosion_class: None,
                 camera_position: [0; 3],
                 gravity: 5,
                 umbrella_mesh: None,
@@ -403,6 +425,13 @@ impl Methods<Handle> for View<'_> {
         mut call: Invocation<'_, Handle>,
         env: Environment<'_>,
     ) -> Result<(), i32> {
+        if method == EXPLOSION_ALLOCATE {
+            let (_, id) = self.allocate_object(&mut call, false)?;
+            self.components.explosions.resize_with(id.0 + 1, || None);
+            self.components.explosions[id.0] = Some(crate::explosion::State::default());
+            *call.result = 1;
+            return Ok(());
+        }
         let base = match method {
             ZERO => Some(BaseMethod::Zero),
             ONE => Some(BaseMethod::One),
@@ -446,6 +475,9 @@ impl Methods<Handle> for View<'_> {
                 if let Some(state) = self.components.movers.get_mut(id.0) {
                     *state = None;
                 }
+                if let Some(state) = self.components.explosions.get_mut(id.0) {
+                    *state = None;
+                }
             }
             return Ok(());
         }
@@ -479,6 +511,7 @@ impl Methods<Handle> for View<'_> {
             CLOSER_TICK => return self.tick_closer(id, call, env),
             SPIN_TICK => return self.tick_spin(id, call, env),
             MOVER_TICK => return self.tick_mover(id, call, env),
+            EXPLOSION_TICK => return self.tick_explosion(id, call, env),
             DEBRIS_TICK => return self.tick_debris(id, call, env),
             AUXILIARY_TICK => return self.tick_mesh_fragments(id, call, env),
             RESET_POSE => {

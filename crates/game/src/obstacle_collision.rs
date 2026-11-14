@@ -55,6 +55,8 @@ pub struct State {
     pub position: [i32; 3],
     pub previous_position: [i32; 3],
     pub velocity: [i32; 3],
+    pub angular: [i32; 3],
+    pub blast: crate::blast::State,
     pub forward_velocity: i32,
     pub player: bool,
     pub contacts: [[i32; 3]; 4],

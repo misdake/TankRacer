@@ -6,16 +6,13 @@ use crate::{
     dispatch::{Class, ClassId, MethodId},
     entity_factory::{self as factory, Environment, Invocation, Methods, Slots},
     fall,
-    geometry::Bounds,
-    math::Matrix,
-    object_query::{Collider, EntityId, ObstacleId},
-    obstacle_collision::{self, Grid, World},
-    obstacle_startup::{self, Initial, Materials, Obstacle, PlacedObstacle},
+    object_query::EntityId,
+    obstacle_collision::{Grid, World},
+    obstacle_startup::{self, Initial, Materials, Obstacle},
     pose::Pose,
     scene_collision::{DEFORMABLE_HIT, Surfaces},
-    scene_objects::{self as methods, Interfaces, Object, Parents, Scene},
-    scene_startup::{self, Visibility},
-    spatial::{self, Cell},
+    scene_objects::{self as methods, Interfaces, Parents, Scene},
+    scene_startup, spatial,
     vehicle_model::{ModelBank, ShapeSource, Space},
 };
 use std::sync::Arc;
@@ -76,6 +73,7 @@ pub struct Registry {
     pub closer: ClassId,
     pub spin: ClassId,
     pub mover: ClassId,
+    pub explosion: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -181,6 +179,10 @@ impl Default for Registry {
         ] {
             mover.methods[slot as usize] = Some(method);
         }
+        let mut explosion = render_world.clone();
+        explosion.methods[ALLOCATE as usize] = Some(methods::EXPLOSION_ALLOCATE);
+        explosion.methods[TICK as usize] = Some(methods::EXPLOSION_TICK);
+        explosion.methods[RELEASE as usize] = Some(methods::RELEASE_ID);
         Self {
             classes: vec![
                 Arc::new(world),
@@ -194,6 +196,7 @@ impl Default for Registry {
                 Arc::new(closer),
                 Arc::new(spin),
                 Arc::new(mover),
+                Arc::new(explosion),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -206,6 +209,7 @@ impl Default for Registry {
             closer: ClassId(8),
             spin: ClassId(9),
             mover: ClassId(10),
+            explosion: ClassId(11),
         }
     }
 }
@@ -259,7 +263,7 @@ impl Registry {
         }
     }
     pub fn scene(&self, grid: Grid) -> Scene {
-        Scene::new(
+        let mut scene = Scene::new(
             World {
                 colliders: vec![],
                 objects: vec![],
@@ -281,7 +285,9 @@ impl Registry {
                 debris_tick: DEBRIS_UPDATE,
                 auxiliary_complete: AUXILIARY_COMPLETE,
             },
-        )
+        );
+        scene.components.explosion_class = Some(self.explosion);
+        scene
     }
 }
 
@@ -369,73 +375,11 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             -1
         })
     }
-    fn allocate(&mut self, call: Invocation<'_, Handle>) -> Result<(), i32> {
-        let class = call
-            .context
-            .entities
-            .record(call.entity)
-            .and_then(|v| v.class)
-            .ok_or(-1)?;
-        let id = ObstacleId(self.scene.world.colliders.len());
-        if self.scene.world.objects.len() != id.0 || self.scene.components.objects.len() != id.0 {
-            return Err(-1);
-        }
-        self.scene.world.colliders.push(Collider {
-            entity: call.entity,
-            pose: Pose {
-                position: [0; 3],
-                matrix: Matrix([0; 9]),
-            },
-            external_basis: None,
-            radius: 0,
-            bounds: Bounds {
-                min: [0; 3],
-                max: [0; 3],
-            },
-        });
-        self.scene.world.objects.push(obstacle_collision::Object {
-            class,
-            weight: 0,
-            threshold: 0,
-            activity: 0,
-            flags: 0,
-            mesh_bounds: [[0; 3]; 2],
-        });
-        self.scene.components.objects.push(Some(Object {
-            impact_sound: None,
-            data: PlacedObstacle {
-                id,
-                cell: Some(Cell { x: 0, z: 0 }),
-                source: None,
-                mesh: None,
-                visibility: Visibility {
-                    distance: 0,
-                    add_lap: 0,
-                    remove_lap: 0,
-                    entered: false,
-                },
-                sort_position: 0,
-                impact_threshold: 0,
-                collision_margin: 0,
-                auxiliary: None,
-                debris: None,
-            },
-            auxiliary_mesh: None,
-            auxiliary_active: 0,
-            auxiliary_motion: None,
-            ground_height: None,
-        }));
-        call.context
-            .entities
-            .record_mut(call.entity)
-            .ok_or(-1)?
-            .object = Some(Handle::Obstacle(id));
-        call.context
-            .ticks
-            .flags
-            .resize(call.context.entities.capacity() as usize, 0);
-        call.context.ticks.flags[call.entity.0 as usize] =
-            if self.static_allocation { 8 } else { 0 };
+    fn allocate(&mut self, mut call: Invocation<'_, Handle>) -> Result<(), i32> {
+        let (class, id) = self
+            .scene
+            .view()
+            .allocate_object(&mut call, self.static_allocation)?;
         if class == self.registry.fall {
             self.scene.components.falls.resize_with(id.0 + 1, || None);
             self.scene.components.falls[id.0] = Some(fall::State::default());

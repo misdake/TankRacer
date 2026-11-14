@@ -195,6 +195,7 @@ impl Fixture {
                 // Only adapter inputs are synthetic here; the prefix's entire
                 // mutable state is compared with C below, including failures.
                 let mut vehicle = vehicle::State {
+                    blast: Default::default(),
                     entity: EntityId(1),
                     class: ClassId(0),
                     player: op.player,

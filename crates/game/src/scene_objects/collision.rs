@@ -325,20 +325,72 @@ impl Collision<'_> {
             return Ok(());
         }
         if flags & 128 != 0 {
-            // Real explosion allocation/RNG/effect scheduling is a pending game
-            // binding. Fail before any mutation; never simulate a successful hit.
-            return Err(-5);
+            let position = call.world.colliders[id.0].pose.position;
+            View {
+                execution: Execution::Lifecycle,
+                world: call.world,
+                components: self.components,
+                vehicles: None,
+            }
+            .spawn_explosion(
+                &mut self.lifecycle.context(call.current_slot),
+                position,
+                call.random,
+                self.environment,
+            )?;
+            if self.components.object(id)?.data.debris.is_none() {
+                self.invoke_slot(
+                    reborrow(&mut call),
+                    crate::scene_loading::DEACTIVATE,
+                    environment,
+                    services,
+                    false,
+                )?;
+            } else {
+                self.invoke_slot(
+                    reborrow(&mut call),
+                    crate::scene_loading::DEBRIS_CONTACT,
+                    environment,
+                    services,
+                    true,
+                )?;
+                call.world.objects[id.0].activity = 0;
+                crate::spatial::remove(
+                    &mut call.world.grid,
+                    id,
+                    self.components.object(id)?.data.cell,
+                    self.environment.work_limit,
+                )
+                .map_err(super::spatial_code)?;
+                self.components.movers[id.0].as_mut().ok_or(-1)?.flags |= 64;
+                crate::spatial::remove_first(
+                    &mut self.components.ordinary,
+                    &id,
+                    self.environment.work_limit,
+                )
+                .map_err(super::spatial_code)?;
+                if !crate::spatial::contains(
+                    &self.components.special,
+                    &id,
+                    self.environment.work_limit,
+                )
+                .map_err(super::spatial_code)?
+                {
+                    self.components.special.push(id);
+                }
+            }
+        } else {
+            let slot = *call.current_slot;
+            self.invoke_class(
+                reborrow(&mut call),
+                self.components.parents.spin,
+                slot,
+                environment,
+                services,
+                true,
+            )?;
+            self.components.movers[id.0].as_mut().ok_or(-1)?.flags |= 64;
         }
-        let slot = *call.current_slot;
-        self.invoke_class(
-            reborrow(&mut call),
-            self.components.parents.spin,
-            slot,
-            environment,
-            services,
-            true,
-        )?;
-        self.components.movers[id.0].as_mut().ok_or(-1)?.flags |= 64;
         if call.vehicle.player && environment.feedback {
             services.feedback(
                 i32::from(call.world.colliders[id.0].radius),

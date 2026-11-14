@@ -63,6 +63,14 @@ fn list(out: &mut Vec<u32>, values: impl IntoIterator<Item = u32>) {
 fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
     let player = game.vehicles.entries[0].as_ref().unwrap();
     let mut words = player_codec::encode(player);
+    append(
+        &mut words,
+        [
+            player.physics.blast.health,
+            player.physics.blast.protection_timer,
+        ],
+    );
+    words.push(u32::from(player.physics.blast.angular_enabled));
     words.extend([
         game.shared.random,
         game.settings.environment_flag as u32,
@@ -250,6 +258,32 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
         let geometry = data
             .mesh
             .and_then(|id| game.objects.components.surfaces.meshes.get(id));
+        out.push(u32::from(data.debris.is_some()));
+        if let Some(d) = &data.debris {
+            out.extend([d.flags, u32::from(d.retired)]);
+            append(&mut out, d.offset);
+            append(
+                &mut out,
+                [d.ground_height, d.gravity, d.friction, d.direction],
+            );
+            out.push(d.pieces.len() as u32);
+            for p in &d.pieces {
+                append(&mut out, p.position);
+                append(&mut out, p.velocity);
+                append(&mut out, p.matrix.0);
+                append(&mut out, p.translation);
+                append(&mut out, p.angular);
+                append(
+                    &mut out,
+                    [
+                        p.previous_tilt,
+                        i32::from(p.velocity_gain),
+                        i32::from(p.spin_gain),
+                    ],
+                );
+                out.extend([p.flags, p.sprite_angle as u32]);
+            }
+        }
         out.push(geometry.map_or(0, |g| g.vertices.len()) as u32);
         if let Some(g) = geometry {
             for v in &g.vertices {
@@ -288,7 +322,56 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
         );
     }
     sections.push(("memberships".into(), out));
+    let w = &game.objects.components.explosion_world;
+    let mut out = vec![w.count as u32, u32::from(w.overflow), u32::from(w.fog)];
+    for slot in &w.slots {
+        out.extend([slot.entity.map_or(0, |e| e.0), slot.frame]);
+    }
+    let mut live = game
+        .objects
+        .components
+        .explosions
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| e.as_ref().map(|e| (i, e)))
+        .collect::<Vec<_>>();
+    live.sort_by_key(|(i, _)| game.objects.world.colliders[*i].entity.0);
+    out.push(live.len() as u32);
+    for (id, e) in live {
+        let c = &game.objects.world.colliders[id];
+        out.extend([c.entity.0, game.identity.ticks.flags[c.entity.0 as usize]]);
+        append(&mut out, c.pose.position);
+        append(&mut out, c.pose.matrix.0);
+        out.push(e.slot as i32 as u32);
+        sprite(&mut out, &e.sprite);
+        append(&mut out, e.velocity);
+        append(&mut out, [e.timer, e.angular_velocity]);
+        out.push(u32::from(e.visible));
+        for s in &e.smoke {
+            sprite(&mut out, &s.sprite);
+            append(&mut out, s.velocity);
+            append(&mut out, [s.lift, s.angular_velocity]);
+            out.push(u32::from(s.active));
+        }
+        out.extend([
+            e.smoke_timer as u32,
+            u32::from(e.smoke_count),
+            e.band,
+            e.ring,
+        ]);
+    }
+    sections.push(("explosions".into(), out));
     sections
+}
+fn sprite(out: &mut Vec<u32>, s: &tankracer_game::explosion::Sprite) {
+    out.push(u32::from(s.material != 0));
+    append(out, s.position);
+    out.push(s.flags);
+    out.push(s.blend as u32);
+    append(out, s.size);
+    out.extend(s.uv.map(u32::from));
+    out.extend(s.color.map(u32::from));
+    out.push(s.rotation as i16 as i32 as u32);
 }
 fn settings(map: usize) -> Settings {
     Settings {
@@ -326,6 +409,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
     let mut spun = 0;
     let mut moved = 0;
     let mut handed_off = 0;
+    let mut exploded = 0;
     for (map, name) in names.iter().enumerate() {
         let mut scenarios: Vec<_> = if map == 0 {
             (0..8).map(|target| (target, false)).collect()
@@ -337,7 +421,8 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             scenarios.extend([(8, false), (9, false)]);
         }
         if map == 5 {
-            scenarios.extend([(10, false), (11, false), (12, false)]);
+            scenarios.extend((10..=17).map(|target| (target, false)));
+            scenarios.extend([(19, false), (20, false)]);
         }
         for (target, low_gravity) in scenarios {
             let cup = if map == 7 {
@@ -451,7 +536,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                     spawn[2] += 500;
                     velocity = [600001, 0, 0];
                 }
-                if (10..12).contains(&target) {
+                if (10..12).contains(&target) || [15, 20].contains(&target) {
                     camera = spawn.map(|v| v >> 3);
                     spawn[0] += 38000;
                     spawn[2] += 500;
@@ -500,7 +585,36 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             player.physics.motion.previous_position = spawn;
             player.physics.motion.velocity = velocity;
             game.camera_position = camera;
-            let steps = if target == 0 { 4 } else { 12 };
+            let steps = if target == 0 {
+                4
+            } else if target >= 14 {
+                16
+            } else {
+                12
+            };
+            if [15, 20].contains(&target) {
+                for k in 0..16 {
+                    game.objects.components.frame_group =
+                        if target == 20 { (15 - k) % 7 } else { 0 };
+                    game.objects
+                        .spawn_explosion(
+                            &mut game.identity,
+                            spawn,
+                            &mut game.shared.random,
+                            game.registry.environment(100000),
+                        )
+                        .unwrap();
+                }
+                game.objects.components.frame_group = 0;
+                game.identity
+                    .context()
+                    .drain(
+                        tankracer_game::scene_loading::STOP,
+                        game.registry.environment(100000),
+                        &mut game.objects,
+                    )
+                    .unwrap();
+            }
             let mut input = Vec::new();
             input.extend((script.len() as u32).to_le_bytes());
             input.extend((n as u32).to_le_bytes());
@@ -517,6 +631,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             .arg(map.to_string())
             .arg("1")
             .arg(steps.to_string())
+            .arg(target.to_string())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -530,7 +645,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SR05");
+            assert_eq!(&output.stdout[..4], b"SR06");
             let mut r = common::Reader {
                 words: output.stdout[4..]
                     .chunks_exact(4)
@@ -544,6 +659,44 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             );
             for tick in 0..=steps {
                 if tick != 0 {
+                    if target == 19 && tick == 13 {
+                        for e in game.objects.components.explosions.iter_mut().flatten() {
+                            e.smoke_count = 9;
+                            e.smoke_timer = 96;
+                        }
+                    }
+                    if [14, 16, 17].contains(&target) && tick == 13 {
+                        for e in game.objects.components.explosions.iter_mut().flatten() {
+                            e.sprite.uv[0] = 96;
+                            e.sprite.uv[1] = 96;
+                            e.timer = 31;
+                            e.smoke_count = 10;
+                            for s in &mut e.smoke {
+                                s.active = 0;
+                            }
+                            if target == 17 {
+                                e.smoke[0].active = 1;
+                                e.smoke[0].sprite.color = [1; 3];
+                            }
+                        }
+                    }
+                    if target == 16 && tick == 14 {
+                        let p = game.vehicles.entries[0]
+                            .as_ref()
+                            .unwrap()
+                            .physics
+                            .motion
+                            .poses
+                            .base_position;
+                        game.objects
+                            .spawn_explosion(
+                                &mut game.identity,
+                                p,
+                                &mut game.shared.random,
+                                game.registry.environment(100000),
+                            )
+                            .unwrap();
+                    }
                     let status = r.word() as i32;
                     let result = game.step(
                         drive::Input {
@@ -655,11 +808,47 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 );
                 handed_off += 1;
             }
+            if target == 13 {
+                assert!(
+                    game.objects.components.explosion_world.count > 0,
+                    "original Mover must spawn a real explosion"
+                );
+                assert!(
+                    game.objects.components.objects.iter().flatten().any(|o| o
+                        .data
+                        .debris
+                        .as_ref()
+                        .is_some_and(|d| d.flags & 1 != 0)),
+                    "original Mover debris must activate"
+                );
+                exploded += 1;
+            }
+            if [14, 17].contains(&target) {
+                assert_eq!(game.objects.components.explosion_world.count, 0);
+            }
+            if [15, 20].contains(&target) {
+                assert_eq!(game.objects.components.explosion_world.count, 15);
+                assert_eq!(game.objects.components.explosion_world.overflow, 1);
+                assert!(game.objects.components.explosion_world.fog);
+            }
+            if target == 16 {
+                assert_eq!(game.objects.components.explosion_world.count, 1);
+            }
+            if target == 19 {
+                assert!(
+                    game.objects
+                        .components
+                        .explosions
+                        .iter()
+                        .flatten()
+                        .any(|e| e.smoke_count == 10 && e.smoke[9].active != 0)
+                );
+            }
         }
     }
     assert!(activated > 0, "real Fall collision must execute");
     assert!(deformed > 0, "real deformable hit must execute");
     println!(
-        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce, {closing} closing / {shattered} shattered Closer, {spun} hit Spin, {moved} active Mover / {handed_off} Spin handoff"
+        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce, {closing} closing / {shattered} shattered Closer, {spun} hit Spin, {moved} active Mover / {handed_off} Spin handoff / {exploded} original exploding Mover"
     );
 }

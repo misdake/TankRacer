@@ -2611,13 +2611,9 @@ and shape/terrain byte. Original assets remain unchanged. Other scenarios use
 unmodified resources. The pre-lap world-reader and direct-physics Player test
 boundaries remain; full Player/race startup is still unqualified.
 
-**Incomplete:** original BIO robots require explosion entity allocation, RNG,
-effect scheduling, debris transition and retirement. Explosive Mover hits
-currently return `-5` before their first mutation; this is an explicit missing
-game binding, not successful simulation or external I/O. No explosive collision
-parity is claimed. Completing that path is the next runnable gameplay slice.
-Nonexploding handoff and original movement are connected; Mover as a whole and
-M3 remain unfinished.
+At this checkpoint, original BIO explosive hits still lacked their entity
+binding. The following increment closes that dependency; complete M3 startup
+and lifecycle remain unfinished.
 
 Focused Mover/Spin/Closer/Bounce, scene/loading, mesh-break and shatter native
 suites pass, along with workspace checks and C preservation. A prior mesh-break
@@ -2631,4 +2627,64 @@ fields and zero stationary uploads. Logs: `build/tests/rust-mover-*.log`.
 & C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mover.c build/native/libtankracer_core.a -lm -o build/native/mover_reference.exe
 $env:TANKRACER_MOVER_REFERENCE=(Resolve-Path build/native/mover_reference.exe).Path
 cargo test -p tankracer-game --test mover_reference --locked -- --ignored --nocapture
+```
+
+## Original Mover explosion and blast ownership (2026-11-14)
+
+The unmodified BIO robot now spawns an actual kind-zero explosion through the
+shared class table, entity factory, activation lists and scheduler. Common
+allocation is extracted without adding implicit memberships or RNG calls.
+The original first random draw precedes activation; initialization consumes the
+second. Fifteen slots retain unsigned birth frames, strict earliest-frame
+selection and first-slot ties. Eviction removes the old drawing membership and
+queues actual deactivation. Retirement waits for the main sheet and all smoke,
+clears the slot, removes drawing, queues deletion and decrements the count.
+The class explicitly overrides RELEASE with ID release: the reuse branch caught
+an initially missing override that ordinary spawn-only checks did not expose.
+
+The explosion kernel preserves main-sheet UV progression, rotation, packed
+damping and all ten puffs' generation, movement, growth, rotation and fade.
+Mover's hit invokes its actual debris contact, removes the collider and ordinary
+membership and schedules fragments. The single-vehicle CUP adapter obtains the
+target from authoritative vehicle state and applies the real blast impulse;
+velocity, angular rates and collision marker publish through the collision view.
+The blast kernel preserves thresholds, health-write/error prefixes and all
+twelve RNG draws, including discarded/sign draws. Resource/device feedback
+still delegates to the host. No private effect entity IDs or detached RNG.
+
+**BL01:** 70 scenarios / 274 operations / 4,384 words match unchanged C. Branches
+cover force thresholds, direction/overflow, health clamp and division errors,
+angular/axis/marker gates and short repeated impulses. The kernel covers the
+source modes; the runtime adapter deliberately binds single-player CUP modes
+0/1 only, not deathmatch or multiple vehicle owners.
+
+**SR06:** 37 scenarios / eight maps / 348 updates / 7,462,914 fields match C.
+Snapshots now include current 3D debris and all live explosion/smoke fields,
+slots, entity flags, memberships, queues and shared RNG. Added original BIO
+contact plus controlled final-sheet retirement, smoke-delayed retirement,
+tenth-puff generation, ID reuse and sixteen-spawn saturation with tied and
+different birth frames. Controlled branch inputs are applied equally to both
+owners; they are not long natural-race claims. The C snapshot scans entity
+capacity, since active count can miss a high live ID after deletion. The level
+arena ends before dynamic effects, as in gameplay. The existing pre-lap loader
+and direct-physics Player boundaries remain: full race startup is unqualified.
+
+Focused native vehicle, motion/pipeline, obstacle, scenery/loading and fragment
+suites pass (logs `build/tests/rust-explosion-*.log`). Workspace tests/lints and
+source preservation pass. Browser evidence adds a tenth twelve-update case:
+original BIO contact produces one active explosion and active debris, with no
+GL errors or stationary uploads. Full effect drawing is still pending; this
+proves gameplay ownership and state, not appearance.
+
+Remaining explosion kinds, attached/ring/band variants, weapons and render
+resource bindings belong to later effect work. Unsupported variants return
+explicit errors rather than successful no-ops. M3 still needs full required
+collision/startup/lifecycle bindings and world allocation/RNG qualification.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_blast.c build/native/libtankracer_core.a -lm -o build/native/blast_reference.exe
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
+$env:TANKRACER_BLAST_REFERENCE=(Resolve-Path build/native/blast_reference.exe).Path
+$env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
+cargo test -p tankracer-game --test blast_reference --test scenery_runtime_reference --locked -- --ignored --nocapture
 ```

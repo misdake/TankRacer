@@ -444,6 +444,7 @@ impl Snapshot {
                 contacts: motion.contacts.map(|p| p.world),
             });
             states.push(vehicle::State {
+                blast: Default::default(),
                 entity,
                 class: ClassId(0),
                 player,

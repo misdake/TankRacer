@@ -114,6 +114,7 @@ pub fn load(
         }
     }
     let low_gravity = startup.low_gravity();
+    startup.objects.components.explosion_resources.map_fog = [2, 5, 7].contains(&map_index);
     let mut loader = Loader::new(
         &mut startup.objects,
         scene_loading::Resources {
