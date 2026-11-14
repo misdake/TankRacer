@@ -2290,14 +2290,17 @@ bind prefix/full physics/after-pose to the shared tick method, then run a fresh
 resource-initialized probe. Avoid per-frame clones of vehicle dynamics when
 projecting the store into the physics API.
 
-## Resource-only native movement probe, uncommitted (2026-11-14)
+## Resource-only native vehicle runtime (2026-11-14)
 
-The current worktree adds `vehicle_runtime::SinglePlayer` and the `drive`
+The runtime adds `vehicle_runtime::SinglePlayer` and the `drive`
 example. The fresh resource-created player runs prefix, connected physics and
 the complete after-pose chain through the shared factory tick. This is a
 terrain/vehicle slice: scene objects, race startup/rules, opponents and browser
-integration are not complete. The runtime code has not yet received its own
-C parity qualification or broader lint/regression checks.
+integration are not complete. The store's owned player/model/effects are borrowed
+through the tick; dynamics and geometry are not cloned per frame. Device feedback
+and sound are external services. The two effect-owner words are projected into
+the sampling API and published back to their shield-tail owner even on errors;
+no shield kernel reads them in this stage. Resolve that alias before mine logic.
 
 Reproduced successfully with no C library, memory snapshot, emulator or server:
 
@@ -2308,5 +2311,33 @@ cargo run -p tankracer-game --example drive --release --locked -- assets/game 0 
 ENGLAND/car 1: position `[0, 0, 0]` -> `[637, 1172, 37953]`, final velocity
 `[9694, -584, 468392]`, 117 grounded updates, final seed `2312014916`.
 The repeat measured 1.39 microseconds/update on this host; it is not a
-whole-game or browser benchmark. Next verify the collider radius/resource
-bindings, then qualify this fresh startup and tick wiring in short C comparisons.
+whole-game or browser benchmark. The collider radius correctly uses the body
+mesh: the C model loader installs that shape as its collision root.
+
+**VR01: 38 fresh resource scenarios / 1,056 updates / 6,581,504 fields**, across
+all eight maps and fifteen cars, compare equal. C constructs its own actor and
+retains it before later race/session initialization. Rust constructs directly
+from the resource archives, without receiving actor/config state from C.
+Each side initializes 16 route-noise draws and 180 shield draws from seed zero.
+The comparison covers the initial state, varying 12/16/17/20 ms input, inactive
+drive/countdown, acceleration, steering, braking, motion/poses/gun mesh, contact
+and prefix fields, local/shared after-pose state, pool payloads and RNG. Two
+ENGLAND sequences run 96 updates; other cases run 24. Explicit boundaries are an
+empty scenery collision scene, one car, visible viewport and disabled device I/O.
+This does not qualify full-world startup allocation/RNG or complete Player rules.
+
+The fresh test caught two real initialization omissions: pickup quad templates
+need their first style byte set even while inactive; General's authored CIRCUIT
+power multiplier is **60**, overriding the image default 70. `Catalog::general`
+now reads it instead of the native example hard-coding the image default.
+OC03 qualifies both General settings alongside 19 object presets and six Fall
+settings. Shared constructor codecs keep VS05 unchanged (122 / 84,668 words).
+Pickup fade and full active/inactive scene regressions pass, as do workspace
+tests, native/Wasm lint, browser build and C preservation. The browser is still
+static, 183,235 B Wasm; render/collision map metadata are unchanged.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_runtime_reference.exe
+$env:TANKRACER_VEHICLE_RUNTIME_REFERENCE=(Resolve-Path build/native/vehicle_runtime_reference.exe).Path
+cargo test -p tankracer-game --test vehicle_runtime_reference --locked -- --ignored --nocapture
+```

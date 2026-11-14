@@ -16,12 +16,14 @@ pub struct Ray {
 }
 impl Default for Ray {
     fn default() -> Self {
+        let mut quad = Quad::ZERO;
+        quad.style[0] = 1;
         Self {
             angles: [0; 2],
             angular_velocity: [0; 2],
             palette_index: 0,
             handle: QuadHandle::RELEASED,
-            quad: Quad::ZERO,
+            quad,
         }
     }
 }
@@ -32,8 +34,10 @@ pub struct Ring {
 }
 impl Default for Ring {
     fn default() -> Self {
+        let mut quad = Quad::ZERO;
+        quad.style[0] = 1;
         Self {
-            quad: Quad::ZERO,
+            quad,
             handle: QuadHandle::RELEASED,
         }
     }

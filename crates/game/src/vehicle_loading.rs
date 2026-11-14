@@ -16,22 +16,25 @@ const ALLOCATE: MethodId = MethodId(72);
 const INITIALIZE: MethodId = MethodId(73);
 pub const TICK: MethodId = MethodId(74);
 const UNSUPPORTED: MethodId = MethodId(75);
+pub const APPLY_BOOST: MethodId = MethodId(76);
+pub const BOOST_SLOT: u32 = 28;
 
 /// Creation, activation and stop bindings. The frame/remaining lifecycle calls
 /// require their real runtime owner; unsupported methods fail.
 pub(crate) fn class() -> Class {
-    let mut methods = vec![Some(UNSUPPORTED); scene_loading::AUXILIARY_COMPLETE as usize + 1];
+    let mut methods = vec![Some(UNSUPPORTED); BOOST_SLOT as usize + 1];
     for (slot, method) in [
         (scene_loading::ALLOCATE, ALLOCATE),
         (scene_loading::INITIALIZE, INITIALIZE),
         (scene_loading::ACTIVATE, crate::breakable::ENABLE_TICK),
         (scene_loading::STOP, crate::scene_objects::DISABLE_TICK),
         (scene_loading::TICK, TICK),
+        (BOOST_SLOT, APPLY_BOOST),
     ] {
         methods[slot as usize] = Some(method);
     }
     Class {
-        maximum_slot: scene_loading::AUXILIARY_COMPLETE as i32,
+        maximum_slot: BOOST_SLOT as i32,
         methods,
     }
 }

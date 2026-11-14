@@ -32,7 +32,21 @@ pub enum Error {
 #[derive(Debug, Default)]
 pub struct Catalog {
     pub entries: Vec<ObjectType>,
+    pub general: General,
     pub fall: Fall,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct General {
+    pub gravity: i32,
+    pub circuit_power_mul: i32,
+}
+impl Default for General {
+    fn default() -> Self {
+        Self {
+            gravity: 5,
+            circuit_power_mul: 70,
+        }
+    }
 }
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Fall {
@@ -73,7 +87,15 @@ impl Catalog {
                     if key == ")" {
                         break;
                     }
-                    if name.eq_ignore_ascii_case("fall") {
+                    if name.eq_ignore_ascii_case("general") {
+                        match key.to_ascii_lowercase().as_str() {
+                            ":gravity" => result.general.gravity = tokens.integer()?,
+                            ":circuit_power_mul" => {
+                                result.general.circuit_power_mul = tokens.integer()?
+                            }
+                            _ => (),
+                        }
+                    } else if name.eq_ignore_ascii_case("fall") {
                         match key.to_ascii_lowercase().as_str() {
                             ":min_rot_speed" => result.fall.minimum_turn_rate = tokens.integer()?,
                             ":max_rot_speed" => result.fall.maximum_turn_rate = tokens.integer()?,

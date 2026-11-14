@@ -17,26 +17,7 @@ static uint32_t membership(uint32_t global,uint32_t entity)
     return n;
 }
 #include "reference_motion_io.h"
-static void snapshot(void)
-{
-    uint32_t i;
-    state();
-    emit(object+0xe4,3);emit(object+0xa4,1);emit(object+0xac,1);emit(object+0xb0,1);
-    narrow(object+0xdeb,1);narrow(object+0xdde,1);emit(object+0xf4,1);
-    for(i=0;i<4;i++){
-        uint32_t p=object+0x11c+i*70u;emit(p,3);narrow(p+24,2);emit(p+32,2);
-        narrow(p+68,2);emit(p+56,3);emit(p+40,1);emit(p+48,2);
-    }
-    emit(object+0x234,3);emit(object+0x251,3);
-    emit(object+0x10be,1);narrow(object+0xd90,1);emit(object+0x10c6,1);emit(object+0x118,1);
-    emit(object+0x107e,1);emit(object+0xd95,1);oracle_put(word(object+0xd8c)!=0);emit(object+0x114,1);emit(object+0x108,3);emit(object+0xfc,3);
-    emit(object+0xd91,1);emit(object+0x90,1);emit(object+0xa8,1);emit(object+0xc9a,1);
-    narrow(object+0xdd0,2);narrow(object+0xdce,2);emit(object+0xdd2,1);emit(object+0x6a6,1);
-    emit(object+0xc9e,1);emit(object+0xcaa,1);emit(object+0xcb2,1);narrow(object+0xdd6,2);
-    emit(object+0xdbf,1);emit(object+0xdc3,1);emit(object+0xdc7,1);
-    narrow(object+0xdcb,1);narrow(object+0xdcc,1);narrow(object+0xdcd,1);
-    narrow(object+0xd99,1);narrow(object+0xd9a,1);emit(object+0xd9b,6);narrow(object+0xde4,1);
-}
+#include "reference_player_io.h"
 int physics_pose_update(physics_world_read read,physics_world_write write,void *ctx,uint32_t o,const physics_trig *trig)
 {
     uint32_t entity=word(0x53e8b8),record=word(word(0x55c694)+entity*8u),i;int status;
@@ -62,24 +43,7 @@ int physics_pose_update(physics_world_read read,physics_world_write write,void *
     object=o;captured++;
     oracle_put(1);oracle_put(entity);for(i=0;i<12;i++)oracle_put(spawn[i]);
     emit(0x52ee9c,1);emit(0x52ed90,1);emit(0x53e414,1);emit(0x545ffc,1);emit(0x58e7ac,1);oracle_put(phase);emit(0x5319c4,1);emit(0x531bd8,3);
-    snapshot();gun(1);
-    narrow(object+0xe17,1);narrow(object+0xe18,1);narrow(object+0xe19,1);emit(object+0xe1a,2);
-    narrow(object+0xc54,1);narrow(object+0xc55,1);emit(object+0xc56,12);emit(object+0xc86,3);
-    for(i=0;i<68;i++)emit(object+0xaac+i*6u,1);
-    emit(object+0xc44,1);emit(object+0xc4c,1);emit(object+0xc50,1);
-    for(i=0;i<8;i++){
-        uint32_t p=object+0x990+i*34u;emit(p,6);narrow(p+24,2);narrow(p+26,2);
-        narrow(p+28,2);narrow(p+30,2);narrow(p+32,1);narrow(p+33,1);
-    }
-    emit(object+0xaa0,3);
-    for(i=0;i<15;i++){
-        uint32_t p=object+0x798+i*32u;emit(p,6);narrow(p+24,2);narrow(p+26,2);
-        narrow(p+28,2);narrow(p+30,1);narrow(p+31,1);
-    }
-    emit(object+0x978,4);
-    narrow(object+0xdf1,1);narrow(object+0xdf2,1);narrow(object+0xdf3,1);narrow(object+0xdf4,1);
-    emit(object+0x988,2);
-    emit(object+0xc92,2);narrow(object+0xdef,1);
+    player_state();
     emit(object+16,1);oracle_put(word(word(word(0x55c694)+entity*8u))==word(0x544f98));
     oracle_put(membership(0x55b6a8,entity));oracle_put(membership(0x54b488,entity));oracle_put(membership(0x54b48c,entity));
     narrow(object+0xdf0,1);
