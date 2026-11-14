@@ -2411,3 +2411,72 @@ transparent draw-call count remains an explicit renderer optimization task.
 $env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
 cargo test -p tankracer-game --test scenery_runtime_reference --locked -- --ignored --nocapture
 ```
+
+## Bounce through the live runtime (2026-11-14)
+
+`bounce` now implements the actual 405170/4051C0 constructors, 404C30 hit and
+404E00 tick. The registry adds four distinct Rust bindings; loading constructs
+the real parent first, keeps authored/preset width and signedness, and then
+applies Bounce configuration. ENGLAND now constructs 140 scenery actors,
+including all 29 Bounce objects; 117 actors are in the current render lists.
+Spin, Closer and the other explicit deferred classes remain unfinished.
+
+A hit transfers the vehicle's post-response velocity, using forward speed for
+the vertical impulse, elasticity/height split for Y/Z and a different X scale.
+The relative position in the vehicle basis determines yaw deflection. The
+object copies the reference matrix, rotates its actual external basis, enters
+airborne mode, activates the scheduler, resets age, derives spin and conditionally
+draws one shared random bit above speed 250,000. Basis aliasing is explicit:
+equal-valued custom matrices must not be mistaken for shared storage. Collision
+views now provide the real vehicle reference/external bases as read-only inputs.
+
+Ticks integrate position before damping spin and rotating. Terrain height is
+sampled every four updates, or twenty for special gravity; a miss retains the
+cached height and can trigger the fallback surface response. Ground impacts
+rebound Y velocity until the original threshold selects rolling. Settling uses
+signed X/Z comparisons, not absolute speed; this apparently unusual rule is
+preserved. It aligns to the ground normal, clears activity, removes/reinserts
+the spatial membership and only then queues stop. Age retirement and missing
+ground dispatch the actual deactivate slot. The shared deactivate implementation
+is borrowed by both ordinary scene methods and Bounce, with its parent class
+dispatch and remove/queue order intact. No mesh or vehicle-state clone is needed
+to execute these callbacks.
+
+BIO's inclusive physical rectangle and the low-gravity setting select the
+original gravity/sample period. THEME preloads the canonical umbrella identity;
+matching objects receive the 750-unit height offset. Auxiliary resources and
+remaining classes keep their existing ownership; Bounce does not invent extra
+auxiliary update calls that the source tick does not perform.
+
+The new low-gravity integration case exposed another startup omission:
+OBPARAMS Moon gains had not replaced initial constants in the suspension
+profile. The first update differed by five integer Y units. Reading the actual
+player/opponent 3/2 gains fixes it; C physics was unchanged. This is why branch
+coverage matters in addition to ordinary driving sequences.
+
+BO01 compares **54 scenarios / 216 operations / 10,489 words** against the
+unchanged C kernels. Declared terrain and lifecycle responses cover null/custom/
+aliased matrices (including equal-valued separate matrices), speed thresholds,
+airborne/rolling/settling, miss/fallback, narrow-counter wrap, signed/overflow
+arithmetic and callback error prefixes. These callbacks are test inputs, not a
+substitute for integration: **SR02** constructs real parent/resources and runs
+the same scene scheduler, spatial lists and collision owners on both sides.
+Its **21 scenarios across eight maps / 132 updates / 2,140,565 fields** include
+normal and low-gravity settings, two activated Fall actors, three deformed Crush
+actors and three actual Bounce hits. The C boundary still deliberately stops
+before lap linking and replaces the Player controller with the same direct
+physics phase; complete race startup is not qualified by this test.
+
+The scene lifecycle/loading, obstacle, breakable, mesh-break and shatter native
+suites still pass after the common adapter change. OC04 verifies the new Moon
+settings. `npm run test:rust`, final focused native/GPU/browser checks and source
+preservation pass. The browser runs a fourth twelve-update collision case and
+observes real Bounce pose uploads, with zero upload on stationary repaint.
+See the renderer note for current memory/draw accounting. M3 remains open for
+Closer, Spin and remaining required world/startup work.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_bounce.c build/native/libtankracer_core.a -lm -o build/native/bounce_reference.exe
+$env:TANKRACER_BOUNCE_REFERENCE=(Resolve-Path build/native/bounce_reference.exe).Path
+cargo test -p tankracer-game --test bounce_reference --locked -- --ignored --nocapture
+```

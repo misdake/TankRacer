@@ -49,8 +49,8 @@ impl Loaded {
 }
 fn deferred(class: &str) -> bool {
     [
-        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bounce", "Bomber", "Train", "Closer", "Flock",
-        "Powerup", "Spin", "Mover", "BckgrdOb", "Lamps", "Player", "AITank",
+        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bomber", "Train", "Closer", "Flock", "Powerup",
+        "Spin", "Mover", "BckgrdOb", "Lamps", "Player", "AITank",
     ]
     .iter()
     .any(|c| class.eq_ignore_ascii_case(c))
@@ -113,6 +113,7 @@ pub fn load(
             *loaded.deferred.entry(record.class.into()).or_default() += 1;
         }
     }
+    let low_gravity = startup.low_gravity();
     let mut loader = Loader::new(
         &mut startup.objects,
         scene_loading::Resources {
@@ -129,6 +130,9 @@ pub fn load(
     loader
         .prepare_sign(map_index as u32)
         .map_err(|e| format!("scenery sign: {e:?}"))?;
+    loader
+        .prepare_bounce(map_index as u32, low_gravity)
+        .map_err(|e| format!("scenery bounce: {e:?}"))?;
     for record in level.objects {
         if loader.registry.scenery_class(record.class).is_none() {
             continue;

@@ -202,3 +202,21 @@ Full fragment-effect appearance, original vehicle/camera rendering and complete
 race startup are still outside this increment.
 Production Wasm is **629,704 B**; GPU probes and controlled collision starts are
 test-only. The working C reference still passes source-preservation checks.
+
+## M3 Bounce increment (2026-11-14)
+
+The same live renderer now displays Bounce actors from their actual poses;
+physics/lifecycle belong to the game crate. ENGLAND constructs 140 actors and
+currently draws 117 (110 ordinary, seven special), including Bounce actors.
+The default probe has **395 draws / 10,025 triangles**: 36 scenery
+opaque/masked draws and 354 globally ordered transparent runs. Those runs remain
+an explicit optimization task. The fourth controlled collision case activates
+a real Bounce actor and uploads changed instances; repeated paint has zero
+index/vertex/instance upload. All 144 GPU pixel cases, actual WebGL error checks,
+reload checks and native/Wasm final-field comparison still pass.
+
+Combined extra-map bookkeeping is **796,288 B**, including 261,730 B shared
+terrain/collision and 534,558 B rendering/bookkeeping. This is 5,710 B above the
+previous scenery increment and still below 1 MB in every tested view. Production
+Wasm is **643,787 B**. Original vehicle rendering, complete lighting/effects and
+the deferred actor classes remain later work; this is not full image parity.

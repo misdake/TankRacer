@@ -58,6 +58,7 @@ const CONSTRUCT_GENERIC: MethodId = MethodId(62);
 const CONSTRUCT_OBSTACLE: MethodId = MethodId(63);
 const CONSTRUCT_CRUSH: MethodId = MethodId(64);
 const CONSTRUCT_FALL: MethodId = MethodId(67);
+const CONSTRUCT_BOUNCE: MethodId = MethodId(78);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -68,6 +69,7 @@ pub struct Registry {
     pub crush: ClassId,
     pub fall: ClassId,
     pub player: ClassId,
+    pub bounce: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -138,6 +140,15 @@ impl Default for Registry {
         ] {
             fall.methods[slot as usize] = Some(method);
         }
+        let mut bounce = obstacle.clone();
+        for (slot, method) in [
+            (INITIALIZE, methods::BOUNCE_INITIALIZE),
+            (CONSTRUCT, CONSTRUCT_BOUNCE),
+            (TICK, methods::BOUNCE_TICK),
+            (OBSTACLE_CONTACT, methods::BOUNCE_HIT),
+        ] {
+            bounce.methods[slot as usize] = Some(method);
+        }
         Self {
             classes: vec![
                 Arc::new(world),
@@ -147,6 +158,7 @@ impl Default for Registry {
                 Arc::new(crush),
                 Arc::new(fall),
                 Arc::new(crate::vehicle_loading::class()),
+                Arc::new(bounce),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -155,6 +167,7 @@ impl Default for Registry {
             crush: ClassId(4),
             fall: ClassId(5),
             player: ClassId(6),
+            bounce: ClassId(7),
         }
     }
 }
@@ -166,6 +179,8 @@ impl Registry {
             Some(self.crush)
         } else if name.eq_ignore_ascii_case("Fall") {
             Some(self.fall)
+        } else if name.eq_ignore_ascii_case("Bounce") {
+            Some(self.bounce)
         } else {
             None
         }
@@ -247,6 +262,7 @@ pub struct Loader<'a, S> {
     pub static_allocation: bool,
     pub visibility_distance: u16,
     pub work_limit: u32,
+    pub bounce_environment: crate::bounce::Environment,
     record: Option<level::Object<'a>>,
     failure: Option<scene_startup::Error>,
 }
@@ -254,6 +270,12 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
     pub fn new(scene: &'a mut Scene, resources: Resources<'a, S>, registry: &'a Registry) -> Self {
         scene.components.terrain = Some(Arc::clone(resources.terrain));
         scene.components.fall_tuning = resources.catalog.fall;
+        let bounce_environment = crate::bounce::Environment {
+            map: 0,
+            low_gravity: false,
+            gravity: resources.catalog.general.gravity,
+            umbrella: false,
+        };
         Self {
             scene,
             resources,
@@ -261,6 +283,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             static_allocation: true,
             visibility_distance: 150,
             work_limit: 100000,
+            bounce_environment,
             record: None,
             failure: None,
         }
@@ -370,6 +393,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         if class == self.registry.fall {
             self.scene.components.falls.resize_with(id.0 + 1, || None);
             self.scene.components.falls[id.0] = Some(fall::State::default());
+        }
+        if class == self.registry.bounce {
+            self.scene.components.bounces.resize_with(id.0 + 1, || None);
+            self.scene.components.bounces[id.0] = Some(crate::bounce::Component::default());
         }
         *call.result = 1;
         Ok(())
@@ -641,6 +668,83 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .map(|m| self.scene.components.surfaces.meshes.bind(name, m));
         Ok(())
     }
+    pub fn prepare_bounce(&mut self, map: u32, low_gravity: bool) -> Result<(), Error> {
+        self.bounce_environment.map = map;
+        self.bounce_environment.low_gravity = low_gravity;
+        if map == 4 {
+            let model = self
+                .resources
+                .models
+                .load_optional(self.resources.source, Space::Level, "umbrella.sm")
+                .map_err(|e| Error::Resource(scene_startup::Error::Shape(e)))?;
+            self.scene.components.umbrella_mesh = model
+                .as_ref()
+                .map(|m| self.scene.components.surfaces.meshes.bind("umbrella.sm", m));
+        }
+        Ok(())
+    }
+    fn construct_bounce(
+        &mut self,
+        mut call: Invocation<'_, Handle>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.obstacle, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
+            .ok_or(-1)?;
+        let p = Parameters::new(self.record.ok_or(-1)?.parameters).map_err(|_| -1)?;
+        let preset = p
+            .find(":type")
+            .or_else(|| p.find(":Type"))
+            .and_then(|mut v| v.word())
+            .and_then(|n| self.resources.catalog.get(n));
+        let object = self.scene.components.objects[id.0].as_mut().ok_or(-1)?;
+        object.data.impact_threshold = p
+            .integer(":threshold")
+            .or_else(|| p.integer(":Threshold"))
+            .unwrap_or_else(|| {
+                preset.map_or(object.data.impact_threshold, |t| {
+                    i32::from(t.threshold as i8)
+                })
+            });
+        self.scene.world.objects[id.0].activity = 0;
+        let collider = &mut self.scene.world.colliders[id.0];
+        let body = self.scene.components.bounces[id.0].as_mut().ok_or(-1)?;
+        crate::terrain::height(
+            self.resources.terrain,
+            collider.pose.position[0],
+            collider.pose.position[2],
+            &mut body.state.ground,
+        )
+        .map_err(|e| {
+            if e == crate::terrain::Error::Arithmetic {
+                -2
+            } else {
+                -1
+            }
+        })?;
+        let environment = crate::bounce::Environment {
+            umbrella: self.scene.components.umbrella_mesh.is_some()
+                && self.scene.components.umbrella_mesh == object.data.mesh,
+            ..self.bounce_environment
+        };
+        body.config = crate::bounce::Config::construct(
+            p,
+            self.resources.catalog,
+            body.config,
+            environment,
+            &mut collider.pose.position,
+            &mut body.state,
+        );
+        *call.result = 0;
+        Ok(())
+    }
     fn construct_fall(
         &mut self,
         mut call: Invocation<'_, Handle>,
@@ -745,6 +849,7 @@ impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
             CONSTRUCT_OBSTACLE => self.construct_obstacle(call, env),
             CONSTRUCT_CRUSH => self.construct_crush(call, env),
             CONSTRUCT_FALL => self.construct_fall(call, env),
+            CONSTRUCT_BOUNCE => self.construct_bounce(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

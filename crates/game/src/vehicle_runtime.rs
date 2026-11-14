@@ -109,6 +109,9 @@ pub struct Startup {
     settings: Settings,
 }
 impl Startup {
+    pub fn low_gravity(&self) -> bool {
+        self.settings.environment_flag != 0
+    }
     pub fn map(&self) -> u32 {
         self.settings.map
     }
@@ -220,10 +223,10 @@ impl SinglePlayer {
                 mode: settings.map as i32,
                 region_min: [0x4a77f, 0xfffb4856_u32 as i32],
                 region_max: [0x813d2, 0xffff80ec_u32 as i32],
-                player_multiplier: 1,
-                player_shift: 2,
-                other_multiplier: 1,
-                other_shift: 1,
+                player_multiplier: model.moon.player.multiplier,
+                player_shift: u32::from(model.moon.player.shift as u8),
+                other_multiplier: model.moon.other.multiplier,
+                other_shift: u32::from(model.moon.other.shift as u8),
                 penetration_shift: u32::from(suspension.susp_to_shape.shift as u8),
                 ..suspension::Environment::default()
             },

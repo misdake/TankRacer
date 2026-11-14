@@ -127,7 +127,7 @@ try{
  const nativeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(nativeOutput);
  assert.ok(nativeState,nativeOutput);
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
- assert.equal(driven.scene.scenery_objects,94);
+ assert.equal(driven.scene.scenery_objects,117);
  assert.ok(driven.scene.scenery_opaque_draws<driven.scene.scenery_objects);
  assert.equal(driven.frame.draws,5+driven.scene.scenery_opaque_draws+driven.scene.transparent_runs);
  assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+12);
@@ -143,10 +143,10 @@ try{
    for(let i=0;i<2;i++){m.app.load_player(...files);m.app.render();m.app.check_graphics();results.push({frame:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())});}
    return results;
  })`);
- for(const reload of reloads){assert.equal(reload.scene.scenery_objects,94);assert.ok(reload.frame.index_upload_bytes>0);}
- // The same controlled starts used by SR01: two real Fall hits and a Crush hit.
+ for(const reload of reloads){assert.equal(reload.scene.scenery_objects,driven.scene.scenery_objects);assert.ok(reload.frame.index_upload_bytes>0);}
+ // SR02 controlled starts: two Fall hits, a Crush hit and a Bounce hit.
  const collisions=[];
- for(let target=0;target<3;target++){
+ for(let target=0;target<4;target++){
   const collision=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
    m.app.load_collision(...files,${target});m.app.render();
@@ -158,7 +158,7 @@ try{
    const state=Array.from(m.app.scenery_state());m.app.render();m.app.check_graphics();
    return {target:${target},state,uploads,stationary:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())};
   })`);
-  assert.ok(collision.state[target===2?1:0]>0,JSON.stringify(collision));
+  assert.ok(collision.state[target===3?2:target===2?1:0]>0,JSON.stringify(collision));
   assert.ok(collision.uploads[target===2?'vertices':'instances']>0,JSON.stringify(collision));
   for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(collision.stationary[key],0,key);
   assert.ok(collision.scene.acceleration_bytes<1_000_000);

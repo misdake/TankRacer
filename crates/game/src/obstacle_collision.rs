@@ -48,6 +48,10 @@ pub struct State {
     pub class: ClassId,
     /// Base position used by game methods; query position below is physical +78.
     pub base_position: [i32; 3],
+    /// Read-only inputs for object hit methods; velocity changes do not
+    /// recompute the vehicle's basis until the real pose stage.
+    pub reference_basis: crate::math::Matrix,
+    pub external_basis: Option<crate::math::Matrix>,
     pub position: [i32; 3],
     pub previous_position: [i32; 3],
     pub velocity: [i32; 3],

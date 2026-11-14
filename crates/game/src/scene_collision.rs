@@ -218,6 +218,8 @@ mod tests {
             entity: EntityId(1),
             class: ClassId(1),
             base_position: [0; 3],
+            reference_basis: crate::math::Matrix::IDENTITY,
+            external_basis: None,
             position: [3000, 0, 0],
             previous_position: [3000, 0, 0],
             velocity: [0; 3],

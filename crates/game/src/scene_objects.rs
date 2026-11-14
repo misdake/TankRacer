@@ -1,9 +1,11 @@
 //! Ordered scene-object lifecycle on the same components used by collision.
 //! Class tables stay immutable; parent calls and nested activation are immediate.
 use crate::scene_entity::Handle;
+mod bouncing;
 pub mod collision;
 mod falling;
 mod fragments;
+mod lifecycle;
 mod mesh_fragments;
 use crate::{
     crush,
@@ -54,6 +56,9 @@ pub const AUXILIARY_TICK: MethodId = MethodId(68);
 pub const DEBRIS_TICK: MethodId = MethodId(69);
 pub const AUXILIARY_HIT: MethodId = MethodId(70);
 pub const DEBRIS_HIT: MethodId = MethodId(71);
+pub const BOUNCE_INITIALIZE: MethodId = MethodId(77);
+pub const BOUNCE_HIT: MethodId = MethodId(79);
+pub const BOUNCE_TICK: MethodId = MethodId(80);
 
 #[derive(Clone, Copy)]
 pub struct Parents {
@@ -109,6 +114,8 @@ pub struct Components {
     pub signs: Vec<ObstacleId>,
     pub sign_meshes: [Option<MeshId>; 2],
     pub falls: Vec<Option<fall::State>>,
+    pub bounces: Vec<Option<crate::bounce::Component>>,
+    pub umbrella_mesh: Option<MeshId>,
     pub fall_tuning: fall::Tuning,
     pub terrain: Option<Arc<TerrainData>>,
     pub(crate) pending_crush: Vec<(ObstacleId, crush::Initial)>,
@@ -131,6 +138,8 @@ impl Scene {
                 signs: Vec::new(),
                 sign_meshes: [None; 2],
                 falls: Vec::new(),
+                bounces: Vec::new(),
+                umbrella_mesh: None,
                 fall_tuning: fall::Tuning::default(),
                 terrain: None,
                 pending_crush: Vec::new(),
@@ -403,6 +412,9 @@ impl Methods<Handle> for View<'_> {
                 if let Some(state) = self.components.falls.get_mut(id.0) {
                     *state = None;
                 }
+                if let Some(state) = self.components.bounces.get_mut(id.0) {
+                    *state = None;
+                }
             }
             return Ok(());
         }
@@ -432,6 +444,7 @@ impl Methods<Handle> for View<'_> {
         match method {
             FALL_DESTROY => return self.destroy_fall(id, call, env),
             FALL_TICK => return self.tick_fall(id, call, env),
+            BOUNCE_TICK => return self.tick_bounce(id, call, env),
             DEBRIS_TICK => return self.tick_debris(id, call, env),
             AUXILIARY_TICK => return self.tick_mesh_fragments(id, call, env),
             RESET_POSE => {
@@ -491,6 +504,24 @@ impl Methods<Handle> for View<'_> {
                 self.insert_grid(id)?;
                 *call.result = 0;
             }
+            BOUNCE_INITIALIZE => {
+                call.context
+                    .class_dispatch(self.components.parents.obstacle, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                let config = &mut self
+                    .components
+                    .bounces
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
+                    .ok_or(-1)?
+                    .config;
+                config.elasticity = 35;
+                config.friction = 10;
+                config.height_factor = 20;
+                self.components.object_mut(id)?.data.impact_threshold = 10;
+                self.world.objects[id.0].weight = 0;
+                *call.result = 0;
+            }
             LEAVE => {
                 valid_limit(env.work_limit)?;
                 spatial::remove_first(&mut self.components.ordinary, &id, env.work_limit)
@@ -499,16 +530,15 @@ impl Methods<Handle> for View<'_> {
                 *call.result = 0;
             }
             DEACTIVATE => {
-                valid_limit(env.work_limit)?;
-                call.context
-                    .class_dispatch(self.components.parents.generic, entity, None, env, self)
-                    .map_err(dispatch_code)?;
-                self.remove_grid(id, env.work_limit)?;
-                spatial::remove_first(&mut self.components.ordinary, &id, env.work_limit)
-                    .map_err(spatial_code)?;
-                spatial::remove_first(&mut self.components.special, &id, env.work_limit)
-                    .map_err(spatial_code)?;
-                *call.result = 0;
+                lifecycle::Membership {
+                    grid: &mut self.world.grid,
+                    id,
+                    cell: self.components.objects[id.0].as_mut().ok_or(-1)?.data.cell,
+                    ordinary: &mut self.components.ordinary,
+                    special: &mut self.components.special,
+                    parent: self.components.parents.generic,
+                }
+                .invoke(method, call, env)?;
             }
             SET_MODE => {
                 valid_limit(env.work_limit)?;

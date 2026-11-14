@@ -158,6 +158,13 @@ impl App {
                     .flatten()
                     .filter(|s| s.state.dirty != 0)
                     .count() as u32,
+                scene
+                    .components
+                    .bounces
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.state.age != 0 || b.state.airborne != 0)
+                    .count() as u32,
             ]
         })
     }

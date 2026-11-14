@@ -184,6 +184,8 @@ fn obstacle_state(s: &State) -> obstacle::State {
         entity: s.entity,
         class: s.class,
         base_position: s.motion.poses.base_position,
+        reference_basis: s.motion.poses.reference,
+        external_basis: external(s),
         position: s.motion.poses.physical_position,
         previous_position: s.motion.previous_position,
         velocity: s.motion.velocity,

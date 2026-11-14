@@ -20,7 +20,7 @@ fn all_object_presets_match_native_widths_names_flags_and_defaults() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(&output.stdout[..4], b"OC03");
+    assert_eq!(&output.stdout[..4], b"OC04");
     assert_eq!(
         u32::from_le_bytes(output.stdout[4..8].try_into().unwrap()) as usize,
         catalog.entries.len()
@@ -65,12 +65,16 @@ fn all_object_presets_match_native_widths_names_flags_and_defaults() {
         catalog.fall.elasticity_shift,
         catalog.general.gravity as u32,
         catalog.general.circuit_power_mul as u32,
+        u32::from(catalog.moon.player.multiplier),
+        u32::from(catalog.moon.player.shift),
+        u32::from(catalog.moon.other.multiplier),
+        u32::from(catalog.moon.other.shift),
     ] {
         expected.extend(value.to_le_bytes());
     }
     assert_eq!(&output.stdout[8..], expected);
     eprintln!(
-        "{} typed object presets + 6 Fall and 2 General settings / {} native bytes exact",
+        "{} typed object presets + 6 Fall, 2 General, 4 Moon settings / {} native bytes exact",
         catalog.entries.len(),
         expected.len()
     );

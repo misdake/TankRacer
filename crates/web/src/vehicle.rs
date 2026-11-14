@@ -159,10 +159,12 @@ impl Session {
             Start::Authored => (spawn, [0; 3]),
             #[cfg(feature = "gpu-tests")]
             Start::Collision(target) => {
-                if target > 2 {
+                if target > 3 {
                     return Err("Unknown scenery collision probe".into());
                 }
-                let class = if target == 2 {
+                let class = if target == 3 {
+                    startup.registry.bounce
+                } else if target == 2 {
                     startup.registry.crush
                 } else {
                     startup.registry.fall

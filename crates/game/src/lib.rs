@@ -2,6 +2,7 @@
 
 pub mod attitude;
 pub mod body;
+pub mod bounce;
 pub mod breakable;
 pub mod collision;
 pub mod collision_effects;

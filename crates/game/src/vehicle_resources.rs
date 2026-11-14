@@ -57,7 +57,7 @@ pub fn prepare(
         shared: vec![shapes(shared)?],
         level: vec![],
     };
-    let model = VehicleModel::build(
+    let mut model = VehicleModel::build(
         &tank,
         &source,
         &mut ModelBank::default(),
@@ -65,5 +65,6 @@ pub fn prepare(
         context,
     )
     .map_err(|e| format!("vehicle model: {e:?}"))?;
+    model.moon = catalog.moon;
     Ok(Prepared { model, surfaces })
 }

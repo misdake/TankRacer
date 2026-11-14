@@ -34,6 +34,26 @@ pub struct Catalog {
     pub entries: Vec<ObjectType>,
     pub general: General,
     pub fall: Fall,
+    pub moon: Moon,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Moon {
+    pub player: Gain,
+    pub other: Gain,
+}
+impl Default for Moon {
+    fn default() -> Self {
+        Self {
+            player: Gain {
+                multiplier: 1,
+                shift: 2,
+            },
+            other: Gain {
+                multiplier: 1,
+                shift: 1,
+            },
+        }
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct General {
@@ -109,6 +129,18 @@ impl Catalog {
                             ":fall_elas_shf" => {
                                 result.fall.elasticity_shift = tokens.integer()? as u32
                             }
+                            _ => (),
+                        }
+                    } else if name.eq_ignore_ascii_case("moon") {
+                        match key.to_ascii_lowercase().as_str() {
+                            ":moongrav_mul" => {
+                                result.moon.player.multiplier = tokens.integer()? as u16
+                            }
+                            ":moongrav_shf" => result.moon.player.shift = tokens.integer()? as u16,
+                            ":aimoongrav_mul" => {
+                                result.moon.other.multiplier = tokens.integer()? as u16
+                            }
+                            ":aimoongrav_shf" => result.moon.other.shift = tokens.integer()? as u16,
                             _ => (),
                         }
                     }
@@ -267,6 +299,20 @@ mod tests {
         assert_eq!(catalog.entries.len(), 19);
         assert_eq!(catalog.get("ROCK").unwrap().collision_margin, 500);
         assert_eq!(catalog.get("trough").unwrap().flags, 12);
+        assert_eq!(
+            catalog.moon.player,
+            Gain {
+                multiplier: 3,
+                shift: 2
+            }
+        );
+        assert_eq!(
+            catalog.moon.other,
+            Gain {
+                multiplier: 3,
+                shift: 2
+            }
+        );
         let catalog = Catalog::decode(b"# comment\nObject X (:solidity 65535 :friction 258 :max_deflect -1 :collidable TRUE :collidable FALSE :bash_sound abcdefghijk )\nobject x (:solidity 2)").unwrap();
         let first = catalog.get("x").unwrap();
         assert_eq!(

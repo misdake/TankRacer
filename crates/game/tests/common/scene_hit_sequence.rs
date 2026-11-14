@@ -59,6 +59,8 @@ pub fn check(
         entity: EntityId(1),
         class: registry.world,
         base_position: [0; 3],
+        reference_basis: tankracer_game::math::Matrix::IDENTITY,
+        external_basis: None,
         position: [0; 3],
         previous_position: [0; 3],
         velocity: [250000, -150000, 500000],

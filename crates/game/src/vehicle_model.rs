@@ -164,6 +164,7 @@ pub struct BuildContext {
 #[derive(Debug)]
 pub struct VehicleModel {
     pub config: ResolvedTank,
+    pub moon: tankracer_assets::object_catalog::Moon,
     pub parts: [Option<Mesh>; 10],
     pub offsets: [[i32; 3]; 10],
     pub primary_local: [[i32; 3]; 4],
@@ -391,6 +392,7 @@ impl VehicleModel {
             d.sidegrip_fraction.shift = d.sidegrip_fraction.shift.wrapping_add(1);
         }
         Ok(Self {
+            moon: tankracer_assets::object_catalog::Moon::default(),
             config,
             parts,
             offsets,

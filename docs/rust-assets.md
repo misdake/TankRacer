@@ -148,8 +148,9 @@ pending; see the latest [physics checkpoint](rust-physics.md).
 OBPARAMS.DAT. All 19 entries / 1,444 native bytes match C startup, including
 names, defaults, narrow integer widths, signed solidity, five multiplier/shift
 pairs, deflection-angle conversion, flags, collision margin and nine-byte sound
-names. Lookup preserves first matching case-insensitive name; class sections of
-the same file are deliberately left to other configuration consumers. Focused
+names. Lookup preserves first matching case-insensitive name. General, Fall and
+Moon class sections also supply typed settings; other classes remain with their
+respective configuration consumers. Focused
 tests cover case/duplicate precedence, narrowing, negative angles, flag clearing,
 long sound tokens and incomplete groups. Arbitrary malformed file cursor/error
 prefix equivalence is not claimed.
@@ -161,6 +162,14 @@ All 50 files / 4,392 authored records still pass the common C reader comparison
 following this refactor. ModelBank also exposes optional scene loading: an absent
 resource is a null shape, while mandatory geometry callers retain strict checks.
 A miss is not cached as a successful model or replaced with another model.
+
+The current OC04 comparison includes 6 Fall, 2 General and 4 Moon settings:
+**1,492 native bytes** including the 19 presets. The resource's actual Moon
+gravity gains are 3/2 for both player and opponent, overriding the initial image
+defaults 1/2 and 1/1. `vehicle_resources::prepare` carries these into the model's
+immutable settings and the runtime's cached suspension profile. Low-gravity
+SR02 sequences exposed the omitted override; ordinary driving did not exercise
+that branch. The normal shipped-resource unit test also checks both gains.
 
 ```powershell
 gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_object_catalog.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/object_catalog_reference.exe

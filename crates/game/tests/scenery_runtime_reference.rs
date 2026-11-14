@@ -63,7 +63,11 @@ fn list(out: &mut Vec<u32>, values: impl IntoIterator<Item = u32>) {
 fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
     let player = game.vehicles.entries[0].as_ref().unwrap();
     let mut words = player_codec::encode(player);
-    words.extend([game.shared.random, n as u32]);
+    words.extend([
+        game.shared.random,
+        game.settings.environment_flag as u32,
+        n as u32,
+    ]);
     let mut sections = vec![("player".into(), words)];
     for (index, object) in game.objects.components.objects[..n].iter().enumerate() {
         let mut out = vec![u32::from(object.is_some())];
@@ -80,6 +84,8 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
                 2
             } else if class == game.registry.crush {
                 1
+            } else if class == game.registry.bounce {
+                3
             } else {
                 0
             },
@@ -149,6 +155,36 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
                 out.extend(r.color.map(u32::from));
                 out.push(r.timer as u32);
             }
+        }
+        if class == game.registry.bounce {
+            let b = game.objects.components.bounces[index].as_ref().unwrap();
+            let s = b.state;
+            let c = b.config;
+            append(&mut out, s.velocity);
+            append(&mut out, [s.spin, s.ground]);
+            out.extend([
+                u32::from(s.timer),
+                s.age as i32 as u32,
+                u32::from(s.airborne),
+                u32::from(s.reverse_spin),
+                u32::from(s.special),
+                u32::from(s.raised),
+                c.elasticity as i32 as u32,
+                u32::from(c.friction as u8),
+                u32::from(c.height_factor as u8),
+            ]);
+            append(
+                &mut out,
+                [
+                    c.hit_spin.multiplier,
+                    c.hit_spin.shift,
+                    c.slow_spin.multiplier,
+                    c.slow_spin.shift,
+                ]
+                .map(|v| i32::from(v as i16)),
+            );
+            append(&mut out, [i32::from(c.deflection), c.gravity]);
+            out.push(u32::from(c.height_period));
         }
         let geometry = data
             .mesh
@@ -223,8 +259,15 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
     let mut updates = 0;
     let mut activated = 0;
     let mut deformed = 0;
+    let mut bounced = 0;
     for (map, name) in names.iter().enumerate() {
-        for target in if map == 0 { 0..4 } else { 0..1 } {
+        let mut scenarios: Vec<_> = if map == 0 {
+            (0..6).map(|target| (target, false)).collect()
+        } else {
+            vec![(0, false)]
+        };
+        scenarios.push((if map == 0 { 4 } else { 0 }, true));
+        for (target, low_gravity) in scenarios {
             let cup = if map == 7 {
                 2
             } else if [3, 5, 6].contains(&map) {
@@ -241,13 +284,15 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 .unwrap();
             let terrain =
                 Arc::new(TerrainData::decode_bsm(archive.get(bsm.name).unwrap()).unwrap());
-            let mut startup = Startup::new(terrain, settings(map)).unwrap();
+            let mut setting = settings(map);
+            setting.environment_flag = i32::from(low_gravity);
+            let mut startup = Startup::new(terrain, setting).unwrap();
             let loaded = scenery::load(&mut startup, &data, &file, &shared, name, cup).unwrap();
             let n = loaded.entities.len();
             if map == 0 {
-                assert_eq!(n, 111);
+                assert_eq!(n, 140);
                 assert_eq!(loaded.classes.get("Fall"), Some(&96));
-                assert_eq!(loaded.deferred.get("Bounce"), Some(&29));
+                assert_eq!(loaded.classes.get("Bounce"), Some(&29));
             }
             let level = Level::decode(
                 archive
@@ -259,7 +304,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             for r in level
                 .objects
                 .iter()
-                .filter(|r| ["Obstacle", "Crush", "Fall"].contains(&r.class))
+                .filter(|r| ["Obstacle", "Crush", "Fall", "Bounce"].contains(&r.class))
             {
                 let p = r.position.map(|v| v as f64 / 1024.);
                 let a = r.angles.map(|v| v as i32 / 182);
@@ -272,7 +317,9 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let mut spawn = [0; 3];
             let mut velocity = [0; 3];
             if target != 0 {
-                let wanted = if target == 3 {
+                let wanted = if target >= 4 {
+                    startup.registry.bounce
+                } else if target == 3 {
                     startup.registry.crush
                 } else {
                     startup.registry.fall
@@ -297,8 +344,8 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                     .0;
                 spawn = startup.objects.world.colliders[index].pose.position;
                 spawn[1] += 1500;
-                spawn[2] -= 500;
-                velocity = [0, 0, 600001];
+                spawn[2] += if target == 5 { 500 } else { -500 };
+                velocity = [0, 0, if target == 5 { -250000 } else { 600001 }];
             }
             let resources = vehicle_resources::prepare(
                 &data,
@@ -342,6 +389,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let mut input = Vec::new();
             input.extend((script.len() as u32).to_le_bytes());
             input.extend((n as u32).to_le_bytes());
+            input.extend(u32::from(low_gravity).to_le_bytes());
             for v in spawn.into_iter().chain(velocity) {
                 input.extend(v.to_le_bytes());
             }
@@ -367,7 +415,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SR01");
+            assert_eq!(&output.stdout[..4], b"SR02");
             let mut r = common::Reader {
                 words: output.stdout[4..]
                     .chunks_exact(4)
@@ -400,7 +448,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                         assert_eq!(
                             *value,
                             r.word(),
-                            "map={map} target={target} tick={tick} {section} word={word}"
+                            "map={map} target={target} low_gravity={low_gravity} tick={tick} {section} word={word}"
                         );
                     }
                     compared += words.len();
@@ -423,11 +471,23 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 .flatten()
                 .filter(|s| s.state.dirty != 0)
                 .count();
+            let hits = game
+                .objects
+                .components
+                .bounces
+                .iter()
+                .flatten()
+                .filter(|b| b.state.age != 0 || b.state.airborne != 0)
+                .count();
+            if target >= 4 {
+                assert!(hits > 0, "targeted Bounce must activate");
+            }
+            bounced += hits;
         }
     }
     assert!(activated > 0, "real Fall collision must execute");
     assert!(deformed > 0, "real deformable hit must execute");
     println!(
-        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush"
+        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce"
     );
 }

@@ -132,6 +132,7 @@ impl Collision<'_> {
             ),
             super::AUXILIARY_HIT => self.activate_mesh_fragments(call, services),
             super::DEBRIS_HIT => self.activate_debris(call, services),
+            super::BOUNCE_HIT => self.hit_bounce(call, hit, services),
             DEFORMABLE_HIT => {
                 // The method result/RNG/timer commit precedes the host sound.
                 let sound = self.components.surfaces.collide(reborrow(&mut call))?;
@@ -187,6 +188,67 @@ impl Collision<'_> {
             self.components.special.push(id);
         }
         *call.result = entity.0;
+        Ok(())
+    }
+    fn hit_bounce(
+        &mut self,
+        call: Invocation<'_>,
+        environment: HitEnvironment,
+        services: &mut impl Services,
+    ) -> Result<(), i32> {
+        let id = call.target;
+        let entity = call.world.colliders.get(id.0).ok_or(-1)?.entity;
+        let vehicle = crate::bounce::Hit {
+            position: call.vehicle.base_position,
+            velocity: call.vehicle.velocity,
+            forward_velocity: call.vehicle.forward_velocity,
+            reference: call.vehicle.reference_basis,
+            external: call.vehicle.external_basis,
+        };
+        let component = self
+            .components
+            .bounces
+            .get_mut(id.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)?;
+        let object = self
+            .components
+            .objects
+            .get_mut(id.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)?;
+        let cell = object.data.cell;
+        crate::bounce::hit(
+            crate::bounce::Motion {
+                state: &mut component.state,
+                collider: &mut call.world.colliders[id.0],
+                activity: &mut call.world.objects[id.0].activity,
+                threshold: object.data.impact_threshold,
+                reference_alias: component.reference_alias,
+            },
+            component.config,
+            vehicle,
+            call.random,
+            &mut super::bouncing::Services {
+                terrain: self.components.terrain.as_deref(),
+                context: self.lifecycle.context(call.current_slot),
+                environment: self.environment,
+                entity,
+                membership: super::lifecycle::Membership {
+                    grid: &mut call.world.grid,
+                    id,
+                    cell,
+                    ordinary: &mut self.components.ordinary,
+                    special: &mut self.components.special,
+                    parent: self.components.parents.generic,
+                },
+                cell: &mut object.data.cell,
+                has_mesh: object.data.mesh.is_some(),
+            },
+        )?;
+        if call.vehicle.player && environment.feedback {
+            services.feedback(i32::from(call.world.colliders[id.0].radius), self, call)?;
+        }
         Ok(())
     }
     pub fn scene_method(
