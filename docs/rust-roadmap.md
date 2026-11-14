@@ -31,26 +31,26 @@ Updated: **2026-11-14**. Read this together with `git status`.
 
 - **M1/M2 complete; M3 active.** Runnable Rust/Wasm vehicle proxy, terrain and
   live Obstacle/Crush/Fall/Bounce/Closer/Spin scenery; Mover motion is connected.
-  Arrows drive; C switches follow/free camera; `/?inspect` stays static.
-- **Verified code: `dfe65de`.** Browser keyboard actions now use original Player
-  ramps/release and forward/reverse/brake selection. Input: 226 cases / 1,341
-  operations match C, including query/error order. Bound input + direct physics:
-  eight maps / fifteen cars / 1,968 updates / 12,302,404 matching fields.
+  Arrows drive; A handbrakes; C switches follow/free camera; `/?inspect` stays static.
+- **Verified code: `b0c8b57`.** Original Player input plus actual handbrake and
+  parameter restoration run in the browser. Input: 226 cases / 1,341 operations;
+  brake: 97 cases / 1,164 operations match C. Bound input + direct physics:
+  eight maps / fifteen cars / 2,880 updates / 18,041,268 matching fields.
   Countdown/fast-start kernel is qualified; browser proxy still starts immediately.
 - Original BIO exploding Mover hit, explosion allocation/smoke/retirement and
-  debris activation run (`2ef20f7`); scenery: 348 updates / 7,462,914 fields.
+  debris activation run (`2ef20f7`); scenery: 348 updates / 7,465,224 fields.
   Workspace tests/lints, constructor/prefix/scenery oracles and C preservation
-  pass. Browser: 144 GPU cases, direct 120-update and key-driven 24-update native
-  final fields, ten short scenery probes and zero idle uploads. Production Wasm:
-  **692,497 B**; direct-value exports are test-build only. Explosion sprites/full
+  pass. Browser: 144 GPU cases, direct 120-update plus key/brake 24-update native
+  final fields, DOM A press/release, ten short scenery probes and zero idle uploads.
+  Production Wasm: **693,690 B**; controlled exports are test-build only. Explosion sprites/full
   fragment drawing remain pending. Details are in the specialist docs.
-- **Next runnable increment:** Player auxiliary brake and parameter restoration:
-  bind real grip/rotation/turn overrides to the same drive/model fields, restore
-  on release or pickup suppression, qualify strict speed thresholds and short
-  hold/release sequences against C, then bind A. `step_keys` currently rejects
-  auxiliary input explicitly. Follow with Player collision/progress and required
-  startup owners. Preserve direct physics tests; do not expand M3 into all later
-  effects or declare it closed from helper tests.
+- **Next runnable increment:** Player's active-race collision marker/impact
+  decay and ground/tank/obstacle velocity-change contributions, before parent
+  physics. Bind the race-active gate explicitly and qualify threshold/tie/wrap
+  branches and short sequences. Then progress/required startup owners. Preserve
+  direct physics tests; do not expand M3 into all later effects or declare it
+  closed from helper tests. Pickup suppression is kernel-qualified; the full
+  pickup owner/activation is still later work.
 - **Still missing:** full Player/race startup and lifecycle, complete world
   RNG/allocation order, real vehicle rendering, pickups/weapons/race rules,
   optional scenery, opponents/menus/audio and all-map full-game qualification.
