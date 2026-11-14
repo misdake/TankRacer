@@ -1,16 +1,19 @@
 //! M3 terrain/vehicle session. The renderer receives a read-only proxy view.
 use glam::{Mat4, Vec3};
 use std::sync::Arc;
-use tankracer_assets::{config::ResolveContext, terrain::TerrainData};
+use tankracer_assets::{
+    archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
+};
 use tankracer_game::{
     drive,
     obstacle_collision::Invocation,
     pose,
     scene_objects::collision::{Collision, Services, Sound},
+    scenery,
     vehicle_loading::Request,
     vehicle_model::BuildContext,
     vehicle_resources,
-    vehicle_runtime::{Devices, Settings, SinglePlayer},
+    vehicle_runtime::{Devices, Settings, SinglePlayer, Startup},
     vehicle_scene::spray,
     vehicle_startup::Environment,
 };
@@ -25,8 +28,14 @@ use tankracer_scene::{
 };
 use wasm_bindgen::JsValue;
 
-struct SilentDevices;
-impl Services for SilentDevices {
+struct SilentDevices<'a>(&'a scenery::Loaded);
+impl Services for SilentDevices<'_> {
+    fn auxiliary_model(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<Arc<tankracer_assets::model::Model>>, i32> {
+        Ok(self.0.auxiliary_model(name))
+    }
     fn sound(&mut self, _: Sound, _: &mut Collision<'_>, _: Invocation<'_>) -> Result<(), i32> {
         Ok(())
     }
@@ -34,7 +43,7 @@ impl Services for SilentDevices {
         Ok(())
     }
 }
-impl Devices for SilentDevices {
+impl Devices for SilentDevices<'_> {
     fn surface_feedback(&mut self) -> Result<(), i32> {
         Ok(())
     }
@@ -68,15 +77,35 @@ impl VehicleView {
 pub struct Session {
     pub game: SinglePlayer,
     pub view: VehicleView,
+    pub scenery: crate::scenery::View,
+    loaded: scenery::Loaded,
+}
+pub struct Files<'a> {
+    pub data: &'a [u8],
+    pub bronze: &'a [u8],
+    pub shared: &'a [u8],
+    pub level: &'a [u8],
+}
+#[derive(Default)]
+pub enum Start {
+    #[default]
+    Authored,
+    #[cfg(feature = "gpu-tests")]
+    Collision(u32),
 }
 impl Session {
     pub fn load(
         renderer: &Renderer,
         terrain: Arc<TerrainData>,
-        data: &[u8],
-        bronze: &[u8],
-        shared: &[u8],
+        files: Files<'_>,
+        start: Start,
     ) -> Result<Self, JsValue> {
+        let Files {
+            data,
+            bronze,
+            shared,
+            level,
+        } = files;
         let resources = vehicle_resources::prepare(
             data,
             &[bronze],
@@ -97,20 +126,8 @@ impl Session {
         let max = physics_position([bounds.max[0], bounds.max[1], bounds.min[2]]);
         let bounds =
             Mat4::from_translation((min + max) * 0.5) * Mat4::from_scale((max - min) * 0.5);
-        let game = SinglePlayer::new(
+        let mut startup = Startup::new(
             terrain,
-            resources.surfaces,
-            Request {
-                model: resources.model,
-                spawn: pose::Pose::default(),
-                static_allocation: true,
-                environment: Environment {
-                    ambient_wobble: false,
-                    session_active: false,
-                    ambient_phase: 0,
-                    gun_pivot: [0; 3],
-                },
-            },
             Settings {
                 map: 0,
                 mode: 0,
@@ -127,6 +144,76 @@ impl Session {
             },
         )
         .map_err(|e| JsValue::from_str(&format!("Vehicle startup: {e:?}")))?;
+        let loaded = scenery::load(&mut startup, data, level, shared, "ENGLAND", 0)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let archive = Archive::parse(level).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let script = Level::decode(archive.get("ENGB.DAT").ok_or("Missing player level")?)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let spawn = script
+            .objects
+            .iter()
+            .find(|o| o.class == "Player")
+            .map(pose::Pose::from_level)
+            .unwrap_or_default();
+        let (spawn, velocity) = match start {
+            Start::Authored => (spawn, [0; 3]),
+            #[cfg(feature = "gpu-tests")]
+            Start::Collision(target) => {
+                if target > 2 {
+                    return Err("Unknown scenery collision probe".into());
+                }
+                let class = if target == 2 {
+                    startup.registry.crush
+                } else {
+                    startup.registry.fall
+                };
+                let index = startup
+                    .objects
+                    .world
+                    .objects
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, p)| {
+                        p.class == class
+                            && startup.objects.components.objects[*i]
+                                .as_ref()
+                                .is_some_and(|o| o.data.visibility.entered)
+                    })
+                    .nth(usize::from(target == 1))
+                    .ok_or("Missing collision probe target")?
+                    .0;
+                let mut position = startup.objects.world.colliders[index].pose.position;
+                position[1] += 1500;
+                position[2] -= 500;
+                (
+                    pose::Pose {
+                        position,
+                        ..Default::default()
+                    },
+                    [0, 0, 600001],
+                )
+            }
+        };
+        let mut game = startup
+            .finish(
+                resources.surfaces,
+                Request {
+                    model: resources.model,
+                    spawn,
+                    static_allocation: true,
+                    environment: Environment {
+                        ambient_wobble: false,
+                        session_active: false,
+                        ambient_phase: 0,
+                        gun_pivot: [0; 3],
+                    },
+                },
+            )
+            .map_err(|e| JsValue::from_str(&format!("Vehicle startup: {e:?}")))?;
+        let player = game.vehicles.entries[0].as_mut().unwrap();
+        player.physics.motion.previous_position = spawn.position;
+        player.physics.motion.velocity = velocity;
+        let scenery = crate::scenery::View::load(renderer, &loaded, level, shared)?;
         let view = VehicleView {
             mesh: renderer.upload_mesh(&MeshData::cube())?,
             bounds,
@@ -134,7 +221,12 @@ impl Session {
             position: Vec3::ZERO,
             forward: Vec3::NEG_Z,
         };
-        let mut session = Self { game, view };
+        let mut session = Self {
+            game,
+            view,
+            scenery,
+            loaded,
+        };
         session.refresh_view();
         Ok(session)
     }
@@ -156,7 +248,7 @@ impl Session {
         self.game.camera_position = [p.x as i32, p.y as i32, -p.z as i32];
         self.game.camera_forward = [f.x as i32, f.y as i32, -f.z as i32];
         self.game
-            .step(input, dt, true, &mut SilentDevices)
+            .step(input, dt, true, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Vehicle update: {e:?}")))?;
         self.refresh_view();
         Ok(())

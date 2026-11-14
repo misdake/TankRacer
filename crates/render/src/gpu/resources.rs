@@ -17,7 +17,7 @@ pub struct GpuMesh {
 
 impl GpuMesh {
     pub(super) fn new(gl: &Gl, mesh: &MeshData) -> Result<Self, JsValue> {
-        if mesh.indices.len() > i32::MAX as usize
+        if mesh.indices.len() > i32::MAX as usize / 4
             || !mesh.indices.len().is_multiple_of(3)
             || mesh
                 .indices
@@ -74,7 +74,7 @@ impl GpuMesh {
     }
 
     pub(super) fn update_indices(&mut self, indices: &[u32]) -> Result<(), JsValue> {
-        if indices.len() > self.index_capacity
+        if indices.len() > i32::MAX as usize / 4
             || !indices.len().is_multiple_of(3)
             || indices.iter().any(|&i| i as usize >= self.vertex_count)
         {
@@ -83,13 +83,78 @@ impl GpuMesh {
         self.gl.bind_vertex_array(self.vao.as_ref());
         self.gl
             .bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, self.indices.as_ref());
-        self.gl.buffer_sub_data_with_i32_and_u8_array(
-            Gl::ELEMENT_ARRAY_BUFFER,
-            0,
-            bytemuck::cast_slice(indices),
-        );
+        if indices.len() > self.index_capacity {
+            self.gl.buffer_data_with_u8_array(
+                Gl::ELEMENT_ARRAY_BUFFER,
+                bytemuck::cast_slice(indices),
+                Gl::DYNAMIC_DRAW,
+            );
+            self.index_capacity = indices.len();
+        } else {
+            self.gl.buffer_sub_data_with_i32_and_u8_array(
+                Gl::ELEMENT_ARRAY_BUFFER,
+                0,
+                bytemuck::cast_slice(indices),
+            );
+        }
         self.count = indices.len() as i32;
         Ok(())
+    }
+
+    pub(super) fn update_vertices(&mut self, vertices: &[Vertex]) -> Result<(), JsValue> {
+        if vertices.len() != self.vertex_count {
+            return Err("Vertex update changes mesh topology".into());
+        }
+        self.gl
+            .bind_buffer(Gl::ARRAY_BUFFER, self.vertices.as_ref());
+        self.gl.buffer_sub_data_with_i32_and_u8_array(
+            Gl::ARRAY_BUFFER,
+            0,
+            bytemuck::cast_slice(vertices),
+        );
+        Ok(())
+    }
+}
+
+/// Transform stream shared by every material pass of one prototype mesh.
+pub struct GpuInstances {
+    gl: Gl,
+    pub(super) buffer: WebGlBuffer,
+    pub(super) count: i32,
+    capacity: usize,
+}
+impl GpuInstances {
+    pub(super) fn new(gl: &Gl) -> Result<Self, JsValue> {
+        Ok(Self {
+            gl: gl.clone(),
+            buffer: gl
+                .create_buffer()
+                .ok_or("Cannot allocate instance buffer")?,
+            count: 0,
+            capacity: 0,
+        })
+    }
+    pub(super) fn update(&mut self, transforms: &[[f32; 16]]) -> Result<(), JsValue> {
+        if transforms.len() > i32::MAX as usize / 64 {
+            return Err("Too many instances".into());
+        }
+        self.gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&self.buffer));
+        let bytes = bytemuck::cast_slice(transforms);
+        if transforms.len() > self.capacity {
+            self.gl
+                .buffer_data_with_u8_array(Gl::ARRAY_BUFFER, bytes, Gl::DYNAMIC_DRAW);
+            self.capacity = transforms.len();
+        } else {
+            self.gl
+                .buffer_sub_data_with_i32_and_u8_array(Gl::ARRAY_BUFFER, 0, bytes);
+        }
+        self.count = transforms.len() as i32;
+        Ok(())
+    }
+}
+impl Drop for GpuInstances {
+    fn drop(&mut self) {
+        self.gl.delete_buffer(Some(&self.buffer));
     }
 }
 

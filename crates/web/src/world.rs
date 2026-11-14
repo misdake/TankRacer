@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use std::sync::Arc;
 use tankracer_assets::{archive::Archive, budget::MapBudget, terrain::TerrainData};
 use tankracer_render::{
@@ -7,6 +7,7 @@ use tankracer_render::{
 };
 use tankracer_scene::{
     camera::Camera,
+    transparency::{self, Order},
     world::{BatchKind, WorldScene},
 };
 use wasm_bindgen::JsValue;
@@ -18,6 +19,12 @@ pub struct WorldView {
     scene: WorldScene,
     meshes: Vec<GpuMesh>,
     atlas: Texture,
+    order: Order,
+    transparent_objects: Vec<transparency::Object>,
+    scenery_bytes: usize,
+    scenery_objects: usize,
+    scenery_triangles: usize,
+    scenery_opaque_draws: usize,
 }
 
 impl WorldView {
@@ -72,6 +79,12 @@ impl WorldView {
             camera,
             terrain,
             acceleration_bytes: budget.bytes(),
+            order: Order::default(),
+            transparent_objects: Vec::new(),
+            scenery_bytes: 0,
+            scenery_objects: 0,
+            scenery_triangles: 0,
+            scenery_opaque_draws: 0,
         })
     }
 
@@ -79,17 +92,77 @@ impl WorldView {
         &mut self,
         renderer: &mut Renderer,
         size: [u32; 2],
-        vehicle: Option<&crate::vehicle::VehicleView>,
+        mut session: Option<&mut crate::vehicle::Session>,
     ) -> Result<(), JsValue> {
-        if self
-            .scene
-            .order
-            .update(&self.scene.transparent, &self.camera)
-        {
-            renderer.update_indices(
-                &mut self.meshes[BatchKind::Transparent.slot()],
-                &self.scene.order.indices,
-            )?;
+        if let Some(session) = &mut session {
+            session.scenery.refresh(renderer, &session.game.objects)?;
+            self.transparent_objects.clear();
+            self.transparent_objects.push(transparency::Object {
+                geometry: 0,
+                model: Mat4::IDENTITY,
+            });
+            session
+                .scenery
+                .transparent_objects(&mut self.transparent_objects);
+            if self.order.update(
+                &self.transparent_objects,
+                |id| {
+                    if id == 0 {
+                        &self.scene.transparent
+                    } else {
+                        session.scenery.transparent(id)
+                    }
+                },
+                &self.camera,
+                session.scenery.revision,
+            ) {
+                for (geometry, indices) in self
+                    .order
+                    .banks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, i)| !i.is_empty())
+                {
+                    if geometry == 0 {
+                        renderer.update_indices(
+                            &mut self.meshes[BatchKind::Transparent.slot()],
+                            indices,
+                        )?;
+                    } else {
+                        session
+                            .scenery
+                            .update_indices(renderer, geometry, indices)?;
+                    }
+                }
+            }
+            self.scenery_bytes = session.scenery.resident_bytes()
+                + session
+                    .game
+                    .objects
+                    .components
+                    .surfaces
+                    .meshes
+                    .render_metadata_bytes()
+                + self.order.resident_bytes()
+                + self.transparent_objects.capacity() * std::mem::size_of::<transparency::Object>();
+            let mut budget = MapBudget::default();
+            budget
+                .account(self.acceleration_bytes + self.scenery_bytes)
+                .map_err(JsValue::from_str)?;
+            self.scenery_objects = session.scenery.objects;
+            self.scenery_triangles = session.scenery.triangles;
+            self.scenery_opaque_draws = session.scenery.opaque_draws;
+        } else {
+            if self
+                .scene
+                .order
+                .update(&self.scene.transparent, &self.camera)
+            {
+                renderer.update_indices(
+                    &mut self.meshes[BatchKind::Transparent.slot()],
+                    &self.scene.order.indices,
+                )?;
+            }
         }
         let vp = self.camera.view_projection(size[0] as f32 / size[1] as f32);
         let right = self.camera.right();
@@ -109,11 +182,30 @@ impl WorldView {
             frame.draw(mesh, &material, Some(&self.atlas), vp);
         }
         // Dynamic opaque geometry must write depth before blended world faces.
-        if let Some(vehicle) = vehicle {
-            vehicle.draw(&mut frame, vp);
+        if let Some(session) = &session {
+            session.scenery.opaque(&mut frame, vp);
+            session.view.draw(&mut frame, vp);
         }
         let alpha = BatchKind::Transparent.slot();
-        if !self.scene.batches[alpha].geometry.indices.is_empty() {
+        if let Some(session) = &session {
+            for run in &self.order.runs {
+                let object = self.order.objects[run.object];
+                let range = run.first..run.first + run.count;
+                if object.geometry == 0 {
+                    frame.draw_range(
+                        &self.meshes[alpha],
+                        &material(BatchKind::Transparent),
+                        Some(&self.atlas),
+                        [vp, Mat4::IDENTITY],
+                        range,
+                    )?;
+                } else {
+                    session
+                        .scenery
+                        .draw_transparent(&mut frame, object, vp, range)?;
+                }
+            }
+        } else if !self.scene.batches[alpha].geometry.indices.is_empty() {
             frame.draw(
                 &self.meshes[alpha],
                 &material(BatchKind::Transparent),
@@ -128,10 +220,21 @@ impl WorldView {
         self.camera.move_local(Vec3::new(x, y, z), seconds, fast);
     }
 
+    pub fn reset_dynamic(&mut self) {
+        // A new session owns new GPU prototypes even at identical poses. Never
+        // reuse the previous session's sorted-bank cache against those buffers.
+        self.order = Order::default();
+        self.transparent_objects.clear();
+        self.scenery_bytes = 0;
+        self.scenery_objects = 0;
+        self.scenery_triangles = 0;
+        self.scenery_opaque_draws = 0;
+    }
+
     pub fn stats(&self) -> String {
         let s = &self.scene.stats;
         format!(
-            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{}}}",
+            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{}}}",
             s.source_meshes,
             s.source_triangles,
             s.rendered_triangles,
@@ -140,18 +243,23 @@ impl WorldView {
             s.unique_vertices,
             s.vertex_bytes,
             s.index_bytes,
-            self.acceleration_bytes,
+            self.acceleration_bytes + self.scenery_bytes,
             self.scene.atlas.width,
             self.scene.atlas.height,
-            self.acceleration_bytes
+            self.acceleration_bytes + self.scenery_bytes
                 - self.terrain.resident_bytes()
                 - 2 * std::mem::size_of::<usize>(),
-            self.terrain.resident_bytes() + 2 * std::mem::size_of::<usize>()
+            self.terrain.resident_bytes() + 2 * std::mem::size_of::<usize>(),
+            self.scenery_objects,
+            self.scenery_triangles,
+            self.scenery_bytes,
+            self.scenery_opaque_draws,
+            self.order.runs.len()
         )
     }
 }
 
-fn material(kind: BatchKind) -> Material {
+pub(crate) fn material(kind: BatchKind) -> Material {
     let transparent = kind == BatchKind::Transparent;
     let masked = matches!(kind, BatchKind::Masked | BatchKind::MaskedTwoSided);
     let double_sided = matches!(

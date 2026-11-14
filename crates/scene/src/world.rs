@@ -9,7 +9,7 @@ use tankracer_assets::{
     archive::Archive,
     budget::MapBudget,
     surface::{Image, Surface},
-    world::{Triangle, World, WorldMesh},
+    world::{Triangle, World},
 };
 use tankracer_render::geometry::{MeshData, Vertex};
 
@@ -32,6 +32,16 @@ impl BatchKind {
     ];
     pub const fn slot(self) -> usize {
         self as usize
+    }
+    pub(crate) fn for_surface(class: u32, double_sided: bool) -> Result<Self, &'static str> {
+        match (class, double_sided) {
+            (0, false) => Ok(Self::Opaque),
+            (0, true) => Ok(Self::OpaqueTwoSided),
+            (1, false) => Ok(Self::Masked),
+            (1, true) => Ok(Self::MaskedTwoSided),
+            (2, _) => Ok(Self::Transparent),
+            _ => Err("Unsupported material class"),
+        }
     }
 }
 
@@ -197,7 +207,7 @@ impl WorldScene {
                     stats.disabled_triangles += 1;
                     continue;
                 }
-                let winding = winding(mesh, triangle);
+                let winding = winding(&mesh.vertices, triangle);
                 if triangle.billboard.is_none() && winding.is_none() {
                     stats.degenerate_triangles += 1;
                     continue;
@@ -206,14 +216,7 @@ impl WorldScene {
                 let class = triangle
                     .material
                     .map_or(0, |id| images[id.index()].flags & 3);
-                let group = match (class, double_sided) {
-                    (0, false) => BatchKind::Opaque,
-                    (0, true) => BatchKind::OpaqueTwoSided,
-                    (1, false) => BatchKind::Masked,
-                    (1, true) => BatchKind::MaskedTwoSided,
-                    (2, _) => BatchKind::Transparent,
-                    _ => return Err("Unsupported world material class".into()),
-                };
+                let group = BatchKind::for_surface(class, double_sided)?;
                 let color = legacy_color(triangle.color, triangle.material.is_some());
                 let region = triangle
                     .material
@@ -331,7 +334,7 @@ impl WorldScene {
     }
 }
 
-fn legacy_color(packed: u16, textured: bool) -> [f32; 4] {
+pub(crate) fn legacy_color(packed: u16, textured: bool) -> [f32; 4] {
     if textured && packed == 0x7bde {
         return [1.; 4];
     }
@@ -348,10 +351,10 @@ fn legacy_color(packed: u16, textured: bool) -> [f32; 4] {
     ]
 }
 
-fn winding(mesh: &WorldMesh, triangle: &Triangle) -> Option<bool> {
+pub(crate) fn winding(vertices: &[[i16; 3]], triangle: &Triangle) -> Option<bool> {
     let points = triangle
         .indices
-        .map(|i| mesh.vertices[i as usize].map(i64::from));
+        .map(|i| vertices[i as usize].map(i64::from));
     let a: [i64; 3] = std::array::from_fn(|i| points[1][i] - points[0][i]);
     let b: [i64; 3] = std::array::from_fn(|i| points[2][i] - points[0][i]);
     let cross = [

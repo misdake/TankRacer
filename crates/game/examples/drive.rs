@@ -162,6 +162,26 @@ fn main() -> Result<(), Box<dyn Error>> {
         .motion
         .poses
         .physical_position;
+    if with_scenery {
+        let visible = game
+            .objects
+            .components
+            .ordinary
+            .iter()
+            .chain(&game.objects.components.special)
+            .filter(|id| {
+                game.objects.components.objects[id.0]
+                    .as_ref()
+                    .is_some_and(|o| o.data.mesh.is_some())
+            })
+            .count();
+        eprintln!(
+            "scenery renderable={visible} ordinary={} special={} total={}",
+            game.objects.components.ordinary.len(),
+            game.objects.components.special.len(),
+            game.objects.components.objects.iter().flatten().count()
+        );
+    }
     let begin = Instant::now();
     let mut grounded = 0;
     for tick in 0..ticks {

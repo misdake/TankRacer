@@ -33,7 +33,7 @@ try {
   if(!inspecting){
     status.textContent = 'Loading vehicle…';
     const files = await Promise.all(['DATA','BRONZE','INGAME'].map(download));
-    app.load_player(...files);
+    app.load_player(...files,world);
   }
   held.clear();canvas.focus();
   status.hidden = true;

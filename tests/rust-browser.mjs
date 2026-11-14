@@ -79,7 +79,7 @@ try{
  assert.notDeepEqual(turned,initialForward);
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const gpu=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.run_gpu_checks()))`);
- assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=100);assert.equal(gpu.blend_transitions,81);
+ assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=144);assert.equal(gpu.blend_transitions,81);
  const frame=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
  const scene=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.scene_stats()))`);
  assert.equal(scene.source_meshes,612);assert.equal(scene.source_triangles,8881);
@@ -112,27 +112,62 @@ try{
  await send('Input.dispatchKeyEvent',{type:'keyUp',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const driven=await evaluate(`import('/main.js').then(async m=>{
-   const files=await Promise.all(['DATA','BRONZE','INGAME'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
    m.app.load_player(...files);
    const begin=performance.now();
    for(let tick=0;tick<120;tick++)m.app.step_vehicle(16,65536,0,tick>=40&&tick<60?12000:0);
    const milliseconds=performance.now()-begin;
-   m.app.render();
+   m.app.render();m.app.check_graphics();
    return {state:Array.from(m.app.vehicle_state()),milliseconds,frame:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())};
  })`);
+ report.vehicle=driven;
  const native=path.join(root,'target/release/examples/drive'+(process.platform==='win32'?'.exe':''));
  assert.ok(existsSync(native),'Build the native Rust drive example for Wasm comparison');
- const nativeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','120'],{encoding:'utf8',windowsHide:true});
+ const nativeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','120','--scenery'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
  const nativeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(nativeOutput);
  assert.ok(nativeState,nativeOutput);
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
- assert.equal(driven.frame.draws,6);assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+12);
+ assert.equal(driven.scene.scenery_objects,94);
+ assert.ok(driven.scene.scenery_opaque_draws<driven.scene.scenery_objects);
+ assert.equal(driven.frame.draws,5+driven.scene.scenery_opaque_draws+driven.scene.transparent_runs);
+ assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+12);
  assert.ok(driven.scene.acceleration_bytes<1_000_000);
  assert.equal(driven.scene.acceleration_bytes,driven.scene.render_acceleration_bytes+driven.scene.collision_acceleration_bytes);
+ const still=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
+ for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(still[key],0,key);
  await writeFile(path.join(output,'drive.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ // Reload at identical poses: new GPU buffers still require sorted index banks.
+ const reloads=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   const results=[];
+   for(let i=0;i<2;i++){m.app.load_player(...files);m.app.render();m.app.check_graphics();results.push({frame:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())});}
+   return results;
+ })`);
+ for(const reload of reloads){assert.equal(reload.scene.scenery_objects,94);assert.ok(reload.frame.index_upload_bytes>0);}
+ // The same controlled starts used by SR01: two real Fall hits and a Crush hit.
+ const collisions=[];
+ for(let target=0;target<3;target++){
+  const collision=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_collision(...files,${target});m.app.render();
+   const uploads={vertices:0,instances:0};
+   for(let tick=0;tick<12;tick++){
+    m.app.step_vehicle(16,65536,0,0);m.app.render();
+    const s=JSON.parse(m.app.frame_stats());uploads.vertices+=s.vertex_upload_bytes;uploads.instances+=s.instance_upload_bytes;
+   }
+   const state=Array.from(m.app.scenery_state());m.app.render();m.app.check_graphics();
+   return {target:${target},state,uploads,stationary:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())};
+  })`);
+  assert.ok(collision.state[target===2?1:0]>0,JSON.stringify(collision));
+  assert.ok(collision.uploads[target===2?'vertices':'instances']>0,JSON.stringify(collision));
+  for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(collision.stationary[key],0,key);
+  assert.ok(collision.scene.acceleration_bytes<1_000_000);
+  await writeFile(path.join(output,`collision-${target}.png`),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  collisions.push(collision);
+ }
  assert.deepEqual(errors,[]);assert.equal(requests.filter(url=>new URL(url).pathname.startsWith('/api/')).length,0);
  assert.ok(requests.some(url=>url.endsWith('/pkg/tankracer_bg.wasm')));
- Object.assign(report,{passed:true,...gpu,frame,scene,free_camera:true,keyboard_motion:true,pointer_look:true,stationary_upload_bytes:0,aspect_ratios:3,rust_wasm:true,raw_webgl2:true,vehicle:driven,native_wasm_updates:120,keyboard_driving:true});
+ Object.assign(report,{passed:true,...gpu,frame,scene,free_camera:true,keyboard_motion:true,pointer_look:true,stationary_upload_bytes:0,aspect_ratios:3,rust_wasm:true,raw_webgl2:true,vehicle:driven,native_wasm_updates:120,keyboard_driving:true,collisions});
  console.log('RUST BROWSER: PASS',report);
 }catch(error){report.error=error.stack;throw error;}
 finally{

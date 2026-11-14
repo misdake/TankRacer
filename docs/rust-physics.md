@@ -2375,7 +2375,8 @@ This remains a partial-world stage. ENGLAND explicitly defers Bounce (29), Bombe
 Train (2) and WayPoint (36). Unknown classes fail before entity mutation.
 Other supplied maps also report their actual deferred classes. Bounce/Spin and
 other collision subclasses need real bindings; unsupported blast/player methods
-still fail. The browser has **not** enabled these new scenery actors yet.
+still fail. The browser now enables the same supported scenery classes and
+reads their current geometry/poses; see [renderer integration](rust-renderer.md#m3-authored-scenery-2026-11-14).
 Do not claim complete scenery, full startup RNG/allocation order or M3 completion.
 
 **SR01: all eight valid CUP/map selections, 11 scenarios / 68 updates / 906,126
@@ -2397,12 +2398,13 @@ hid it; the existing connected-physics codec was already correct. The shared
 fresh-player codec now uses accumulator, size, material order. Production physics
 did not need a field swap. VS05 and VR01 still pass with unchanged word counts.
 Eleven affected native suites pass, plus `npm run test:rust` and C preservation.
-The current browser still uses its empty scenery path and 638,906 B map metadata;
-production Wasm is now 493,755 B. Account new scenery/render metadata before
-enabling that path in the browser. Read-only render views for these actors are
-the next runnable increment, followed by required collision subclasses. Read
-current `surfaces.meshes` geometry and live transforms; the immutable original
-model is not the rendered state after deformation or fragmentation.
+The browser's authored-scenery path now accounts **790,578 B** combined extra-map
+metadata, including live rendering and shared collision data. A 120-update Wasm
+probe matches native final position/velocity/RNG; three twelve-update browser
+collision sequences additionally verify two Fall activations and one Crush
+deformation reach the GPU. Read-only rendering does not change simulation
+ownership. Required collision subclasses are the next gameplay increment;
+transparent draw-call count remains an explicit renderer optimization task.
 
 ```powershell
 & C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe

@@ -493,6 +493,214 @@ pub fn run(renderer: &mut Renderer) -> Result<String, JsValue> {
     if renderer.update_indices(&mut mesh, &[0, 1, 999]).is_ok() {
         return Err("Out-of-range index update accepted".into());
     }
+
+    // Matrix attributes are VAO state. Exercise same-VAO normal/instanced
+    // transitions and another VAO with the same stream, then a different stream.
+    let mut instances = renderer.instances()?;
+    let transforms = [-0.5, 0.5].map(|x| {
+        (Mat4::from_translation(glam::Vec3::new(x, 0., 0.))
+            * Mat4::from_scale(glam::Vec3::new(0.4, 0.8, 1.)))
+        .to_cols_array()
+    });
+    renderer.update_instances(&mut instances, &transforms)?;
+    let mut single = renderer.instances()?;
+    renderer.update_instances(
+        &mut single,
+        &[Mat4::from_translation(glam::Vec3::new(3., 0., 0.)).to_cols_array()],
+    )?;
+    let other = renderer.upload_mesh(&MeshData::quad(0.))?;
+    {
+        let overlay = Material {
+            pipeline: Pipeline {
+                blend: None,
+                ..Pipeline::OVERLAY
+            },
+            ..red
+        };
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw_instanced(&mesh, &overlay, None, Mat4::IDENTITY, &instances);
+        for point in [[0, 2], [3, 2]] {
+            expect_at(&frame, "two model instances", point, red.color)?;
+            cases += 1;
+        }
+        frame.draw(
+            &mesh,
+            &Material {
+                color: [0., 1., 0., 1.],
+                ..overlay
+            },
+            None,
+            Mat4::IDENTITY,
+        );
+        expect(&frame, "instance to ordinary same VAO", [0., 1., 0., 1.])?;
+        cases += 1;
+        frame.draw_instanced(&mesh, &overlay, None, Mat4::IDENTITY, &instances);
+        expect(&frame, "ordinary to instance same VAO", red.color)?;
+        cases += 1;
+        frame.draw_instanced(
+            &other,
+            &Material {
+                color: [0., 0., 1., 1.],
+                ..overlay
+            },
+            None,
+            Mat4::IDENTITY,
+            &instances,
+        );
+        expect(&frame, "same stream different VAO", [0., 0., 1., 1.])?;
+        cases += 1;
+        frame.draw_instanced(&other, &overlay, None, Mat4::IDENTITY, &single);
+        expect(&frame, "different instance stream", [0., 0., 1., 1.])?;
+        cases += 1;
+    }
+    renderer.update_indices(&mut mesh, &[0, 1, 2, 0, 2, 3, 0, 1, 2, 0, 2, 3])?;
+    {
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw_range(&mesh, &red, None, [Mat4::IDENTITY; 2], 9..12)?;
+        expect_at(&frame, "range byte offset", [0, 3], red.color)?;
+        expect_at(&frame, "range excludes other triangle", [3, 0], BACKGROUND)?;
+        cases += 2;
+        if frame
+            .draw_range(&mesh, &red, None, [Mat4::IDENTITY; 2], 0..15)
+            .is_ok()
+        {
+            return Err("Out-of-range draw accepted".into());
+        }
+    }
+    let mut changed = MeshData::quad(0.);
+    for v in &mut changed.vertices {
+        v.position[0] += 3.;
+    }
+    renderer.update_vertices(&mut mesh, &changed.vertices)?;
+    {
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&mesh, &red, None, Mat4::IDENTITY);
+        expect(&frame, "current vertex upload", BACKGROUND)?;
+        cases += 1;
+        frame.draw_model(
+            &mesh,
+            &red,
+            None,
+            Mat4::IDENTITY,
+            Mat4::from_translation(glam::Vec3::new(-3., 0., 0.)),
+        );
+        expect(&frame, "model uniform after vertex update", red.color)?;
+        cases += 1;
+    }
+    // World / transformed object / world must interleave, including switching
+    // index banks. Independent source-over equations catch order/state leaks.
+    {
+        use glam::Vec3;
+        use tankracer_scene::{
+            camera::Camera,
+            transparency::{Object, Order},
+            world::TransparentTriangle,
+        };
+        let mut world = MeshData::quad(-0.5);
+        for vertex in &mut world.vertices {
+            vertex.color = [1., 0., 0., 0.25];
+        }
+        let mut front = MeshData::quad(0.5);
+        for vertex in &mut front.vertices {
+            vertex.color = [0., 1., 0., 0.5];
+        }
+        world.vertices.extend(front.vertices);
+        world
+            .indices
+            .extend(front.indices.into_iter().map(|i| i + 4));
+        let object = MeshData::quad(0.);
+        let mut gpu = [
+            renderer.upload_mesh(&world)?,
+            renderer.upload_mesh(&object)?,
+        ];
+        let faces = [
+            vec![
+                TransparentTriangle {
+                    indices: [0, 1, 2],
+                    center: Vec3::new(0., 0., -0.5),
+                },
+                TransparentTriangle {
+                    indices: [0, 2, 3],
+                    center: Vec3::new(0., 0., -0.5),
+                },
+                TransparentTriangle {
+                    indices: [4, 5, 6],
+                    center: Vec3::new(0., 0., 0.5),
+                },
+                TransparentTriangle {
+                    indices: [4, 6, 7],
+                    center: Vec3::new(0., 0., 0.5),
+                },
+            ],
+            vec![
+                TransparentTriangle {
+                    indices: [0, 1, 2],
+                    center: Vec3::ZERO,
+                },
+                TransparentTriangle {
+                    indices: [0, 2, 3],
+                    center: Vec3::ZERO,
+                },
+            ],
+        ];
+        let objects = [
+            Object {
+                geometry: 0,
+                model: Mat4::IDENTITY,
+            },
+            Object {
+                geometry: 1,
+                model: Mat4::IDENTITY,
+            },
+        ];
+        let camera = Camera::looking_at(Vec3::new(0., 0., 3.), Vec3::ZERO);
+        let mut order = Order::default();
+        order.update(&objects, |i| &faces[i], &camera, 0);
+        for (mesh, indices) in gpu.iter_mut().zip(&order.banks) {
+            renderer.update_indices(mesh, indices)?;
+        }
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        for run in &order.runs {
+            let object = objects[run.object];
+            let material = Material {
+                pipeline: Pipeline {
+                    blend: Some(Blend::PREMULTIPLIED_ALPHA),
+                    ..Pipeline::OVERLAY
+                },
+                output_alpha: AlphaEncoding::Premultiplied,
+                ..Material::opaque(if object.geometry == 0 {
+                    [1.; 4]
+                } else {
+                    [0., 0., 1., 0.5]
+                })
+            };
+            frame.draw_range(
+                &gpu[object.geometry],
+                &material,
+                None,
+                [Mat4::IDENTITY, object.model],
+                run.first..run.first + run.count,
+            )?;
+        }
+        let over = |source: [f32; 4], destination: [f32; 4]| {
+            std::array::from_fn(|i| {
+                if i == 3 {
+                    source[3] + destination[3] * (1. - source[3])
+                } else {
+                    source[i] * source[3] + destination[i] * (1. - source[3])
+                }
+            })
+        };
+        expect(
+            &frame,
+            "world object world alpha order",
+            over(
+                [0., 1., 0., 0.5],
+                over([0., 0., 1., 0.5], over([1., 0., 0., 0.25], BACKGROUND)),
+            ),
+        )?;
+        cases += 1;
+    }
     renderer.check_error()?;
     Ok(format!(
         "{{\"passed\":true,\"pixel_cases\":{cases},\"depth_comparisons\":8,\"blend_transitions\":81}}"

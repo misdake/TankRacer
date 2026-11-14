@@ -31,11 +31,7 @@ impl App {
             return Ok(());
         }
         if let Some(world) = &mut self.world {
-            return world.draw(
-                &mut self.renderer,
-                size,
-                self.vehicle.as_ref().map(|v| &v.view),
-            );
+            return world.draw(&mut self.renderer, size, self.vehicle.as_mut());
         }
         self.renderer.begin_frame(None, size, [0., 0., 0., 1.]);
         Ok(())
@@ -54,6 +50,43 @@ impl App {
         data: &[u8],
         bronze: &[u8],
         shared: &[u8],
+        level: &[u8],
+    ) -> Result<(), JsValue> {
+        self.install_player(
+            crate::vehicle::Files {
+                data,
+                bronze,
+                shared,
+                level,
+            },
+            crate::vehicle::Start::Authored,
+        )
+    }
+
+    #[cfg(feature = "gpu-tests")]
+    pub fn load_collision(
+        &mut self,
+        data: &[u8],
+        bronze: &[u8],
+        shared: &[u8],
+        level: &[u8],
+        target: u32,
+    ) -> Result<(), JsValue> {
+        self.install_player(
+            crate::vehicle::Files {
+                data,
+                bronze,
+                shared,
+                level,
+            },
+            crate::vehicle::Start::Collision(target),
+        )
+    }
+
+    fn install_player(
+        &mut self,
+        files: crate::vehicle::Files<'_>,
+        start: crate::vehicle::Start,
     ) -> Result<(), JsValue> {
         let world = self
             .world
@@ -62,11 +95,11 @@ impl App {
         let vehicle = crate::vehicle::Session::load(
             &self.renderer,
             std::sync::Arc::clone(&world.terrain),
-            data,
-            bronze,
-            shared,
+            files,
+            start,
         )?;
         self.follow_camera = true;
+        world.reset_dynamic();
         world.camera = vehicle.view.camera();
         self.vehicle = Some(vehicle);
         Ok(())
@@ -104,6 +137,29 @@ impl App {
         {
             world.camera = vehicle.view.camera();
         }
+    }
+
+    #[cfg(feature = "gpu-tests")]
+    pub fn scenery_state(&self) -> Vec<u32> {
+        self.vehicle.as_ref().map_or_else(Vec::new, |v| {
+            let scene = &v.game.objects;
+            vec![
+                scene
+                    .world
+                    .objects
+                    .iter()
+                    .filter(|p| p.class == v.game.registry.fall && p.flags & 1 != 0)
+                    .count() as u32,
+                scene
+                    .components
+                    .surfaces
+                    .entries
+                    .iter()
+                    .flatten()
+                    .filter(|s| s.state.dirty != 0)
+                    .count() as u32,
+            ]
+        })
     }
 
     #[cfg(feature = "gpu-tests")]
@@ -175,11 +231,21 @@ impl App {
         crate::checks::run(&mut self.renderer)
     }
 
+    #[cfg(feature = "gpu-tests")]
+    pub fn check_graphics(&self) -> Result<(), JsValue> {
+        self.renderer.check_error()
+    }
+
     pub fn frame_stats(&self) -> String {
         let s = self.renderer.stats();
         format!(
-            "{{\"draws\":{},\"triangles\":{},\"pipeline_changes\":{},\"index_upload_bytes\":{}}}",
-            s.draws, s.triangles, s.pipeline_changes, s.index_upload_bytes
+            "{{\"draws\":{},\"triangles\":{},\"pipeline_changes\":{},\"index_upload_bytes\":{},\"vertex_upload_bytes\":{},\"instance_upload_bytes\":{}}}",
+            s.draws,
+            s.triangles,
+            s.pipeline_changes,
+            s.index_upload_bytes,
+            s.vertex_upload_bytes,
+            s.instance_upload_bytes
         )
     }
 }

@@ -48,6 +48,9 @@ pub struct ModelBank {
     models: HashMap<String, Arc<Model>>,
 }
 impl ModelBank {
+    pub fn models(&self) -> impl Iterator<Item = &Arc<Model>> {
+        self.models.values()
+    }
     pub fn get(&self, name: &str) -> Option<&Arc<Model>> {
         self.models.get(&name.to_ascii_lowercase())
     }

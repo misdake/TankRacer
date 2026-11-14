@@ -4,7 +4,7 @@ mod resources;
 mod state;
 
 use glam::Mat4;
-pub use resources::{GpuMesh, RenderTarget, Texture};
+pub use resources::{GpuInstances, GpuMesh, RenderTarget, Texture};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext as Gl, WebGlUniformLocation};
 
@@ -20,12 +20,16 @@ pub struct FrameStats {
     pub triangles: u32,
     pub pipeline_changes: u32,
     pub index_upload_bytes: u32,
+    pub vertex_upload_bytes: u32,
+    pub instance_upload_bytes: u32,
 }
 
 pub struct Renderer {
     gl: Gl,
     program: Program,
     matrix: WebGlUniformLocation,
+    model: WebGlUniformLocation,
+    instanced: WebGlUniformLocation,
     color: WebGlUniformLocation,
     cutoff: WebGlUniformLocation,
     textured: WebGlUniformLocation,
@@ -37,8 +41,11 @@ pub struct Renderer {
     pipeline: Option<Pipeline>,
     mesh: Option<web_sys::WebGlVertexArrayObject>,
     texture: Option<web_sys::WebGlTexture>,
+    instances: Option<web_sys::WebGlBuffer>,
     stats: FrameStats,
     pending_upload_bytes: u32,
+    pending_vertex_bytes: u32,
+    pending_instance_bytes: u32,
 }
 
 /// A live frame exclusively borrows the renderer. Resource uploads cannot
@@ -60,7 +67,87 @@ impl Frame<'_> {
         texture: Option<&Texture>,
         matrix: Mat4,
     ) {
-        self.renderer.draw(mesh, material, texture, matrix);
+        self.renderer
+            .draw(mesh, material, texture, matrix, Mat4::IDENTITY);
+    }
+
+    pub fn draw_model(
+        &mut self,
+        mesh: &GpuMesh,
+        material: &Material,
+        texture: Option<&Texture>,
+        vp: Mat4,
+        model: Mat4,
+    ) {
+        self.renderer.draw(mesh, material, texture, vp, model);
+    }
+
+    pub fn draw_range(
+        &mut self,
+        mesh: &GpuMesh,
+        material: &Material,
+        texture: Option<&Texture>,
+        transforms: [Mat4; 2],
+        range: std::ops::Range<u32>,
+    ) -> Result<(), JsValue> {
+        if range.start > range.end
+            || range.end > mesh.count as u32
+            || !range.start.is_multiple_of(3)
+            || !range.end.is_multiple_of(3)
+        {
+            return Err("Invalid triangle draw range".into());
+        }
+        self.renderer
+            .bind_draw(mesh, material, texture, transforms[0], transforms[1], false);
+        self.renderer.gl.draw_elements_with_i32(
+            Gl::TRIANGLES,
+            (range.end - range.start) as i32,
+            Gl::UNSIGNED_INT,
+            range.start as i32 * 4,
+        );
+        self.renderer.stats.draws += 1;
+        self.renderer.stats.triangles += (range.end - range.start) / 3;
+        Ok(())
+    }
+
+    pub fn draw_instanced(
+        &mut self,
+        mesh: &GpuMesh,
+        material: &Material,
+        texture: Option<&Texture>,
+        vp: Mat4,
+        instances: &GpuInstances,
+    ) {
+        let r = &mut self.renderer;
+        let mesh_changed = r.mesh != mesh.vao;
+        r.bind_draw(mesh, material, texture, vp, Mat4::IDENTITY, true);
+        if mesh_changed || r.instances.as_ref() != Some(&instances.buffer) {
+            r.gl.bind_buffer(Gl::ARRAY_BUFFER, Some(&instances.buffer));
+            for column in 0..4 {
+                let slot = 5 + column;
+                r.gl.enable_vertex_attrib_array(slot);
+                r.gl.vertex_attrib_pointer_with_i32(
+                    slot,
+                    4,
+                    Gl::FLOAT,
+                    false,
+                    64,
+                    column as i32 * 16,
+                );
+                r.gl.vertex_attrib_divisor(slot, 1);
+            }
+            r.instances = Some(instances.buffer.clone());
+        }
+        r.gl.uniform1i(Some(&r.instanced), 1);
+        r.gl.draw_elements_instanced_with_i32(
+            Gl::TRIANGLES,
+            mesh.count,
+            Gl::UNSIGNED_INT,
+            0,
+            instances.count,
+        );
+        r.stats.draws += 1;
+        r.stats.triangles += mesh.count as u32 / 3 * instances.count as u32;
     }
 
     pub fn read_pixel(&self, x: i32, y: i32) -> Result<[u8; 4], JsValue> {
@@ -94,6 +181,8 @@ impl Renderer {
                 .ok_or_else(|| JsValue::from_str(&format!("Missing shader uniform: {name}")))
         };
         let matrix = uniform("uMatrix")?;
+        let model = uniform("uModel")?;
+        let instanced = uniform("uInstanced")?;
         let color = uniform("uColor")?;
         let cutoff = uniform("uCutoff")?;
         let textured = uniform("uTextured")?;
@@ -108,6 +197,8 @@ impl Renderer {
             gl,
             program,
             matrix,
+            model,
+            instanced,
             color,
             cutoff,
             textured,
@@ -119,13 +210,44 @@ impl Renderer {
             pipeline: None,
             mesh: None,
             texture: None,
+            instances: None,
             stats: FrameStats::default(),
             pending_upload_bytes: 0,
+            pending_vertex_bytes: 0,
+            pending_instance_bytes: 0,
         })
     }
 
     pub fn upload_mesh(&self, data: &MeshData) -> Result<GpuMesh, JsValue> {
         GpuMesh::new(&self.gl, data)
+    }
+
+    pub fn instances(&self) -> Result<GpuInstances, JsValue> {
+        GpuInstances::new(&self.gl)
+    }
+
+    pub fn update_instances(
+        &mut self,
+        buffer: &mut GpuInstances,
+        transforms: &[[f32; 16]],
+    ) -> Result<(), JsValue> {
+        buffer.update(transforms)?;
+        self.pending_instance_bytes = self
+            .pending_instance_bytes
+            .saturating_add(std::mem::size_of_val(transforms) as u32);
+        Ok(())
+    }
+
+    pub fn update_vertices(
+        &mut self,
+        mesh: &mut GpuMesh,
+        vertices: &[crate::geometry::Vertex],
+    ) -> Result<(), JsValue> {
+        mesh.update_vertices(vertices)?;
+        self.pending_vertex_bytes = self
+            .pending_vertex_bytes
+            .saturating_add(std::mem::size_of_val(vertices) as u32);
+        Ok(())
     }
 
     pub fn upload_rgba(&self, width: u32, height: u32, bytes: &[u8]) -> Result<Texture, JsValue> {
@@ -174,8 +296,11 @@ impl Renderer {
         self.pipeline = None;
         self.mesh = None;
         self.texture = None;
+        self.instances = None;
         self.stats = FrameStats {
             index_upload_bytes: std::mem::take(&mut self.pending_upload_bytes),
+            vertex_upload_bytes: std::mem::take(&mut self.pending_vertex_bytes),
+            instance_upload_bytes: std::mem::take(&mut self.pending_instance_bytes),
             ..FrameStats::default()
         };
         Frame { renderer: self }
@@ -187,12 +312,38 @@ impl Renderer {
         material: &Material,
         texture: Option<&Texture>,
         matrix: Mat4,
+        model: Mat4,
+    ) {
+        self.bind_draw(mesh, material, texture, matrix, model, false);
+        self.gl
+            .draw_elements_with_i32(Gl::TRIANGLES, mesh.count, Gl::UNSIGNED_INT, 0);
+        self.stats.draws += 1;
+        self.stats.triangles += mesh.count as u32 / 3;
+    }
+
+    fn bind_draw(
+        &mut self,
+        mesh: &GpuMesh,
+        material: &Material,
+        texture: Option<&Texture>,
+        matrix: Mat4,
+        model: Mat4,
+        instanced: bool,
     ) {
         self.apply_pipeline(material.pipeline);
         let gl = &self.gl;
-        if self.mesh != mesh.vao {
+        let mesh_changed = self.mesh != mesh.vao;
+        if mesh_changed {
             gl.bind_vertex_array(mesh.vao.as_ref());
             self.mesh = mesh.vao.clone();
+        }
+        // Enabled instance streams are VAO state. Ordinary draws must not fetch
+        // them (their buffers can be shorter than the vertex/index stream).
+        if !instanced && (mesh_changed || self.instances.is_some()) {
+            for slot in 5..9 {
+                gl.disable_vertex_attrib_array(slot);
+            }
+            self.instances = None;
         }
         let image = texture.unwrap_or(&self.fallback);
         if self.texture.as_ref() != Some(&image.raw) {
@@ -200,6 +351,8 @@ impl Renderer {
             self.texture = Some(image.raw.clone());
         }
         gl.uniform_matrix4fv_with_f32_array(Some(&self.matrix), false, &matrix.to_cols_array());
+        gl.uniform_matrix4fv_with_f32_array(Some(&self.model), false, &model.to_cols_array());
+        gl.uniform1i(Some(&self.instanced), i32::from(instanced));
         gl.uniform4fv_with_f32_array(Some(&self.color), &material.color);
         gl.uniform1f(Some(&self.cutoff), material.alpha_cutoff.unwrap_or(-1.));
         gl.uniform1i(Some(&self.textured), i32::from(texture.is_some()));
@@ -221,9 +374,6 @@ impl Renderer {
             Some(&self.geometry_culling),
             i32::from(material.geometry_culling),
         );
-        gl.draw_elements_with_i32(Gl::TRIANGLES, mesh.count, Gl::UNSIGNED_INT, 0);
-        self.stats.draws += 1;
-        self.stats.triangles += mesh.count as u32 / 3;
     }
 
     pub fn stats(&self) -> FrameStats {

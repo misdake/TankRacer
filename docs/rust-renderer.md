@@ -1,4 +1,8 @@
-# Rust renderer: M1 foundation and M2 static world
+# Rust renderer
+
+Current live scenery integration and its limits are recorded in
+[M3 authored scenery](#m3-authored-scenery-2026-11-14). Earlier sections describe
+the static-world and proxy foundations and their original measurements.
 
 The Rust browser shell uses `assets` for immutable source data, `scene` for
 native-testable game-specific preparation/camera, `render` for typed geometry,
@@ -92,7 +96,7 @@ GPU/browser performance is a later, separate measurement.
 Production builds omit GPU probes. The C source, native program and previous
 browser site are unchanged and remain available to differential tests.
 
-## M3 moving browser proxy (2026-11-14)
+## M3 proxy foundation, before authored scenery (2026-11-14)
 
 The normal Rust page now loads DATA, BRONZE and INGAME resources and drives a
 fresh vehicle in Wasm. A shared `vehicle_resources::prepare` path serves both
@@ -129,3 +133,72 @@ vehicle/effect state remain separate. Other maps still need their combined live
 budget measured when enabled. Production Wasm is **485,537 B**; test-only GPU
 probes and vehicle inspection exports are omitted. M3 remains open for authored
 scenery collision binding before the M4 vehicle renderer.
+
+## M3 authored scenery (2026-11-14)
+
+The browser now uses `Startup -> scenery::load -> finish`, matching the qualified
+native scene path. ENGLAND constructs 111 Obstacle/Crush/Fall actors. The current
+ordered render memberships contain 87 ordinary and seven special actors; the
+other 17 are outside the current lists. Respect these lists, including lap-gated
+activation, rather than drawing every constructed mesh. Complete lap/race scheduling
+and the explicitly deferred classes remain unfinished.
+
+`scene::model` prepares local-space geometry and a separate scenery atlas, using
+the same color, winding and material classification as the world. Atlas inputs
+include preloaded auxiliary models, with level resources taking precedence over
+shared resources. The mutable mesh store retains source-material bindings and
+a change version across private copies. Rendering reads the current mesh handle,
+geometry and collider basis, not the immutable original model. World and local
+meshes remain GPU-resident; the shader applies object transforms and billboard
+offsets before projection. CPU vertex/atlas upload scratch is released.
+
+Compatible opaque/masked actors share a prototype and matrix-instance stream.
+Transforms upload only when membership or a pose changes. Crush edits update the
+affected prototype's vertices; topology/pass changes rebuild that prototype.
+Retired private meshes release their GPU resources without renumbering handles.
+Normal draws explicitly disable matrix arrays and restore uniform transforms;
+instanced draws bind the required stream for the actual VAO. Uploads still occur
+outside the exclusively borrowed `Frame`.
+
+World and actor transparency use one back-to-front centroid order. Index banks
+remain attached to their resident prototypes; consecutive faces from the same
+instance become one range draw. Shared prototypes can repeat indices for multiple
+instances. Each run supplies its own atlas/model, premultiplied blend, depth test,
+disabled depth writes and per-face culling. Identical-pose session reloads reset
+the order cache because their new GPU buffers still need sorted banks.
+
+The 120-update default probe submits **9,895 triangles / 385 draws**: four world
+opaque/masked passes, 34 scenery opaque/masked passes, the proxy and 346 globally
+ordered transparent runs. This is a measured remaining performance cost, not the
+final draw-call target. Future transparent batching must preserve global order;
+grouping a whole actor before/after the world is not an acceptable shortcut.
+No frustum/distance culling is applied to these actors yet. Pipeline and upload
+counts remain observable through test/inspection exports, not an on-screen HUD.
+
+Combined resident extra-map accounting is **790,578 B in Wasm**: 261,730 B shared
+terrain/collision data plus 528,848 B render/bookkeeping. This includes scenery
+atlas metadata/names, matrix/sort/index capacities, GPU handle metadata and
+conservatively complete mesh-handle slots/material Arc allocations. Original
+geometry, dynamic simulation state and actual GPU storage are separate. The
+2,000,000 B guard is checked after scene changes; all tested views stay below
+1,000,000 B. The unused static-only order capacity is conservatively still counted.
+
+Verification extends `npm run test:rust` to **144 GPU pixel cases**, including
+same-VAO ordinary/instanced transitions, another VAO/stream, index-bank growth and
+range offsets, current vertex uploads, model transforms and a world/object/world
+alpha composition checked against independent source-over equations. Existing
+eight depth functions and 81 blend transitions remain covered. Native tests
+prepare 52 actual ENGLAND models / 886 prototype triangles, check deformation
+reaches vertices without changing source UV/color, and check disabled faces.
+
+Browser tests compare the final player position, velocity, RNG and frame after
+120 updates with native `drive ... --scenery`: RNG is now **3575138284**. This
+remains a final-field check, not full per-frame state parity. Two identical-pose
+reloads and three controlled twelve-update hits cover two Fall activations and
+one Crush deformation. Fall uploads changed transforms; Crush uploads changed
+vertices. Repainting without simulation uploads zero indices, vertices and
+instance data. Actual WebGL error checks and screenshots cover those paths.
+Full fragment-effect appearance, original vehicle/camera rendering and complete
+race startup are still outside this increment.
+Production Wasm is **629,704 B**; GPU probes and controlled collision starts are
+test-only. The working C reference still passes source-preservation checks.

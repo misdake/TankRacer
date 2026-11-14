@@ -2,10 +2,24 @@
 //! and explicit private copies preserve original ownership without RefCell or
 //! frame-by-frame vertex copies. Renderers borrow this same store read-only.
 use std::collections::HashMap;
-use tankracer_assets::{mesh::Geometry, model::Model};
+use std::sync::Arc;
+use tankracer_assets::{
+    mesh::{Geometry, SourceMaterial},
+    model::Model,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MeshId(usize);
+impl MeshId {
+    pub fn index(self) -> usize {
+        self.0
+    }
+}
+pub struct MeshInfo<'a> {
+    pub geometry: &'a Geometry,
+    pub materials: &'a [SourceMaterial],
+    pub version: u64,
+}
 
 struct Mesh {
     geometry: Option<Geometry>,
@@ -13,6 +27,8 @@ struct Mesh {
     shared: bool,
     centers: [Option<Vec<i16>>; 3],
     radius: u16,
+    materials: Arc<[SourceMaterial]>,
+    version: u64,
 }
 pub struct FragmentMesh<'a> {
     pub geometry: &'a mut Geometry,
@@ -33,6 +49,8 @@ impl Meshes {
             shared: false,
             centers: [None, None, None],
             radius: 0,
+            materials: Arc::from([]),
+            version: 1,
         });
         id
     }
@@ -47,6 +65,7 @@ impl Meshes {
         self.entries[id.0].centers = model.face_centers.clone();
         self.entries[id.0].radius = model.radius;
         self.entries[id.0].shared = true;
+        self.entries[id.0].materials = model.materials.clone().into();
         self.names.insert(key, id);
         id
     }
@@ -56,14 +75,17 @@ impl Meshes {
         let hint = self.entries[source.0].hint;
         let centers = self.entries[source.0].centers.clone();
         let radius = self.entries[source.0].radius;
+        let materials = Arc::clone(&self.entries[source.0].materials);
         let id = self.insert(copy);
         self.entries[id.0].hint = hint;
         self.entries[id.0].centers = centers;
         self.entries[id.0].radius = radius;
+        self.entries[id.0].materials = materials;
         Some(id)
     }
     pub fn fragments(&mut self, id: MeshId) -> Option<FragmentMesh<'_>> {
         let mesh = self.entries.get_mut(id.0)?;
+        mesh.version = mesh.version.wrapping_add(1);
         Some(FragmentMesh {
             geometry: mesh.geometry.as_mut()?,
             centers: &mut mesh.centers,
@@ -89,7 +111,57 @@ impl Meshes {
         self.entries.get(id.0)?.geometry.as_ref()
     }
     pub fn get_mut(&mut self, id: MeshId) -> Option<&mut Geometry> {
-        self.entries.get_mut(id.0)?.geometry.as_mut()
+        let mesh = self.entries.get_mut(id.0)?;
+        mesh.version = mesh.version.wrapping_add(1);
+        mesh.geometry.as_mut()
+    }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+    pub fn info(&self, id: MeshId) -> Option<MeshInfo<'_>> {
+        self.info_at(id.0)
+    }
+    pub fn info_at(&self, index: usize) -> Option<MeshInfo<'_>> {
+        let mesh = self.entries.get(index)?;
+        Some(MeshInfo {
+            geometry: mesh.geometry.as_ref()?,
+            materials: &mesh.materials,
+            version: mesh.version,
+        })
+    }
+    pub fn iter(&self) -> impl Iterator<Item = (MeshId, MeshInfo<'_>)> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter_map(|(i, _)| self.info(MeshId(i)).map(|m| (MeshId(i), m)))
+    }
+    /// Conservative render bookkeeping includes complete handle slots, Arc
+    /// headers and shared material capacities. Geometry is counted separately.
+    pub fn render_metadata_bytes(&self) -> usize {
+        self.entries.capacity() * std::mem::size_of::<Mesh>()
+            + self
+                .entries
+                .iter()
+                .map(|mesh| {
+                    if !mesh.shared {
+                        return 2 * std::mem::size_of::<usize>();
+                    }
+                    2 * std::mem::size_of::<usize>()
+                        + std::mem::size_of_val(&*mesh.materials)
+                        + mesh
+                            .materials
+                            .iter()
+                            .map(|m| {
+                                m.name.capacity()
+                                    + m.spellings.capacity() * std::mem::size_of::<String>()
+                                    + m.spellings.iter().map(String::capacity).sum::<usize>()
+                            })
+                            .sum::<usize>()
+                })
+                .sum::<usize>()
     }
     /// Retire owned geometry without renumbering handles or invalidating aliases.
     /// Named/shared geometry is protected from class-local destruction.
@@ -100,6 +172,7 @@ impl Meshes {
         }
         mesh.geometry.take()?;
         mesh.centers = [None, None, None];
+        mesh.materials = Arc::from([]);
         Some(())
     }
 }
