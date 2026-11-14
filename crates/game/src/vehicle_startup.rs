@@ -23,6 +23,7 @@ pub struct Environment {
 pub struct Player {
     pub physics: vehicle::State,
     pub input: crate::player_input::State,
+    pub brake: crate::player_brake::State,
     pub prefix: vehicle_prefix::State,
     pub model: VehicleModel,
     pub lights: lights::State,
@@ -86,6 +87,14 @@ impl Player {
                 .map_err(Error::Pose)?;
         }
         let prefix = vehicle_prefix::State::from_model(&model);
+        let input = crate::player_input::State {
+            drive: crate::drive::Input {
+                alternate_lateral: model.alternate_control[0],
+                alternate_rotation: model.alternate_control[1],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         Ok(Self {
             physics: vehicle::State {
                 entity,
@@ -104,7 +113,8 @@ impl Player {
                 },
             },
             prefix,
-            input: crate::player_input::State::default(),
+            input,
+            brake: crate::player_brake::State::default(),
             model,
             lights: lights::State::default(),
             marks: marks::State::default(),

@@ -7,7 +7,7 @@ use crate::{
     entity_factory::{self as factory, Methods},
     impact_particles,
     object_query::{Collider, EntityId, Tank, TankId},
-    obstacle_collision as obstacle, player_input, powertrain,
+    obstacle_collision as obstacle, player_brake, player_input, powertrain,
     sampling::Transform,
     scene_entity::Handle,
     scene_loading::{self, Registry},
@@ -314,11 +314,6 @@ impl SinglePlayer {
         start_stage: i32,
         devices: &mut impl Devices,
     ) -> Result<(), Error> {
-        // Auxiliary override restoration is the next Player binding. Until it
-        // is connected, do not report successful handbraking with no effect.
-        if keys.auxiliary {
-            return Err(Error::UnsupportedConfiguration);
-        }
         self.advance(
             drive::Input::default(),
             Some((keys, start_stage)),
@@ -459,7 +454,7 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
         let v = &mut player.physics;
         let model = &mut player.model;
         if let Some((mut keys, start_stage)) = self.keys {
-            player.input.step(
+            let outcome = player.input.step(
                 &mut player.prefix.countdown_throttle,
                 &mut self.shared.input,
                 player_input::Frame {
@@ -476,6 +471,39 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
                 player_input::Tuning::default(),
                 &mut keys,
             )?;
+            if outcome.driving {
+                let fast = outcome.auxiliary_down
+                    && v.powertrain.local_velocity[2].wrapping_abs() > 250000;
+                let restoring =
+                    player.input.drive.alternate && (player.prefix.temporary_timer != 0 || !fast);
+                // The source does not read the previous material on an ordinary
+                // unmodified tick or while entering/holding the fast brake.
+                let slide = if restoring {
+                    let material =
+                        usize::try_from(v.contact.sampling.materials[0]).map_err(|_| -1)?;
+                    self.surfaces.entries.get(material).ok_or(-1)?.slide[0].multiplier
+                } else {
+                    0
+                };
+                player.brake.step(
+                    player_brake::Vehicle {
+                        input: &mut player.input.drive,
+                        max_turn: &mut model.config.tank.drive.max_turn,
+                        yaw_lock: &mut v.yaw_lock,
+                    },
+                    player_brake::Frame {
+                        dt: self.frame.dt,
+                        speed: v.powertrain.local_velocity[2],
+                        mode: self.settings.mode,
+                        temporary_timer: player.prefix.temporary_timer,
+                        down: outcome.auxiliary_down,
+                    },
+                    player_brake::Reference {
+                        slide,
+                        rotation: model.config.tank.drive.rotational_drag.step,
+                    },
+                );
+            }
             self.frame.input = player.input.drive;
             self.frame.drive.launch_eligible = player.input.fast_start != 0;
         }
@@ -639,7 +667,7 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
                     active: true,
                     visible: 1,
                     queued: false,
-                    reverse_braking: false,
+                    reverse_braking: player.brake.reverse_braking,
                     material: self.settings.light_material,
                 },
                 light_offset: self.profile.light_offset,

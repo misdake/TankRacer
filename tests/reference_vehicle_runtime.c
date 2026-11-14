@@ -14,6 +14,7 @@
 #include "physics_effects.h"
 #include "physics_entities.h"
 #include "frame_player_input.h"
+#include "frame_player_state.h"
 static unsigned char *ram,fresh[0x1128];
 static uint32_t object,entity,poses,actors[1],count=1,after_calls;
 static int controls;
@@ -66,7 +67,7 @@ int main(int argc,char **argv)
     uint32_t map,car,mode,steps,i,dt,active;int status;
     physics_effect_environment effect;physics_collision_services collision;physics_obstacle_services obstacle;physics_vehicle_services services;physics_entity_environment entities;
     if(argc!=6&&argc!=7)return 2;
-    controls=argc==7&&atoi(argv[6]);
+    controls=argc==7?atoi(argv[6]):0;
     map=(uint32_t)strtoul(argv[2],0,10);car=(uint32_t)strtoul(argv[3],0,10);mode=(uint32_t)strtoul(argv[4],0,10);steps=(uint32_t)strtoul(argv[5],0,10);
     if(steps>128)return 2;
     status=reference_game_start(argv[1],map,car,mode);if(status)return status;
@@ -81,6 +82,7 @@ int main(int argc,char **argv)
     for(i=0;i<3;i++){set(0x74aee0+i*4u,0,4);set(0x74af18+i*4u,i==2?4096u:0,4);}
     set(0x55b6ac,0,4);
     if(controls){set(0x53ccdc,0,4);set(0x53cca8,0,4);set(0x544fb8,0,4);for(i=0;i<16;i++)set(0x592000+i*4u,i,4);}
+    if(controls==2){set(object+0x50,20000,4);set(object+0x58,500000,4);set(object+0xe4,20000,4);set(object+0xec,500000,4);}
     status=frame_results_route_random(read_data,write_data,0);if(status)return 7;
     status=frame_bootstrap_environment(read_data,write_data,0,0x438d60,material,0);if(status)return 7;
     status=frame_bootstrap_environment(read_data,write_data,0,0x4427c0,material,0);if(status)return 7;
@@ -92,14 +94,16 @@ int main(int argc,char **argv)
     entities=(physics_entity_environment){read_data,write_data,0,frame_math_trig(),&obstacle,scene,0};
     oracle_binary();fwrite("VR01",1,4,stdout);snapshot();
     for(i=0;i<steps;i++){
-        dt=(uint32_t[]){16,17,20,12}[i%4u];active=i>=3u;
+        dt=(uint32_t[]){16,17,20,12}[i%4u];active=controls==2||i>=3u;
         set(0x5904fc,dt,4);set(0x590564,i+1u,4);set(object+0xdea,active,1);
         if(controls){
             frame_player_input_rates rates={(uint16_t)word(0x530c60),(uint16_t)word(0x530c64)};frame_player_input_result result;
             set(0x5904e0,i==0?1u:2u,4);
             set(0x74b605,i%12u<8u&&i!=1u,1);set(0x74b606,i%12u==9u,1);
             set(0x74b601,i%12u==10u,1);set(0x74b602,(i%12u>=4u&&i%12u<8u)||i%12u==10u,1);
+            set(0x74b60f,controls==2&&i%12u>=4u&&i%12u<8u,1);
             status=frame_player_input_step(read_data,write_data,0,object,&rates,&result);if(status)return 8;
+            if(result.driving){status=frame_player_aux_brake(read_data,write_data,0,object,result.auxiliary_down);if(status)return 8;}
         }else{
             set(object+0x94,i%12u<8u?65536u:0,4);set(object+0x98,i%12u==9u?65536u:0,4);
             set(object+0x9c,i%12u>=4u&&i%12u<8u?12000u:0,4);

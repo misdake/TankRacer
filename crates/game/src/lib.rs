@@ -33,6 +33,7 @@ pub mod mover;
 pub mod object_query;
 pub mod obstacle_collision;
 pub mod obstacle_startup;
+pub mod player_brake;
 pub mod player_input;
 pub mod pose;
 pub mod powertrain;

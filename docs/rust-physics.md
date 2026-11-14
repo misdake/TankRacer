@@ -2731,7 +2731,7 @@ input/native final fields match over 24 updates, alongside the existing direct
 120-update test, GPU tests, ten scenery probes and zero idle uploads. Workspace
 checks, related constructor/prefix/scenery oracles and C preservation pass.
 
-**Still incomplete:** auxiliary brake/parameter restoration, collision/progress
+**At this checkpoint incomplete:** auxiliary brake/parameter restoration, collision/progress
 Player prefix, turret/fire, route/lap rules, environment/palette and lifecycle.
 The bound key API explicitly rejects auxiliary braking until its actual owner
 is implemented; the browser does not bind it yet. The input kernel is CUP's
@@ -2744,4 +2744,52 @@ Player tick. No full race or general per-frame browser-parity claim.
 $env:TANKRACER_PLAYER_INPUT_REFERENCE=(Resolve-Path build/native/player_input_reference.exe).Path
 $env:TANKRACER_VEHICLE_RUNTIME_REFERENCE=(Resolve-Path build/native/vehicle_runtime_reference.exe).Path
 cargo test -p tankracer-game --test player_input_reference --test vehicle_runtime_reference --locked -- --ignored --nocapture
+```
+
+## Player handbrake and parameter restoration (2026-11-14)
+
+`player_brake` now operates on the Player's actual drive input, model max-turn
+and yaw-lock fields. Initial alternate lateral/rotation coefficients come from
+the already-qualified model, not zero defaults. Only speed magnitude strictly
+above 250,000 enters the override: signed16 lateral grip falls by `2*dt`, rotation
+damping changes and the low16 turn limit is saved before installing 310. Holding
+the key also sets brake 40,000 and throttle zero below that speed threshold.
+
+Release restores the previous primary surface's dry-slide multiplier and model
+rotation damping, with source signed16 wrap/comparison rules, then turn limit by
+`4*dt`. Restoration must finish all three before clearing the alternate flag.
+An active temporary effect resets these parameters immediately and deliberately
+leaves the reverse-braking flag unchanged. That flag now feeds the existing
+actual vehicle-light chain. Surface lookup is lazy: ordinary/unmodified ticks
+and fast-brake entry do not read a previous material they do not need.
+
+**PB01:** 97 scenarios / 1,164 operations / 12,804 words match unchanged C,
+covering both signs/exact speed thresholds, MIN absolute overflow, signed widths,
+rate/product wrap, saved-turn truncation, hold/release, temporary suppression,
+completion and isolated mode4/5 restoration/rearm. Runtime support remains CUP
+0/1. Suppression is kernel-qualified; full pickup activation is later work.
+
+Fresh runtime comparison now includes high-speed held/released keys: eight maps,
+fifteen cars, **2,880 updates / 18,041,268 fields**. These additional scenarios
+use a declared initial velocity, not captured state. Common Player snapshots
+also include all override fields/max-turn: 122 constructions / 85,400 words and
+scenery 348 updates / 7,465,224 fields pass. A preliminary fixture set a temporary
+timer without creating its real effect slot; the C after-pose owner correctly
+rejected it. That invalid fixture was removed rather than inventing a successful
+pickup owner. The standalone suppression branch remains tested equally in C/Rust.
+
+Browser A press/release runs through real DOM events and fixed ticks. A separate
+24-update high-speed sequence matches native Rust physics/RNG and final control
+fields and asserts actual override activation. GPU/GL, ten scenery probes,
+reload/idle upload, workspace lint/tests and C preservation pass. Controlled
+load/inspection exports remain test-only; production Wasm is 693,690 B. No new
+map preprocessing. Logs: `build/tests/rust-player-brake-*.log`.
+
+Next Player binding: active-race collision marker/impact decay and vector-change
+contributions before parent physics. Full Player/race startup remains unfinished.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_brake.c build/native/libtankracer_core.a -lm -o build/native/player_brake_reference.exe
+$env:TANKRACER_PLAYER_BRAKE_REFERENCE=(Resolve-Path build/native/player_brake_reference.exe).Path
+cargo test -p tankracer-game --test player_brake_reference --locked -- --ignored --nocapture
 ```

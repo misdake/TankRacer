@@ -150,5 +150,13 @@ pub fn encode(player: &Player) -> Vec<u32> {
         player.debris.timer as u32,
         u32::from(player.debris.previous_plane),
     ]);
+    out.extend([
+        u32::from(player.input.drive.alternate),
+        player.input.drive.alternate_lateral as i32 as u32,
+        player.input.drive.alternate_rotation as i32 as u32,
+        player.brake.saved_turn as i32 as u32,
+        u32::from(player.brake.reverse_braking),
+        player.model.config.tank.drive.max_turn as u32,
+    ]);
     out
 }

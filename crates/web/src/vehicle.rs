@@ -91,6 +91,8 @@ pub enum Start {
     Authored,
     #[cfg(feature = "gpu-tests")]
     Collision(u32),
+    #[cfg(feature = "gpu-tests")]
+    Handbrake,
 }
 impl Session {
     pub fn load(
@@ -171,8 +173,12 @@ impl Session {
             .find(|o| o.class == "Player")
             .map(pose::Pose::from_level)
             .unwrap_or_default();
+        #[cfg(feature = "gpu-tests")]
+        let handbrake_probe = matches!(&start, Start::Handbrake);
         let (spawn, velocity) = match start {
             Start::Authored => (spawn, [0; 3]),
+            #[cfg(feature = "gpu-tests")]
+            Start::Handbrake => (spawn, [20000, 0, 500000]),
             #[cfg(feature = "gpu-tests")]
             Start::Collision(target) => {
                 if target > 9 {
@@ -251,6 +257,10 @@ impl Session {
         let player = game.vehicles.entries[0].as_mut().unwrap();
         player.physics.motion.previous_position = spawn.position;
         player.physics.motion.velocity = velocity;
+        #[cfg(feature = "gpu-tests")]
+        if handbrake_probe {
+            player.physics.powertrain.local_velocity = velocity;
+        }
         let scenery = crate::scenery::View::load(renderer, &loaded, level, shared)?;
         let view = VehicleView {
             mesh: renderer.upload_mesh(&MeshData::cube())?,

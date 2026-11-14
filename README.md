@@ -13,7 +13,8 @@ node tools/serve.mjs 8133 build/rust/site
 ```
 
 Open http://127.0.0.1:8133. The Rust build runs precise terrain/vehicle physics
-in Wasm, with a simple box proxy on ENGLAND. Arrow keys drive; C toggles a free
+in Wasm, with a simple box proxy on ENGLAND. Arrow keys drive; A applies the
+original handbrake; C toggles a free
 camera (drag to look, WASD to move, Q/E down/up, Shift to move faster).
 Keyboard actions now use the original Player throttle/brake/steering rates and
 forward/reverse switching. The proxy still starts immediately; the input kernel

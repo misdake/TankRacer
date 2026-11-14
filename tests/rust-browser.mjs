@@ -109,6 +109,11 @@ try{
  assert.equal(carStart.length,3);
  await send('Input.dispatchKeyEvent',{type:'keyDown',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
  await wait(()=>evaluate(`import('/main.js').then(m=>Math.abs(m.app.vehicle_position()[2]-${carStart[2]})>500)`),'keyboard vehicle motion');
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyA',key:'a',windowsVirtualKeyCode:65});
+ await wait(()=>evaluate(`import('/main.js').then(m=>{const c=m.app.player_controls();return c[1]===40000&&c[7]===1;})`),'A handbrake binding');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyA',key:'a',windowsVirtualKeyCode:65});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.player_controls()[7]===0)`),'A handbrake release');
+ report.keyboardHandbrake=true;
  await send('Input.dispatchKeyEvent',{type:'keyUp',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const driven=await evaluate(`import('/main.js').then(async m=>{
@@ -140,7 +145,7 @@ try{
  const keysDriven=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
    m.app.load_player(...files);
-   for(let tick=0;tick<24;tick++)m.app.step_keys(16,false,tick>=8&&tick<12,true,false);
+   for(let tick=0;tick<24;tick++)m.app.step_keys(16,false,tick>=8&&tick<12,true,false,false);
    m.app.render();m.app.check_graphics();
    return Array.from(m.app.vehicle_state());
  })`);
@@ -149,6 +154,25 @@ try{
  assert.ok(keysState,keysOutput);
  assert.deepEqual(keysDriven,[...JSON.parse(keysState[1]),...JSON.parse(keysState[2]),Number(keysState[3])|0,24]);
  report.playerInput={ticks:24,state:keysDriven};
+ const handbrake=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_handbrake(...files);const controls=[];
+   for(let tick=0;tick<24;tick++){
+     m.app.step_keys(16,false,tick>=8&&tick<12,true,false,tick%12>=4&&tick%12<8);
+     controls.push(Array.from(m.app.player_controls()));
+   }
+   m.app.render();m.app.check_graphics();
+   return {state:Array.from(m.app.vehicle_state()),controls};
+ })`);
+ const brakeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--handbrake'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const brakeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(brakeOutput);
+ const brakeControls=/controls=(\[[^\]]+\])/.exec(brakeOutput);
+ assert.ok(brakeState&&brakeControls,brakeOutput);
+ assert.deepEqual(handbrake.state,[...JSON.parse(brakeState[1]),...JSON.parse(brakeState[2]),Number(brakeState[3])|0,24]);
+ assert.deepEqual(handbrake.controls.at(-1),JSON.parse(brakeControls[1]));
+ assert.ok(handbrake.controls.some(c=>c[3]===1),'high-speed overrides activate');
+ assert.ok(handbrake.controls.some(c=>c[1]===40000&&c[0]===0&&c[7]===1),'held handbrake changes real drive inputs');
+ report.handbrake=handbrake;
  // Reload at identical poses: new GPU buffers still require sorted index banks.
  const reloads=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));

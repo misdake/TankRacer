@@ -326,3 +326,13 @@ stationary-upload checks pass. No pipeline/material/batching rule changes.
 Per-map extra data stays at the preceding totals; the small input state belongs
 to dynamic simulation memory. Production Wasm: **692,497 B**. Full original
 vehicle/camera/effect rendering and race integration remain later work.
+
+## M3 handbrake bridge (2026-11-14)
+
+A now supplies original auxiliary-brake input, including real override release
+and the reverse-braking flag consumed by vehicle lights. Actual DOM press/release
+and a controlled 24-update high-speed native/Wasm comparison pass; the latter
+checks physics/RNG and final control fields and asserts override activation.
+All existing GPU/GL, scenery, reload and idle-upload checks pass. No rendering
+state, batching or per-map preprocessing changed. Production Wasm: **693,690 B**.
+The vehicle is still a proxy: original vehicle/light geometry is pending M4.

@@ -83,6 +83,25 @@ impl App {
         )
     }
 
+    #[cfg(feature = "gpu-tests")]
+    pub fn load_handbrake(
+        &mut self,
+        data: &[u8],
+        bronze: &[u8],
+        shared: &[u8],
+        level: &[u8],
+    ) -> Result<(), JsValue> {
+        self.install_player(
+            crate::vehicle::Files {
+                data,
+                bronze,
+                shared,
+                level,
+            },
+            crate::vehicle::Start::Handbrake,
+        )
+    }
+
     fn install_player(
         &mut self,
         files: crate::vehicle::Files<'_>,
@@ -112,6 +131,7 @@ impl App {
         right: bool,
         throttle: bool,
         brake: bool,
+        auxiliary: bool,
     ) -> Result<(), JsValue> {
         if let (Some(vehicle), Some(world)) = (&mut self.vehicle, &mut self.world) {
             vehicle.step_keys(
@@ -120,7 +140,7 @@ impl App {
                     right,
                     throttle,
                     brake,
-                    auxiliary: false,
+                    auxiliary,
                 },
                 dt,
                 &world.camera,
@@ -259,6 +279,24 @@ impl App {
                 .chain(state.motion.velocity)
                 .chain([v.game.shared.random as i32, v.game.frame as i32])
                 .collect()
+        })
+    }
+
+    #[cfg(feature = "gpu-tests")]
+    pub fn player_controls(&self) -> Vec<i32> {
+        self.vehicle.as_ref().map_or_else(Vec::new, |v| {
+            let p = v.game.vehicles.entries[0].as_ref().unwrap();
+            vec![
+                p.input.drive.throttle,
+                p.input.drive.brake,
+                p.input.drive.steering,
+                i32::from(p.input.drive.alternate),
+                i32::from(p.input.drive.alternate_lateral),
+                i32::from(p.input.drive.alternate_rotation),
+                i32::from(p.brake.saved_turn),
+                i32::from(p.brake.reverse_braking),
+                p.model.config.tank.drive.max_turn,
+            ]
         })
     }
 

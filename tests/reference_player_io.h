@@ -36,4 +36,5 @@ static void player_state(void)
     narrow(object+0xdf1,1);narrow(object+0xdf2,1);narrow(object+0xdf3,1);narrow(object+0xdf4,1);
     emit(object+0x988,2);
     emit(object+0xc92,2);narrow(object+0xdef,1);
+    narrow(object+0x10bc,1);narrow(object+0x10b6,2);narrow(object+0x10b8,2);narrow(object+0x10ba,2);narrow(object+0x10bd,1);emit(object+0x66a,1);
 }

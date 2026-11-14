@@ -51,7 +51,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let car: usize = args.get(2).map(|v| v.parse()).transpose()?.unwrap_or(1);
     let ticks: usize = args.get(3).map(|v| v.parse()).transpose()?.unwrap_or(240);
     let with_scenery = args.iter().skip(4).any(|v| v == "--scenery");
-    let with_keys = args.iter().skip(4).any(|v| v == "--keys");
+    let with_brake = args.iter().skip(4).any(|v| v == "--handbrake");
+    let with_keys = with_brake || args.iter().skip(4).any(|v| v == "--keys");
     let maps = [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ];
@@ -156,6 +157,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
         )
         .map_err(|e| format!("vehicle: {e:?}"))?;
+    if with_brake {
+        let v = &mut game.vehicles.entries[0].as_mut().unwrap().physics;
+        v.motion.velocity = [20000, 0, 500000];
+        v.powertrain.local_velocity = [20000, 0, 500000];
+    }
     let initial = game.vehicles.entries[0]
         .as_ref()
         .ok_or("missing player")?
@@ -194,6 +200,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 player_input::Keys {
                     throttle: true,
                     right: (ticks / 3..ticks / 2).contains(&tick),
+                    auxiliary: with_brake && (4..8).contains(&(tick % 12)),
                     ..Default::default()
                 },
                 16,
@@ -249,5 +256,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         game.shared.random,
         micros as f64 / ticks as f64
     );
+    if with_keys {
+        let i = player.input.drive;
+        println!(
+            "controls={:?}",
+            [
+                i.throttle,
+                i.brake,
+                i.steering,
+                i32::from(i.alternate),
+                i32::from(i.alternate_lateral),
+                i32::from(i.alternate_rotation),
+                i32::from(player.brake.saved_turn),
+                i32::from(player.brake.reverse_braking),
+                player.model.config.tank.drive.max_turn
+            ]
+        );
+    }
     Ok(())
 }
