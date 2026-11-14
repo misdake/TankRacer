@@ -221,6 +221,9 @@ impl WorldView {
     }
 
     pub fn reset_dynamic(&mut self) {
+        // App replaces the whole WorldView when returning to static inspection.
+        // Once a session is installed, only the joint world/actor sorter is used.
+        self.acceleration_bytes -= self.scene.release_static_order();
         // A new session owns new GPU prototypes even at identical poses. Never
         // reuse the previous session's sorted-bank cache against those buffers.
         self.order = Order::default();

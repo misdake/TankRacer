@@ -22,7 +22,7 @@ await mkdir(path.join(output,'assets'),{recursive:true});
 for(const [source,name]of [
  ['LEVELS/ENGLAND','ENGLAND'],['DATA','DATA'],['TANKS/BRONZE','BRONZE'],['INGAME','INGAME'],
 ]) await copyFile(path.join(root,'assets/game',source,'FASTFILE.DAT'),path.join(output,'assets',`${name}.DAT`));
-if(testing) await copyFile(path.join(root,'assets/game/LEVELS/SWAMP/FASTFILE.DAT'),path.join(output,'assets/SWAMP.DAT'));
+if(testing) for(const map of ['SWAMP','BIO']) await copyFile(path.join(root,'assets/game/LEVELS',map,'FASTFILE.DAT'),path.join(output,'assets',`${map}.DAT`));
 console.log(`Rust site: ${output}`);
 console.log(`Wasm: ${(await stat(path.join(output,'pkg/tankracer_bg.wasm'))).size} bytes`);
 console.log(`Serve: node tools/serve.mjs 8133 build/rust/${testing?'test-site':'site'}`);

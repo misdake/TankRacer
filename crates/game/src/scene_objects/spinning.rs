@@ -8,12 +8,20 @@ use crate::{
 };
 use tankracer_assets::terrain::TerrainData;
 
-struct Services<'a> {
-    terrain: Option<&'a TerrainData>,
-    ticks: &'a mut crate::lifecycle::Ticks<EntityId>,
-    queues: &'a mut crate::lifecycle::Queues<EntityId>,
-    entity: EntityId,
-    limit: u32,
+pub(super) struct Services<'a> {
+    pub terrain: Option<&'a TerrainData>,
+    pub ticks: &'a mut crate::lifecycle::Ticks<EntityId>,
+    pub queues: &'a mut crate::lifecycle::Queues<EntityId>,
+    pub entity: EntityId,
+    pub limit: u32,
+}
+impl crate::mover::Services for Services<'_> {
+    fn normal_height(&mut self, x: i32, z: i32, n: &mut [i32; 3]) -> Result<i32, i32> {
+        spin::Services::normal_height(self, x, z, n)
+    }
+    fn stop(&mut self) -> Result<(), i32> {
+        spin::Services::stop(self)
+    }
 }
 fn terrain_code(e: terrain::Error) -> i32 {
     if e == terrain::Error::Arithmetic {

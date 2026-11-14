@@ -27,6 +27,7 @@ pub mod lifecycle;
 pub mod math;
 pub mod mesh_break;
 pub mod motion;
+pub mod mover;
 pub mod object_query;
 pub mod obstacle_collision;
 pub mod obstacle_startup;

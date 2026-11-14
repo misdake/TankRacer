@@ -41,6 +41,7 @@ impl SceneCase {
                 world: ClassId(0),
                 generic: ClassId(0),
                 obstacle: ClassId(0),
+                spin: ClassId(0),
             },
             Interfaces {
                 activate: 0,

@@ -135,6 +135,7 @@ impl Collision<'_> {
             super::BOUNCE_HIT => self.hit_bounce(call, hit, services),
             super::CLOSER_HIT => self.hit_closer(call, hit, services),
             super::SPIN_HIT => self.hit_spin(call, hit, services),
+            super::MOVER_HIT => self.hit_mover(call, hit, services),
             DEFORMABLE_HIT => {
                 // The method result/RNG/timer commit precedes the host sound.
                 let sound = self.components.surfaces.collide(reborrow(&mut call))?;
@@ -201,6 +202,17 @@ impl Collision<'_> {
         has_payload: bool,
     ) -> Result<(), i32> {
         let class = call.world.objects.get(call.target.0).ok_or(-1)?.class;
+        self.invoke_class(call, class, slot, environment, services, has_payload)
+    }
+    fn invoke_class(
+        &mut self,
+        call: Invocation<'_>,
+        class: crate::dispatch::ClassId,
+        slot: u32,
+        environment: HitEnvironment,
+        services: &mut impl Services,
+        has_payload: bool,
+    ) -> Result<(), i32> {
         let table = Arc::clone(call.world.classes.get(class.0).ok_or(-1)?);
         let Invocation {
             dt,
@@ -284,6 +296,49 @@ impl Collision<'_> {
                 .state
                 .phase = crate::closer::Phase::Fragments;
         }
+        if call.vehicle.player && environment.feedback {
+            services.feedback(
+                i32::from(call.world.colliders[id.0].radius),
+                self,
+                reborrow(&mut call),
+            )?;
+        }
+        *call.result = 0;
+        Ok(())
+    }
+    fn hit_mover(
+        &mut self,
+        mut call: Invocation<'_>,
+        environment: HitEnvironment,
+        services: &mut impl Services,
+    ) -> Result<(), i32> {
+        let id = call.target;
+        let flags = self
+            .components
+            .movers
+            .get(id.0)
+            .and_then(Option::as_ref)
+            .ok_or(-1)?
+            .flags;
+        if flags & 4 == 0 {
+            *call.result = 0;
+            return Ok(());
+        }
+        if flags & 128 != 0 {
+            // Real explosion allocation/RNG/effect scheduling is a pending game
+            // binding. Fail before any mutation; never simulate a successful hit.
+            return Err(-5);
+        }
+        let slot = *call.current_slot;
+        self.invoke_class(
+            reborrow(&mut call),
+            self.components.parents.spin,
+            slot,
+            environment,
+            services,
+            true,
+        )?;
+        self.components.movers[id.0].as_mut().ok_or(-1)?.flags |= 64;
         if call.vehicle.player && environment.feedback {
             services.feedback(
                 i32::from(call.world.colliders[id.0].radius),

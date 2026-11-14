@@ -370,7 +370,7 @@ fn registry(f: &Fixture) -> Registry {
     let mut r = Registry::default();
     if f.fail_completion {
         Arc::make_mut(&mut r.classes[r.obstacle.0]).methods
-            [tankracer_game::scene_loading::DEACTIVATE as usize] = Some(MethodId(90));
+            [tankracer_game::scene_loading::DEACTIVATE as usize] = Some(MethodId(u16::MAX));
     }
     r
 }

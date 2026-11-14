@@ -32,6 +32,8 @@ cargo run -p tankracer-game --example drive --release --locked -- assets/game 0 
 
 It reports loaded/deferred classes explicitly. Both paths still omit complete
 race rules and the deferred subclasses.
+Mover construction/movement is also connected; its exploding BIO hit path
+currently fails explicitly until the real explosion entity binding is added.
 
 See [the renderer notes](docs/rust-renderer.md) for the current architecture.
 

@@ -269,3 +269,30 @@ still need combined live accounting. Original resources/dynamic simulation/GPU
 storage remain separately accounted; Spin adds no per-map query cache.
 Production Wasm is **670,727 B**; controlled starts/state probes are absent
 from its generated JavaScript exports.
+
+## M3 Mover motion and redundant-cache removal (2026-11-14)
+
+The ninth controlled browser probe loads real BIO terrain/resources and
+activates a robot without colliding with its unfinished explosive hit path.
+Twelve updates upload **2,112 B** of changed instances, no vertices; stationary
+repaint uploads zero bytes. BIO renders 72 actors / 1,446 actor triangles;
+the final probe has **503 draws / 11,522 triangles**, 20 scenery opaque/masked
+draws and 479 globally ordered transparent runs. Screenshots show only the
+controlled proxy/movement view, not full lighting or image parity.
+
+The first BIO probe exposed **1,003,668 B** combined extra-map data, 3,668 B
+above the preferred target. The renderer retained a static-only transparency
+sort cache after switching to the joint world/actor sorter. Installing a live
+session now releases the unused cache and subtracts its actual capacities from
+both owning counters; identical-pose reloads release zero a second time. App
+returns to static inspection by loading a fresh WorldView. A resource test
+compares exact static/joint world index order and checks idempotent release.
+No blend/depth/material or draw-order rule changed.
+
+Resident live totals after release: **ENGLAND 762,997 B** (34,180 B saved;
+777,501 B tested shattering peak), **SWAMP 875,170 B** (51,140 B saved),
+**BIO 946,548 B** (57,120 B saved = 664,438 render + 282,110 collision).
+All three tested maps stay below 1 MB. Actual GPU/resource/dynamic game storage
+remains separate. Existing draw/triangle counts are unchanged. All 144 GPU
+pixel cases, eight depth functions, 81 blend transitions, reloads and GL checks
+pass. Production Wasm: **681,225 B**, without controlled-start/state probes.

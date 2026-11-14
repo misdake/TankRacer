@@ -327,6 +327,17 @@ impl WorldScene {
         })
     }
 
+    /// A live renderer with one joint world/actor sorter no longer needs this
+    /// static-only cache. Release its heap and return the exact accounted bytes.
+    /// Returning to static inspection must load a fresh scene (or reaccount a
+    /// rebuilt cache); mesh/atlas/source ownership stays intact.
+    pub fn release_static_order(&mut self) -> usize {
+        let bytes = self.order.resident_bytes();
+        self.order = TransparencyOrder::default();
+        self.stats.acceleration_bytes -= bytes;
+        bytes
+    }
+
     pub fn inspection_camera(&self) -> Camera {
         let center = (self.minimum + self.maximum) * 0.5;
         let extent = (self.maximum - self.minimum).max_element();
@@ -407,6 +418,26 @@ mod tests {
         assert!(scene.order.update(&scene.transparent, &camera));
         assert!(!scene.order.update(&scene.transparent, &camera));
         assert_eq!(scene.order.indices.len(), scene.transparent.len() * 3);
+        // Switching to the joint world/actor sorter preserves the exact world
+        // order while releasing the redundant static cache, including capacity.
+        let expected = scene.order.indices.clone();
+        let before = scene.stats.acceleration_bytes;
+        let released = scene.release_static_order();
+        assert!(released > expected.len() * 4);
+        assert_eq!(scene.stats.acceleration_bytes, before - released);
+        assert_eq!(scene.release_static_order(), 0);
+        assert_eq!(scene.order.resident_bytes(), 0);
+        let mut joint = crate::transparency::Order::default();
+        assert!(joint.update(
+            &[crate::transparency::Object {
+                geometry: 0,
+                model: glam::Mat4::IDENTITY
+            }],
+            |_| &scene.transparent,
+            &camera,
+            0
+        ));
+        assert_eq!(joint.banks[0], expected);
         eprintln!(
             "ENGLAND: {:?}, atlas {}x{}",
             scene.stats, scene.atlas.width, scene.atlas.height

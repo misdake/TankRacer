@@ -8,6 +8,7 @@ mod falling;
 mod fragments;
 mod lifecycle;
 mod mesh_fragments;
+mod moving;
 mod spinning;
 use crate::{
     crush,
@@ -66,12 +67,16 @@ pub const CLOSER_TICK: MethodId = MethodId(83);
 pub const SPIN_INITIALIZE: MethodId = MethodId(84);
 pub const SPIN_HIT: MethodId = MethodId(86);
 pub const SPIN_TICK: MethodId = MethodId(87);
+pub const MOVER_INITIALIZE: MethodId = MethodId(88);
+pub const MOVER_TICK: MethodId = MethodId(90);
+pub const MOVER_HIT: MethodId = MethodId(91);
 
 #[derive(Clone, Copy)]
 pub struct Parents {
     pub world: ClassId,
     pub generic: ClassId,
     pub obstacle: ClassId,
+    pub spin: ClassId,
 }
 #[derive(Clone, Copy)]
 pub struct Interfaces {
@@ -124,6 +129,8 @@ pub struct Components {
     pub bounces: Vec<Option<crate::bounce::Component>>,
     pub closers: Vec<Option<crate::closer::Component>>,
     pub spins: Vec<Option<crate::spin::Component>>,
+    pub movers: Vec<Option<crate::mover::State>>,
+    pub camera_position: [i32; 3],
     pub gravity: i32,
     pub umbrella_mesh: Option<MeshId>,
     pub fall_tuning: fall::Tuning,
@@ -151,6 +158,8 @@ impl Scene {
                 bounces: Vec::new(),
                 closers: Vec::new(),
                 spins: Vec::new(),
+                movers: Vec::new(),
+                camera_position: [0; 3],
                 gravity: 5,
                 umbrella_mesh: None,
                 fall_tuning: fall::Tuning::default(),
@@ -434,6 +443,9 @@ impl Methods<Handle> for View<'_> {
                 if let Some(state) = self.components.spins.get_mut(id.0) {
                     *state = None;
                 }
+                if let Some(state) = self.components.movers.get_mut(id.0) {
+                    *state = None;
+                }
             }
             return Ok(());
         }
@@ -466,6 +478,7 @@ impl Methods<Handle> for View<'_> {
             BOUNCE_TICK => return self.tick_bounce(id, call, env),
             CLOSER_TICK => return self.tick_closer(id, call, env),
             SPIN_TICK => return self.tick_spin(id, call, env),
+            MOVER_TICK => return self.tick_mover(id, call, env),
             DEBRIS_TICK => return self.tick_debris(id, call, env),
             AUXILIARY_TICK => return self.tick_mesh_fragments(id, call, env),
             RESET_POSE => {
@@ -523,6 +536,22 @@ impl Methods<Handle> for View<'_> {
                 valid_limit(env.work_limit)?;
                 self.components.ordinary.push(id);
                 self.insert_grid(id)?;
+                *call.result = 0;
+            }
+            MOVER_INITIALIZE => {
+                call.context
+                    .class_dispatch(self.components.parents.spin, entity, None, env, self)
+                    .map_err(dispatch_code)?;
+                let state = self
+                    .components
+                    .movers
+                    .get_mut(id.0)
+                    .and_then(Option::as_mut)
+                    .ok_or(-1)?;
+                state.distance = 10240;
+                state.speed = 1310;
+                state.flags |= 60;
+                state.activation_range = 51200;
                 *call.result = 0;
             }
             SPIN_INITIALIZE => {

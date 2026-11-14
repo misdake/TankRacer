@@ -186,6 +186,13 @@ impl App {
                     .flatten()
                     .filter(|s| s.state.timer != 0)
                     .count() as u32,
+                scene
+                    .components
+                    .movers
+                    .iter()
+                    .flatten()
+                    .filter(|m| m.travel != 0)
+                    .count() as u32,
             ]
         })
     }

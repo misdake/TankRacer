@@ -61,6 +61,7 @@ const CONSTRUCT_FALL: MethodId = MethodId(67);
 const CONSTRUCT_BOUNCE: MethodId = MethodId(78);
 const CONSTRUCT_CLOSER: MethodId = MethodId(81);
 const CONSTRUCT_SPIN: MethodId = MethodId(85);
+const CONSTRUCT_MOVER: MethodId = MethodId(89);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -74,6 +75,7 @@ pub struct Registry {
     pub bounce: ClassId,
     pub closer: ClassId,
     pub spin: ClassId,
+    pub mover: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -170,6 +172,15 @@ impl Default for Registry {
         ] {
             spin.methods[slot as usize] = Some(method);
         }
+        let mut mover = spin.clone();
+        for (slot, method) in [
+            (INITIALIZE, methods::MOVER_INITIALIZE),
+            (CONSTRUCT, CONSTRUCT_MOVER),
+            (TICK, methods::MOVER_TICK),
+            (OBSTACLE_CONTACT, methods::MOVER_HIT),
+        ] {
+            mover.methods[slot as usize] = Some(method);
+        }
         Self {
             classes: vec![
                 Arc::new(world),
@@ -182,6 +193,7 @@ impl Default for Registry {
                 Arc::new(bounce),
                 Arc::new(closer),
                 Arc::new(spin),
+                Arc::new(mover),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -193,6 +205,7 @@ impl Default for Registry {
             bounce: ClassId(7),
             closer: ClassId(8),
             spin: ClassId(9),
+            mover: ClassId(10),
         }
     }
 }
@@ -210,6 +223,8 @@ impl Registry {
             Some(self.closer)
         } else if name.eq_ignore_ascii_case("Spin") {
             Some(self.spin)
+        } else if name.eq_ignore_ascii_case("Mover") {
+            Some(self.mover)
         } else {
             None
         }
@@ -257,6 +272,7 @@ impl Registry {
                 world: self.world,
                 generic: self.generic,
                 obstacle: self.obstacle,
+                spin: self.spin,
             },
             Interfaces {
                 activate: ACTIVATE,
@@ -432,9 +448,13 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             self.scene.components.closers.resize_with(id.0 + 1, || None);
             self.scene.components.closers[id.0] = Some(crate::closer::Component::default());
         }
-        if class == self.registry.spin {
+        if class == self.registry.spin || class == self.registry.mover {
             self.scene.components.spins.resize_with(id.0 + 1, || None);
             self.scene.components.spins[id.0] = Some(crate::spin::Component::default());
+        }
+        if class == self.registry.mover {
+            self.scene.components.movers.resize_with(id.0 + 1, || None);
+            self.scene.components.movers[id.0] = Some(crate::mover::State::default());
         }
         *call.result = 1;
         Ok(())
@@ -721,6 +741,51 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         }
         Ok(())
     }
+    fn construct_mover(
+        &mut self,
+        mut call: Invocation<'_, Handle>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.spin, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
+            .ok_or(-1)?;
+        let p = Parameters::new(self.record.ok_or(-1)?.parameters).map_err(|_| -1)?;
+        let mover = self.scene.components.movers[id.0].as_mut().ok_or(-1)?;
+        mover.construct(p, self.resources.catalog);
+        if p.find(":lights").is_some() {
+            spatial::remove_first(&mut self.scene.components.ordinary, &id, env.work_limit)
+                .map_err(spatial_code)?;
+            if !spatial::contains(&self.scene.components.special, &id, env.work_limit)
+                .map_err(spatial_code)?
+            {
+                self.scene.components.special.push(id);
+            }
+        }
+        let spin = self.scene.components.spins[id.0].as_mut().ok_or(-1)?;
+        crate::mover::set_velocity(
+            mover,
+            &mut crate::spin::Motion {
+                state: &mut spin.state,
+                collider: &mut self.scene.world.colliders[id.0],
+                activity: &mut self.scene.world.objects[id.0].activity,
+                reference_alias: spin.reference_alias,
+            },
+        );
+        call.context
+            .queues
+            .cancel_notification(call.context.ticks, call.entity, env.work_limit)
+            .map_err(|e| crush::code(crush::Error::Lifecycle(e)))?;
+        self.scene.world.objects[id.0].activity = 1;
+        *call.result = 0;
+        Ok(())
+    }
     fn construct_spin(
         &mut self,
         mut call: Invocation<'_, Handle>,
@@ -954,6 +1019,7 @@ impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
             CONSTRUCT_BOUNCE => self.construct_bounce(call, env),
             CONSTRUCT_CLOSER => self.construct_closer(call, env),
             CONSTRUCT_SPIN => self.construct_spin(call, env),
+            CONSTRUCT_MOVER => self.construct_mover(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

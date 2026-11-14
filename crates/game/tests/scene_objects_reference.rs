@@ -208,6 +208,7 @@ fn make(f: &Fixture, classes: &[Arc<Class>]) -> (factory::State<Handle>, Scene) 
             world: ClassId(0),
             generic: ClassId(1),
             obstacle: ClassId(2),
+            spin: ClassId(2),
         },
         Interfaces {
             activate: 4,

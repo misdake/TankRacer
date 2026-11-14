@@ -176,10 +176,12 @@ impl Session {
             Start::Authored => (spawn, [0; 3]),
             #[cfg(feature = "gpu-tests")]
             Start::Collision(target) => {
-                if target > 7 {
+                if target > 8 {
                     return Err("Unknown scenery collision probe".into());
                 }
-                let class = if target >= 6 {
+                let class = if target == 8 {
+                    startup.registry.mover
+                } else if target >= 6 {
                     startup.registry.spin
                 } else if target >= 4 {
                     startup.registry.closer
@@ -216,6 +218,9 @@ impl Session {
                     position[0] -= 500;
                     position[2] += 500;
                     [600001, 0, 0]
+                } else if target == 8 {
+                    position[2] -= 37500;
+                    [0; 3]
                 } else {
                     [0, 0, 600001]
                 };

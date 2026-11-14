@@ -308,6 +308,7 @@ impl SinglePlayer {
         self.objects.components.dt = dt;
         self.objects.components.frame_group = self.frame;
         self.objects.components.mode = self.settings.mode;
+        self.objects.components.camera_position = self.camera_position;
         let hit = self
             .registry
             .hit_environment(self.objects.components.fall_tuning, false, 65536);

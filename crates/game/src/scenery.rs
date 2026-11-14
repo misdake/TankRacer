@@ -49,7 +49,7 @@ impl Loaded {
 }
 fn deferred(class: &str) -> bool {
     [
-        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bomber", "Train", "Flock", "Powerup", "Mover",
+        "Noisy", "Smoker", "WayPoint", "Trackcam", "Bomber", "Train", "Flock", "Powerup",
         "BckgrdOb", "Lamps", "Player", "AITank",
     ]
     .iter()

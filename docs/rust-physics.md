@@ -2572,3 +2572,63 @@ Mover (a Spin subclass) and remaining full startup/lifecycle work are next.
 $env:TANKRACER_SPIN_REFERENCE=(Resolve-Path build/native/spin_reference.exe).Path
 cargo test -p tankracer-game --test spin_reference --locked -- --ignored --nocapture
 ```
+
+## Mover construction/movement increment (2026-11-14)
+
+Mover inherits the actual Spin initializer/constructor, current velocity,
+timer, matrix and collision method table. It has its own flags, travel, speed,
+endpoint distance and player activation range. Source boolean keys are unusual:
+an absent key clears its bit, including bits set by the initializer or preset.
+Speed conversion wraps the left shift before signed division by 1,000. The
+constructor preserves exact-key `:lights` render-list movement, sets velocity
+from the current basis and cancels the real stop notification before activity.
+Disabled positional audio remains outside this increment.
+
+Before activation, old timer modulo five gates the two-player proximity check;
+its metric is max(abs X, abs Z) plus the rounded-up half of the smaller. After
+activation, the primary camera's original divided-by-eight coordinates gate
+movement using strict per-axis bounds. The authoritative camera is supplied
+before scheduling; the renderer does not advance this state machine. Active
+motion integrates X/Z, optionally queries/aligns terrain every third old timer,
+then advances travel. Endpoint comparison is strict. Oscillation removes one
+distance and either negates speed or rotates by **32760**, not a rounded half
+turn; it then rebuilds velocity. Nonoscillation clears activity before queueing
+stop. Flags can instead dispatch the real parent Spin tick or debris update.
+
+**MV01**: **51 scenarios / 177 operations / 6,635 words** match unchanged C
+construction/tick kernels. Declared callback responses cover key aliases,
+missing booleans, numeric wrap/EOF behavior, lights-list/cancel failure prefixes,
+player absence/proximity, exact camera bounds, timer wrap, terrain miss/alignment,
+null/custom/aliased matrices, stop/reverse/turn endpoints and signed arithmetic.
+Parent/list callbacks are inputs here, not substitutes for owner integration.
+
+**SR05**: **30 scenarios / eight maps / 240 updates / 4,175,411 fields** match
+the C resource/factory/scene owners. BIO adds near/far-camera movement sequences
+and one nonexploding collision-to-Spin handoff. That handoff is a declared input
+variation: all nine `:explode true` tokens in BIO B/S/G are changed to equal-width
+`:explode faux` in a transient archive copy, preserving every directory span
+and shape/terrain byte. Original assets remain unchanged. Other scenarios use
+unmodified resources. The pre-lap world-reader and direct-physics Player test
+boundaries remain; full Player/race startup is still unqualified.
+
+**Incomplete:** original BIO robots require explosion entity allocation, RNG,
+effect scheduling, debris transition and retirement. Explosive Mover hits
+currently return `-5` before their first mutation; this is an explicit missing
+game binding, not successful simulation or external I/O. No explosive collision
+parity is claimed. Completing that path is the next runnable gameplay slice.
+Nonexploding handoff and original movement are connected; Mover as a whole and
+M3 remain unfinished.
+
+Focused Mover/Spin/Closer/Bounce, scene/loading, mesh-break and shatter native
+suites pass, along with workspace checks and C preservation. A prior mesh-break
+test used method ID 90 as an unknown-method sentinel; 90 is now the real Mover
+tick. The test now uses `u16::MAX`, preserving the intended unsupported-method
+branch. Browser evidence adds one real BIO twelve-update activation/movement
+probe (eight collision probes remain), 144 GPU cases, reloads, native/Wasm final
+fields and zero stationary uploads. Logs: `build/tests/rust-mover-*.log`.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mover.c build/native/libtankracer_core.a -lm -o build/native/mover_reference.exe
+$env:TANKRACER_MOVER_REFERENCE=(Resolve-Path build/native/mover_reference.exe).Path
+cargo test -p tankracer-game --test mover_reference --locked -- --ignored --nocapture
+```

@@ -176,7 +176,7 @@ fn unsupported_classes_do_not_allocate_and_bad_resources_keep_the_created_bindin
             loader.load(
                 &mut state,
                 tankracer_assets::level::Object {
-                    class: "Mover",
+                    class: "Train",
                     ..record
                 }
             ),
