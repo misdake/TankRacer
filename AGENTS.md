@@ -13,6 +13,8 @@
   summaries or from a helper module passing tests.
 - Keep one current checkpoint in the roadmap, not an accumulating work log.
   A stage is complete only when its runnable exit condition is met.
+- Use `docs/rust-milestones.md` for fixed stage exits. Assign unfinished game
+  features to their owning stages; do not silently extend an accepted stage.
 - Develop in small runnable increments. Preserve the C reference; Rust browser
   builds currently go to `build/rust/site`.
 - Local milestone commits are authorized. Do not push unless asked.
