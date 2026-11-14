@@ -15,7 +15,7 @@ node tools/serve.mjs 8133 build/rust/site
 Open http://127.0.0.1:8133. The Rust build runs precise terrain/vehicle physics
 in Wasm, with a simple box proxy on ENGLAND. Arrow keys drive; C toggles a free
 camera (drag to look, WASD to move, Q/E down/up, Shift to move faster).
-Use `/?inspect` for static-world inspection. Authored Obstacle/Crush/Fall/Bounce actors
+Use `/?inspect` for static-world inspection. Authored Obstacle/Crush/Fall/Bounce/Closer actors
 now run and render from live meshes/poses. Remaining collision subclasses, real
 vehicle rendering and race rules are still pending. Rust 1.95,
 Node.js 22+ and `wasm-pack` are required. `Cargo.lock` fixes crate versions.

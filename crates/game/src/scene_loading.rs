@@ -59,6 +59,7 @@ const CONSTRUCT_OBSTACLE: MethodId = MethodId(63);
 const CONSTRUCT_CRUSH: MethodId = MethodId(64);
 const CONSTRUCT_FALL: MethodId = MethodId(67);
 const CONSTRUCT_BOUNCE: MethodId = MethodId(78);
+const CONSTRUCT_CLOSER: MethodId = MethodId(81);
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -70,6 +71,7 @@ pub struct Registry {
     pub fall: ClassId,
     pub player: ClassId,
     pub bounce: ClassId,
+    pub closer: ClassId,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -149,6 +151,14 @@ impl Default for Registry {
         ] {
             bounce.methods[slot as usize] = Some(method);
         }
+        let mut closer = obstacle.clone();
+        for (slot, method) in [
+            (CONSTRUCT, CONSTRUCT_CLOSER),
+            (TICK, methods::CLOSER_TICK),
+            (OBSTACLE_CONTACT, methods::CLOSER_HIT),
+        ] {
+            closer.methods[slot as usize] = Some(method);
+        }
         Self {
             classes: vec![
                 Arc::new(world),
@@ -159,6 +169,7 @@ impl Default for Registry {
                 Arc::new(fall),
                 Arc::new(crate::vehicle_loading::class()),
                 Arc::new(bounce),
+                Arc::new(closer),
             ],
             world: ClassId(0),
             render_world: ClassId(1),
@@ -168,6 +179,7 @@ impl Default for Registry {
             fall: ClassId(5),
             player: ClassId(6),
             bounce: ClassId(7),
+            closer: ClassId(8),
         }
     }
 }
@@ -181,6 +193,8 @@ impl Registry {
             Some(self.fall)
         } else if name.eq_ignore_ascii_case("Bounce") {
             Some(self.bounce)
+        } else if name.eq_ignore_ascii_case("Closer") {
+            Some(self.closer)
         } else {
             None
         }
@@ -397,6 +411,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         if class == self.registry.bounce {
             self.scene.components.bounces.resize_with(id.0 + 1, || None);
             self.scene.components.bounces[id.0] = Some(crate::bounce::Component::default());
+        }
+        if class == self.registry.closer {
+            self.scene.components.closers.resize_with(id.0 + 1, || None);
+            self.scene.components.closers[id.0] = Some(crate::closer::Component::default());
         }
         *call.result = 1;
         Ok(())
@@ -683,6 +701,38 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
         }
         Ok(())
     }
+    fn construct_closer(
+        &mut self,
+        mut call: Invocation<'_, Handle>,
+        env: Environment<'_>,
+    ) -> Result<(), i32> {
+        call.context
+            .class_dispatch(self.registry.obstacle, call.entity, None, env, self)
+            .map_err(factory_code)?;
+        let id = call
+            .context
+            .entities
+            .record(call.entity)
+            .and_then(|r| r.object)
+            .and_then(Handle::obstacle)
+            .ok_or(-1)?;
+        let component = self
+            .scene
+            .components
+            .closers
+            .get_mut(id.0)
+            .and_then(Option::as_mut)
+            .ok_or(-1)?;
+        component.state.speed = 1820;
+        component.state.flags = 4;
+        call.context
+            .queues
+            .cancel_notification(call.context.ticks, call.entity, env.work_limit)
+            .map_err(|e| crush::code(crush::Error::Lifecycle(e)))?;
+        component.state.phase = crate::closer::Phase::Waiting;
+        *call.result = 0;
+        Ok(())
+    }
     fn construct_bounce(
         &mut self,
         mut call: Invocation<'_, Handle>,
@@ -850,6 +900,7 @@ impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
             CONSTRUCT_CRUSH => self.construct_crush(call, env),
             CONSTRUCT_FALL => self.construct_fall(call, env),
             CONSTRUCT_BOUNCE => self.construct_bounce(call, env),
+            CONSTRUCT_CLOSER => self.construct_closer(call, env),
             _ => self.scene.invoke(method, call, env),
         }
     }

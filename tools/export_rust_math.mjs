@@ -4,7 +4,7 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 const root=new URL('../',import.meta.url);
 const source=await readFile(new URL('src/frame_math_tables.h',root),'utf8');
 await mkdir(new URL('crates/game/data/',root),{recursive:true});
-for(const [name,length,file] of [['math_sine',20480,'sine.bin'],['math_angle',257,'angle.bin']]) {
+for(const [name,length,file] of [['math_sine',20480,'sine.bin'],['math_angle',257,'angle.bin'],['math_cosine_angle',4096,'cosine-angle.bin']]) {
  const match=source.match(new RegExp(`static const int32_t ${name}\\[${length}\\]=\\{([\\s\\S]*?)\\};`));
  if(!match) throw new Error(`Missing ${name}[${length}] in verified source`);
  const values=match[1].split(',').map(s=>s.trim()).filter(Boolean).map(Number);

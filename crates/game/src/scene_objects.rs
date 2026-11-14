@@ -2,6 +2,7 @@
 //! Class tables stay immutable; parent calls and nested activation are immediate.
 use crate::scene_entity::Handle;
 mod bouncing;
+mod closing;
 pub mod collision;
 mod falling;
 mod fragments;
@@ -59,6 +60,8 @@ pub const DEBRIS_HIT: MethodId = MethodId(71);
 pub const BOUNCE_INITIALIZE: MethodId = MethodId(77);
 pub const BOUNCE_HIT: MethodId = MethodId(79);
 pub const BOUNCE_TICK: MethodId = MethodId(80);
+pub const CLOSER_HIT: MethodId = MethodId(82);
+pub const CLOSER_TICK: MethodId = MethodId(83);
 
 #[derive(Clone, Copy)]
 pub struct Parents {
@@ -115,6 +118,7 @@ pub struct Components {
     pub sign_meshes: [Option<MeshId>; 2],
     pub falls: Vec<Option<fall::State>>,
     pub bounces: Vec<Option<crate::bounce::Component>>,
+    pub closers: Vec<Option<crate::closer::Component>>,
     pub umbrella_mesh: Option<MeshId>,
     pub fall_tuning: fall::Tuning,
     pub terrain: Option<Arc<TerrainData>>,
@@ -139,6 +143,7 @@ impl Scene {
                 sign_meshes: [None; 2],
                 falls: Vec::new(),
                 bounces: Vec::new(),
+                closers: Vec::new(),
                 umbrella_mesh: None,
                 fall_tuning: fall::Tuning::default(),
                 terrain: None,
@@ -415,6 +420,9 @@ impl Methods<Handle> for View<'_> {
                 if let Some(state) = self.components.bounces.get_mut(id.0) {
                     *state = None;
                 }
+                if let Some(state) = self.components.closers.get_mut(id.0) {
+                    *state = None;
+                }
             }
             return Ok(());
         }
@@ -445,6 +453,7 @@ impl Methods<Handle> for View<'_> {
             FALL_DESTROY => return self.destroy_fall(id, call, env),
             FALL_TICK => return self.tick_fall(id, call, env),
             BOUNCE_TICK => return self.tick_bounce(id, call, env),
+            CLOSER_TICK => return self.tick_closer(id, call, env),
             DEBRIS_TICK => return self.tick_debris(id, call, env),
             AUXILIARY_TICK => return self.tick_mesh_fragments(id, call, env),
             RESET_POSE => {

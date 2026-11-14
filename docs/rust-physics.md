@@ -2480,3 +2480,45 @@ Closer, Spin and remaining required world/startup work.
 $env:TANKRACER_BOUNCE_REFERENCE=(Resolve-Path build/native/bounce_reference.exe).Path
 cargo test -p tankracer-game --test bounce_reference --locked -- --ignored --nocapture
 ```
+
+## Closer through the live runtime (2026-11-14)
+
+The ENGLAND barrier now uses the actual Closer constructor, hit and tick slots,
+with parent construction, stop cancellation and the shared lifecycle owners.
+The scene constructs 141 actors and renders 118. Waiting polls the primary
+player on the original eight-update cadence and strict X/Z distance boundary.
+Closing preserves the integer acceleration, asymmetric rebound thresholds,
+65520 roll wrap, queue-before-rotation order and temporary normalization commit.
+A hit dispatches the real auxiliary contact method and changes the next tick
+to fragment updates. Current matrices and mesh vertices reach the existing
+read-only renderer; rendering does not drive the state machine.
+
+`Matrix::angles` imports the original 4,096-entry inverse-cosine table and uses
+integer multiplication/division and quantized trigonometry. It preserves the
+singular-pitch result and terminal zero. Its declared input contract requires
+the normalized pitch component to be within Q12 range; out-of-range source
+reads into adjacent memory are not a typed Rust feature. The 8,192-byte table
+is global immutable data, not additional per-map precomputation.
+
+**CL01** matches **97 scenarios / 163 operations / 4,575 words** against the
+unchanged C Closer tick and matrix conversion. It covers 75 matrix-angle cases,
+proximity/cadence boundaries and short closing sequences, speed thresholds,
+wrapping arithmetic, null/custom/aliased matrices, queue failures and partial
+normalization errors. Lifecycle/fragment callback responses are explicit test
+inputs. Constructor and real collision ownership are checked by **SR03**:
+**23 scenarios / eight maps / 156 updates / 2,540,971 fields**, including one
+closing and one shattered Closer. Its earlier Fall/Crush/Bounce and low-gravity
+cases still pass. The controlled world-reader stop before lap linking and the
+direct-physics Player replacement remain; this does not qualify full startup.
+
+Focused scene-object/lifecycle, loading, mesh-break and Bounce C suites pass,
+as do workspace tests/lints, six browser collision sequences, 144 GPU cases,
+native/Wasm final-field comparison and C source preservation. Detailed logs:
+`build/tests/rust-closer-*.log`; browser evidence: `build/rust/tests/browser.json`.
+Spin, other required collision subclasses and full startup remain M3 work.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_closer.c build/native/libtankracer_core.a -lm -o build/native/closer_reference.exe
+$env:TANKRACER_CLOSER_REFERENCE=(Resolve-Path build/native/closer_reference.exe).Path
+cargo test -p tankracer-game --test closer_reference --locked -- --ignored --nocapture
+```

@@ -159,10 +159,12 @@ impl Session {
             Start::Authored => (spawn, [0; 3]),
             #[cfg(feature = "gpu-tests")]
             Start::Collision(target) => {
-                if target > 3 {
+                if target > 5 {
                     return Err("Unknown scenery collision probe".into());
                 }
-                let class = if target == 3 {
+                let class = if target >= 4 {
+                    startup.registry.closer
+                } else if target == 3 {
                     startup.registry.bounce
                 } else if target == 2 {
                     startup.registry.crush
@@ -187,12 +189,19 @@ impl Session {
                 let mut position = startup.objects.world.colliders[index].pose.position;
                 position[1] += 1500;
                 position[2] -= 500;
+                let velocity = if target == 4 {
+                    position[0] += 38000;
+                    position[2] += 38500;
+                    [0; 3]
+                } else {
+                    [0, 0, 600001]
+                };
                 (
                     pose::Pose {
                         position,
                         ..Default::default()
                     },
-                    [0, 0, 600001],
+                    velocity,
                 )
             }
         };

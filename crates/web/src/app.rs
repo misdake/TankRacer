@@ -165,6 +165,20 @@ impl App {
                     .flatten()
                     .filter(|b| b.state.age != 0 || b.state.airborne != 0)
                     .count() as u32,
+                scene
+                    .components
+                    .closers
+                    .iter()
+                    .flatten()
+                    .filter(|c| c.state.phase == tankracer_game::closer::Phase::Closing)
+                    .count() as u32,
+                scene
+                    .components
+                    .closers
+                    .iter()
+                    .flatten()
+                    .filter(|c| c.state.phase == tankracer_game::closer::Phase::Fragments)
+                    .count() as u32,
             ]
         })
     }

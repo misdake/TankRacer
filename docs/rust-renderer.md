@@ -220,3 +220,27 @@ terrain/collision and 534,558 B rendering/bookkeeping. This is 5,710 B above the
 previous scenery increment and still below 1 MB in every tested view. Production
 Wasm is **643,787 B**. Original vehicle rendering, complete lighting/effects and
 the deferred actor classes remain later work; this is not full image parity.
+
+## M3 Closer increment (2026-11-14)
+
+The existing current-mesh/instance path now includes the real ENGLAND Closer
+barrier: 141 constructed actors, 118 in render lists. The default 120-update
+probe submits **396 draws / 10,033 triangles**, including 37 scenery
+opaque/masked draws and 354 globally sorted transparent runs. Transparent
+batching/culling remains pending; adding the barrier does not change pipeline
+state or ordering rules.
+
+Two additional twelve-update browser cases cover Closer proximity/rotation
+and collision/shattering. The first uploads transforms (512 B), the second
+changed vertices (10,560 B) and transforms (64 B). State assertions use actual
+scene components, not screenshots. Both stationary repaints upload zero bytes.
+The camera in the proximity test looks away from the barrier; that screenshot
+alone does not establish visible barrier rotation. Actual GL error checks,
+all 144 GPU pixel cases, reloads and native/Wasm final-field checks still pass.
+
+Combined live extra-map accounting is **797,177 B** = 535,447 B rendering/
+bookkeeping + 261,730 B shared collision data. The tested shattering view peaks
+at **811,681 B**, still below 1 MB; source resources/dynamic game data/GPU bytes
+remain separately accounted. Production Wasm is **658,917 B**; controlled
+collision starts and GPU probes remain test-only. Full lighting, vehicle/camera
+rendering and complete image parity are not established by this increment.

@@ -86,6 +86,8 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
                 1
             } else if class == game.registry.bounce {
                 3
+            } else if class == game.registry.closer {
+                4
             } else {
                 0
             },
@@ -186,6 +188,23 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
             append(&mut out, [i32::from(c.deflection), c.gravity]);
             out.push(u32::from(c.height_period));
         }
+        if class == game.registry.closer {
+            let c = game.objects.components.closers[index]
+                .as_ref()
+                .unwrap()
+                .state;
+            out.extend([
+                c.speed as u32,
+                c.flags,
+                match c.phase {
+                    tankracer_game::closer::Phase::Uninitialized => 0,
+                    tankracer_game::closer::Phase::Waiting => 1,
+                    tankracer_game::closer::Phase::Closing => 2,
+                    tankracer_game::closer::Phase::Fragments => 3,
+                },
+                object.auxiliary_active as i32 as u32,
+            ]);
+        }
         let geometry = data
             .mesh
             .and_then(|id| game.objects.components.surfaces.meshes.get(id));
@@ -260,9 +279,11 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
     let mut activated = 0;
     let mut deformed = 0;
     let mut bounced = 0;
+    let mut closing = 0;
+    let mut shattered = 0;
     for (map, name) in names.iter().enumerate() {
         let mut scenarios: Vec<_> = if map == 0 {
-            (0..6).map(|target| (target, false)).collect()
+            (0..8).map(|target| (target, false)).collect()
         } else {
             vec![(0, false)]
         };
@@ -290,7 +311,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let loaded = scenery::load(&mut startup, &data, &file, &shared, name, cup).unwrap();
             let n = loaded.entities.len();
             if map == 0 {
-                assert_eq!(n, 140);
+                assert_eq!(n, 141);
                 assert_eq!(loaded.classes.get("Fall"), Some(&96));
                 assert_eq!(loaded.classes.get("Bounce"), Some(&29));
             }
@@ -304,7 +325,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             for r in level
                 .objects
                 .iter()
-                .filter(|r| ["Obstacle", "Crush", "Fall", "Bounce"].contains(&r.class))
+                .filter(|r| ["Obstacle", "Crush", "Fall", "Bounce", "Closer"].contains(&r.class))
             {
                 let p = r.position.map(|v| v as f64 / 1024.);
                 let a = r.angles.map(|v| v as i32 / 182);
@@ -317,7 +338,9 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
             let mut spawn = [0; 3];
             let mut velocity = [0; 3];
             if target != 0 {
-                let wanted = if target >= 4 {
+                let wanted = if target >= 6 {
+                    startup.registry.closer
+                } else if target >= 4 {
                     startup.registry.bounce
                 } else if target == 3 {
                     startup.registry.crush
@@ -346,6 +369,11 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 spawn[1] += 1500;
                 spawn[2] += if target == 5 { 500 } else { -500 };
                 velocity = [0, 0, if target == 5 { -250000 } else { 600001 }];
+                if target == 6 {
+                    spawn[0] += 38000;
+                    spawn[2] += 38500;
+                    velocity = [0; 3];
+                }
             }
             let resources = vehicle_resources::prepare(
                 &data,
@@ -415,7 +443,7 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 output.status.code(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            assert_eq!(&output.stdout[..4], b"SR02");
+            assert_eq!(&output.stdout[..4], b"SR03");
             let mut r = common::Reader {
                 words: output.stdout[4..]
                     .chunks_exact(4)
@@ -479,15 +507,31 @@ fn authored_scenery_and_player_update_the_same_components_as_c() {
                 .flatten()
                 .filter(|b| b.state.age != 0 || b.state.airborne != 0)
                 .count();
-            if target >= 4 {
+            if (4..6).contains(&target) {
                 assert!(hits > 0, "targeted Bounce must activate");
             }
             bounced += hits;
+            let phase = game
+                .objects
+                .components
+                .closers
+                .iter()
+                .flatten()
+                .map(|c| c.state.phase)
+                .collect::<Vec<_>>();
+            if target == 6 {
+                assert!(phase.contains(&tankracer_game::closer::Phase::Closing));
+                closing += 1;
+            }
+            if target == 7 {
+                assert!(phase.contains(&tankracer_game::closer::Phase::Fragments));
+                shattered += 1;
+            }
         }
     }
     assert!(activated > 0, "real Fall collision must execute");
     assert!(deformed > 0, "real deformable hit must execute");
     println!(
-        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce"
+        "scenery runtime: {updates} updates / {compared} fields; {activated} activated Fall, {deformed} deformed Crush, {bounced} hit Bounce, {closing} closing / {shattered} shattered Closer"
     );
 }

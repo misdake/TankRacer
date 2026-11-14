@@ -133,6 +133,7 @@ impl Collision<'_> {
             super::AUXILIARY_HIT => self.activate_mesh_fragments(call, services),
             super::DEBRIS_HIT => self.activate_debris(call, services),
             super::BOUNCE_HIT => self.hit_bounce(call, hit, services),
+            super::CLOSER_HIT => self.hit_closer(call, hit, services),
             DEFORMABLE_HIT => {
                 // The method result/RNG/timer commit precedes the host sound.
                 let sound = self.components.surfaces.collide(reborrow(&mut call))?;
@@ -188,6 +189,108 @@ impl Collision<'_> {
             self.components.special.push(id);
         }
         *call.result = entity.0;
+        Ok(())
+    }
+    fn invoke_slot(
+        &mut self,
+        call: Invocation<'_>,
+        slot: u32,
+        environment: HitEnvironment,
+        services: &mut impl Services,
+        has_payload: bool,
+    ) -> Result<(), i32> {
+        let class = call.world.objects.get(call.target.0).ok_or(-1)?.class;
+        let table = Arc::clone(call.world.classes.get(class.0).ok_or(-1)?);
+        let Invocation {
+            dt,
+            target,
+            vehicle,
+            world,
+            random,
+            current_slot,
+            ..
+        } = call;
+        let mut ignored = 0;
+        crate::dispatch::call_entity(
+            &table,
+            slot,
+            current_slot,
+            &mut ignored,
+            |method, current_slot, result| {
+                self.invoke(
+                    method,
+                    Invocation {
+                        dt,
+                        target,
+                        vehicle,
+                        world,
+                        random,
+                        current_slot,
+                        result,
+                    },
+                    environment,
+                    services,
+                    has_payload,
+                )
+            },
+        )
+        .map_err(|e| match e {
+            crate::dispatch::Error::Method(c) => c,
+            _ => -1,
+        })
+    }
+    fn hit_closer(
+        &mut self,
+        mut call: Invocation<'_>,
+        environment: HitEnvironment,
+        services: &mut impl Services,
+    ) -> Result<(), i32> {
+        let id = call.target;
+        let entity = call.world.colliders.get(id.0).ok_or(-1)?.entity;
+        if self
+            .components
+            .closers
+            .get(id.0)
+            .and_then(Option::as_ref)
+            .ok_or(-1)?
+            .state
+            .flags
+            & 1
+            != 0
+        {
+            self.lifecycle
+                .context(call.current_slot)
+                .dispatch(
+                    entity,
+                    crate::scene_loading::ACTIVATE,
+                    None,
+                    self.environment,
+                    &mut super::lifecycle::Base,
+                )
+                .map_err(super::dispatch_code)?;
+        }
+        if self.components.object(id)?.data.auxiliary.is_some() {
+            self.invoke_slot(
+                reborrow(&mut call),
+                crate::scene_loading::AUXILIARY_CONTACT,
+                environment,
+                services,
+                true,
+            )?;
+            self.components.closers[id.0]
+                .as_mut()
+                .ok_or(-1)?
+                .state
+                .phase = crate::closer::Phase::Fragments;
+        }
+        if call.vehicle.player && environment.feedback {
+            services.feedback(
+                i32::from(call.world.colliders[id.0].radius),
+                self,
+                reborrow(&mut call),
+            )?;
+        }
+        *call.result = 0;
         Ok(())
     }
     fn hit_bounce(

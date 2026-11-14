@@ -13,6 +13,19 @@ const fn unpack<const N: usize>(bytes: &[u8]) -> [i16; N] {
 }
 static SINE: [i16; 20480] = unpack(include_bytes!("../data/sine.bin"));
 static ANGLE: [i16; 257] = unpack(include_bytes!("../data/angle.bin"));
+static COSINE_ANGLE: [i16; 4096] = unpack(include_bytes!("../data/cosine-angle.bin"));
+
+fn cosine_angle(value: i32) -> Result<i32, Error> {
+    let magnitude = value.checked_abs().ok_or(Error::Arithmetic)? as usize;
+    if magnitude == 4096 {
+        return Ok(0);
+    } // Source table's explicit terminal zero.
+    COSINE_ANGLE
+        .get(magnitude)
+        .copied()
+        .map(i32::from)
+        .ok_or(Error::Arithmetic)
+}
 
 pub fn sine(angle: u32) -> i32 {
     i32::from(SINE[((angle & 65532) >> 2) as usize])
@@ -97,6 +110,41 @@ impl Default for Matrix {
     }
 }
 impl Matrix {
+    /// Original inverse basis lookup: quantized integer tables, not
+    /// host atan/acos. Input pitch axis must be within the normalized Q12 range.
+    pub fn angles(self) -> Result<([u32; 3], bool), Error> {
+        let v = self.0[7];
+        let a = cosine_angle(v)?;
+        let pitch = if v < 0 {
+            a.wrapping_sub(16384)
+        } else {
+            16384_i32.wrapping_sub(a)
+        } as u32;
+        let cosine = cosine(pitch);
+        let mut out = [pitch, 0, 0];
+        if cosine != 0 {
+            for (component, sign, slot) in [(8, 6, 1), (4, 1, 2)] {
+                let q = self.0[component]
+                    .wrapping_mul(4096)
+                    .checked_div(cosine)
+                    .ok_or(Error::Arithmetic)?
+                    .clamp(-4096, 4096);
+                let mut a = cosine_angle(q)?;
+                if q < 0 {
+                    a = 32768_i32.wrapping_sub(a);
+                }
+                let q = self.0[sign]
+                    .wrapping_mul(4096)
+                    .checked_div(cosine)
+                    .ok_or(Error::Arithmetic)?;
+                if q.wrapping_neg() < 0 {
+                    a = 65536_i32.wrapping_sub(a);
+                }
+                out[slot] = a as u32;
+            }
+        }
+        Ok((out, cosine != 0))
+    }
     pub const IDENTITY: Self = Self([4096, 0, 0, 0, 4096, 0, 0, 0, 4096]);
     pub fn local_to_world(self, local: [i32; 3]) -> [i32; 3] {
         std::array::from_fn(|i| {
@@ -229,6 +277,22 @@ mod tests {
         assert_eq!(angle(1, 1), Ok(8192));
         assert_eq!(angle(65536, 65537), Ok(0)); // Ratio index256 aliases the sine table's first zero.
         assert_eq!(angle(i32::MIN, 1), Err(Error::Arithmetic));
+    }
+    #[test]
+    fn inverse_basis_keeps_lookup_endpoints_and_singular_pitch() {
+        assert_eq!(Matrix::IDENTITY.angles(), Ok(([0; 3], true)));
+        assert_eq!(
+            Matrix::from_angles([0, 0, 16384]).angles(),
+            Ok(([0, 0, 16384], true))
+        );
+        assert_eq!(
+            Matrix::from_angles([16384, 0, 0]).angles(),
+            Ok(([16384, 0, 0], false))
+        );
+        assert_eq!(
+            Matrix::from_angles([49152, 0, 0]).angles(),
+            Ok(([(-16384_i32) as u32, 0, 0], false))
+        );
     }
     #[test]
     fn zero_rotation_skips_arithmetic_but_nonzero_full_turn_does_not() {
