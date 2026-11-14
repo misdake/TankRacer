@@ -15,6 +15,9 @@ node tools/serve.mjs 8133 build/rust/site
 Open http://127.0.0.1:8133. The Rust build runs precise terrain/vehicle physics
 in Wasm, with a simple box proxy on ENGLAND. Arrow keys drive; C toggles a free
 camera (drag to look, WASD to move, Q/E down/up, Shift to move faster).
+Keyboard actions now use the original Player throttle/brake/steering rates and
+forward/reverse switching. The proxy still starts immediately; the input kernel
+also supports countdown/fast-start rules for the later race controller.
 Use `/?inspect` for static-world inspection. Authored Obstacle/Crush/Fall/Bounce/Closer/Spin actors
 now run and render from live meshes/poses. Remaining collision subclasses, real
 vehicle rendering and race rules are still pending. Rust 1.95,
@@ -29,6 +32,9 @@ before placing the player:
 ```sh
 cargo run -p tankracer-game --example drive --release --locked -- assets/game 0 1 120 --scenery
 ```
+
+Add `--keys` to exercise the same Player keyboard path used by the browser;
+without it, the example supplies direct physics inputs for qualification.
 
 It reports loaded/deferred classes explicitly. Both paths still omit complete
 race rules and the deferred subclasses.

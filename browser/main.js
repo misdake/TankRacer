@@ -49,7 +49,7 @@ try {
       if(!inspecting){
         accumulator+=seconds*1000;
         while(accumulator>=16){
-          app.step_vehicle(16,Number(held.has('ArrowUp'))*65536,Number(held.has('ArrowDown'))*65536,axis('ArrowRight','ArrowLeft')*32768);
+          app.step_keys(16,held.has('ArrowLeft'),held.has('ArrowRight'),held.has('ArrowUp'),held.has('ArrowDown'));
           accumulator-=16;
         }
       }

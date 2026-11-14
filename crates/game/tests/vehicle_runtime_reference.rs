@@ -8,7 +8,7 @@ use tankracer_assets::{
 use tankracer_game::{
     drive,
     obstacle_collision::Invocation,
-    pose,
+    player_input, pose,
     scene_objects::collision::{Collision, Services, Sound},
     vehicle_loading::Request,
     vehicle_model::BuildContext,
@@ -43,7 +43,7 @@ impl Devices for Headless {
         Ok(())
     }
 }
-fn words(game: &mut SinglePlayer) -> Vec<u32> {
+fn words(game: &mut SinglePlayer, controls: bool) -> Vec<u32> {
     let v = game.vehicles.entries[0].as_ref().unwrap();
     let mut out = player_codec::encode(v);
     out.push(game.shared.random);
@@ -82,6 +82,17 @@ fn words(game: &mut SinglePlayer) -> Vec<u32> {
         shield: game.shared.shield.clone(),
     };
     out.extend(scene.words(&mut game.shared.pool));
+    if controls {
+        let input = v.input;
+        out.extend([
+            input.drive.throttle as u32,
+            input.drive.brake as u32,
+            input.drive.steering as u32,
+            u32::from(input.start_held),
+            u32::from(input.fast_start),
+            u32::from(game.shared.input.steering_analog_latch),
+        ]);
+    }
     out
 }
 #[test]
@@ -106,8 +117,15 @@ fn fresh_resource_only_runtime_matches_native_updates() {
     }
     let mut updates = 0;
     let mut compared = 0;
-    for (map, car, mode) in cases {
-        let steps = if map == 0 && car == 1 { 96 } else { 24 };
+    for (map, car, mode, controls) in cases
+        .into_iter()
+        .flat_map(|(m, c, g)| [false, true].map(|k| (m, c, g, k)))
+    {
+        let steps = if !controls && map == 0 && car == 1 {
+            96
+        } else {
+            24
+        };
         let output = Command::new(
             std::env::var_os("TANKRACER_VEHICLE_RUNTIME_REFERENCE").expect("set oracle"),
         )
@@ -116,6 +134,7 @@ fn fresh_resource_only_runtime_matches_native_updates() {
         .arg(car.to_string())
         .arg(mode.to_string())
         .arg(steps.to_string())
+        .arg(u8::from(controls).to_string())
         .output()
         .unwrap();
         assert!(
@@ -192,31 +211,49 @@ fn fresh_resource_only_runtime_matches_native_updates() {
                 let i = tick - 1;
                 assert_eq!(r.word(), 0, "C status map={map} car={car} tick={tick}");
                 assert_eq!(r.word(), 1, "C after-pose calls");
-                game.step(
-                    drive::Input {
-                        throttle: if i % 12 < 8 { 65536 } else { 0 },
-                        brake: if i % 12 == 9 { 65536 } else { 0 },
-                        steering: if (4..8).contains(&(i % 12)) { 12000 } else { 0 },
-                        ..drive::Input::default()
-                    },
-                    [16, 17, 20, 12][i % 4],
-                    i >= 3,
-                    &mut Headless,
-                )
-                .unwrap();
+                let result = if controls {
+                    game.step_keys(
+                        player_input::Keys {
+                            throttle: i % 12 < 8 && i != 1,
+                            brake: i % 12 == 9,
+                            left: i % 12 == 10,
+                            right: (4..8).contains(&(i % 12)) || i % 12 == 10,
+                            auxiliary: false,
+                        },
+                        [16, 17, 20, 12][i % 4],
+                        i >= 3,
+                        if i == 0 { 1 } else { 2 },
+                        &mut Headless,
+                    )
+                } else {
+                    game.step(
+                        drive::Input {
+                            throttle: if i % 12 < 8 { 65536 } else { 0 },
+                            brake: if i % 12 == 9 { 65536 } else { 0 },
+                            steering: if (4..8).contains(&(i % 12)) { 12000 } else { 0 },
+                            ..drive::Input::default()
+                        },
+                        [16, 17, 20, 12][i % 4],
+                        i >= 3,
+                        &mut Headless,
+                    )
+                };
+                result.unwrap();
                 updates += 1;
             }
-            let actual = words(&mut game);
+            let actual = words(&mut game, controls);
             for (word, a) in actual.iter().enumerate() {
                 assert_eq!(
                     *a,
                     r.word(),
-                    "map={map} car={car} mode={mode} tick={tick} word={word}"
+                    "map={map} car={car} mode={mode} controls={controls} tick={tick} word={word}"
                 );
             }
             compared += actual.len();
         }
         assert_eq!(r.at, r.words.len(), "oracle framing");
     }
-    println!("fresh native runtime: {updates} updates / {compared} fields; all 8 maps and 15 cars");
+    println!(
+        "fresh native runtime: {updates} updates / {compared} fields; direct physics and CUP input, all 8 maps and 15 cars"
+    );
 }

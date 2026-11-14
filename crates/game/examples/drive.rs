@@ -6,7 +6,7 @@ use tankracer_assets::{
 use tankracer_game::{
     drive,
     obstacle_collision::Invocation,
-    pose,
+    player_input, pose,
     scene_objects::collision::{self, Collision, Sound},
     scenery,
     vehicle_loading::Request,
@@ -50,7 +50,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let map: usize = args.get(1).map(|v| v.parse()).transpose()?.unwrap_or(0);
     let car: usize = args.get(2).map(|v| v.parse()).transpose()?.unwrap_or(1);
     let ticks: usize = args.get(3).map(|v| v.parse()).transpose()?.unwrap_or(240);
-    let with_scenery = args.get(4).is_some_and(|v| v == "--scenery");
+    let with_scenery = args.iter().skip(4).any(|v| v == "--scenery");
+    let with_keys = args.iter().skip(4).any(|v| v == "--keys");
     let maps = [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ];
@@ -185,23 +186,38 @@ fn main() -> Result<(), Box<dyn Error>> {
     let begin = Instant::now();
     let mut grounded = 0;
     for tick in 0..ticks {
-        game.step(
-            drive::Input {
-                throttle: 65536,
-                steering: if (ticks / 3..ticks / 2).contains(&tick) {
-                    12000
-                } else {
-                    0
+        let mut devices = Headless {
+            scenery: scenery.as_ref(),
+        };
+        let result = if with_keys {
+            game.step_keys(
+                player_input::Keys {
+                    throttle: true,
+                    right: (ticks / 3..ticks / 2).contains(&tick),
+                    ..Default::default()
                 },
-                ..drive::Input::default()
-            },
-            16,
-            true,
-            &mut Headless {
-                scenery: scenery.as_ref(),
-            },
-        )
-        .map_err(|e| format!("tick {tick}: {e:?}"))?;
+                16,
+                true,
+                0,
+                &mut devices,
+            )
+        } else {
+            game.step(
+                drive::Input {
+                    throttle: 65536,
+                    steering: if (ticks / 3..ticks / 2).contains(&tick) {
+                        12000
+                    } else {
+                        0
+                    },
+                    ..drive::Input::default()
+                },
+                16,
+                true,
+                &mut devices,
+            )
+        };
+        result.map_err(|e| format!("tick {tick}: {e:?}"))?;
         grounded += usize::from(
             game.vehicles.entries[0]
                 .as_ref()

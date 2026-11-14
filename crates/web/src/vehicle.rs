@@ -5,9 +5,8 @@ use tankracer_assets::{
     archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
 };
 use tankracer_game::{
-    drive,
     obstacle_collision::Invocation,
-    pose,
+    player_input, pose,
     scene_objects::collision::{Collision, Services, Sound},
     scenery,
     vehicle_loading::Request,
@@ -281,11 +280,33 @@ impl Session {
         self.view.position = physics_position(body.position);
         self.view.forward = -self.view.transform.z_axis.truncate().normalize_or_zero();
     }
-    pub fn step(&mut self, input: drive::Input, dt: i32, camera: &Camera) -> Result<(), JsValue> {
+    fn prepare_camera(&mut self, camera: &Camera) {
         let p = camera.position * 128.;
         let f = camera.forward() * 4096.;
         self.game.camera_position = [p.x as i32, p.y as i32, -p.z as i32];
         self.game.camera_forward = [f.x as i32, f.y as i32, -f.z as i32];
+    }
+    pub fn step_keys(
+        &mut self,
+        keys: player_input::Keys,
+        dt: i32,
+        camera: &Camera,
+    ) -> Result<(), JsValue> {
+        self.prepare_camera(camera);
+        self.game
+            .step_keys(keys, dt, true, 0, &mut SilentDevices(&self.loaded))
+            .map_err(|e| JsValue::from_str(&format!("Player input update: {e:?}")))?;
+        self.refresh_view();
+        Ok(())
+    }
+    #[cfg(feature = "gpu-tests")]
+    pub fn step(
+        &mut self,
+        input: tankracer_game::drive::Input,
+        dt: i32,
+        camera: &Camera,
+    ) -> Result<(), JsValue> {
+        self.prepare_camera(camera);
         self.game
             .step(input, dt, true, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Vehicle update: {e:?}")))?;

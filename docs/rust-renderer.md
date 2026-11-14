@@ -314,3 +314,15 @@ dynamic simulation memory, not preprocessing. ENGLAND/SWAMP budgets are unchange
 Production Wasm is **690,915 B**, with controlled test probes absent. Source and
 test boundaries are detailed in `rust-physics.md`; original vehicle rendering,
 full lighting, fragment/effect rendering and race integration remain pending.
+
+## M3 Player input bridge (2026-11-14)
+
+Browser keyboard events now pass sampled actions to Rust's Player input state
+machine on fixed ticks; the renderer still reads the resulting live poses.
+The direct drive-value export is test-build only. An additional 24-update
+keyboard sequence matches native Rust final position/velocity/RNG. Existing
+144 pixel cases, depth/blend tests, ten collision/movement probes, reload and
+stationary-upload checks pass. No pipeline/material/batching rule changes.
+Per-map extra data stays at the preceding totals; the small input state belongs
+to dynamic simulation memory. Production Wasm: **692,497 B**. Full original
+vehicle/camera/effect rendering and race integration remain later work.

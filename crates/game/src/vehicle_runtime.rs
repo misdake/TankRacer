@@ -7,7 +7,7 @@ use crate::{
     entity_factory::{self as factory, Methods},
     impact_particles,
     object_query::{Collider, EntityId, Tank, TankId},
-    obstacle_collision as obstacle, powertrain,
+    obstacle_collision as obstacle, player_input, powertrain,
     sampling::Transform,
     scene_entity::Handle,
     scene_loading::{self, Registry},
@@ -51,6 +51,7 @@ pub enum Error {
 /// the gameplay effect-owner slots, not an additional independent flag bank.
 pub struct Shared {
     pub random: u32,
+    pub input: player_input::Shared,
     pub noise: [u16; 16],
     pub pool: crate::effect_pool::Pool,
     pub impacts: impact_particles::State,
@@ -129,6 +130,7 @@ impl Startup {
         shield.initialize(&mut random);
         let shared = Shared {
             random,
+            input: player_input::Shared::default(),
             noise,
             pool: crate::effect_pool::Pool::default(),
             impacts: impact_particles::State::default(),
@@ -300,6 +302,39 @@ impl SinglePlayer {
         drive_active: bool,
         devices: &mut impl Devices,
     ) -> Result<(), Error> {
+        self.advance(input, None, dt, drive_active, devices)
+    }
+    /// Authoritative Player input precedes its parent Tank tick, at the same
+    /// scheduler position. Direct `step` remains the physics qualification API.
+    pub fn step_keys(
+        &mut self,
+        keys: player_input::Keys,
+        dt: i32,
+        drive_active: bool,
+        start_stage: i32,
+        devices: &mut impl Devices,
+    ) -> Result<(), Error> {
+        // Auxiliary override restoration is the next Player binding. Until it
+        // is connected, do not report successful handbraking with no effect.
+        if keys.auxiliary {
+            return Err(Error::UnsupportedConfiguration);
+        }
+        self.advance(
+            drive::Input::default(),
+            Some((keys, start_stage)),
+            dt,
+            drive_active,
+            devices,
+        )
+    }
+    fn advance(
+        &mut self,
+        input: drive::Input,
+        keys: Option<(player_input::Keys, i32)>,
+        dt: i32,
+        drive_active: bool,
+        devices: &mut impl Devices,
+    ) -> Result<(), Error> {
         if dt <= 0 {
             return Err(Error::UnsupportedConfiguration);
         }
@@ -313,6 +348,7 @@ impl SinglePlayer {
             .registry
             .hit_environment(self.objects.components.fall_tuning, false, 65536);
         let mut execution = Execution {
+            keys,
             vehicles: &mut self.vehicles,
             objects: &mut self.objects,
             shared: &mut self.shared,
@@ -349,6 +385,7 @@ impl SinglePlayer {
     }
 }
 struct Execution<'a, D> {
+    keys: Option<(player_input::Keys, i32)>,
     vehicles: &'a mut Store,
     objects: &'a mut scene_objects::Scene,
     shared: &'a mut Shared,
@@ -421,6 +458,27 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
         let player = self.vehicles.entries[0].as_mut().ok_or(-1)?;
         let v = &mut player.physics;
         let model = &mut player.model;
+        if let Some((mut keys, start_stage)) = self.keys {
+            player.input.step(
+                &mut player.prefix.countdown_throttle,
+                &mut self.shared.input,
+                player_input::Frame {
+                    dt: self.frame.dt,
+                    driving: self.frame.drive.active,
+                    player: 0,
+                    speed: v.powertrain.local_velocity[2],
+                    start_stage,
+                    analog: false,
+                    analog_longitudinal: false,
+                    twin_tracks: false,
+                    track_values: [0; 2],
+                },
+                player_input::Tuning::default(),
+                &mut keys,
+            )?;
+            self.frame.input = player.input.drive;
+            self.frame.drive.launch_eligible = player.input.fast_start != 0;
+        }
         let factory::Context {
             entities,
             symbols,

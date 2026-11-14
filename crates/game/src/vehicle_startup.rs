@@ -22,6 +22,7 @@ pub struct Environment {
 /// metadata initializes contacts/hull; subsequent hull vertices belong to motion.
 pub struct Player {
     pub physics: vehicle::State,
+    pub input: crate::player_input::State,
     pub prefix: vehicle_prefix::State,
     pub model: VehicleModel,
     pub lights: lights::State,
@@ -103,6 +104,7 @@ impl Player {
                 },
             },
             prefix,
+            input: crate::player_input::State::default(),
             model,
             lights: lights::State::default(),
             marks: marks::State::default(),

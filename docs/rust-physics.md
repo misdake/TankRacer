@@ -2688,3 +2688,60 @@ $env:TANKRACER_BLAST_REFERENCE=(Resolve-Path build/native/blast_reference.exe).P
 $env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
 cargo test -p tankracer-game --test blast_reference --test scenery_runtime_reference --locked -- --ignored --nocapture
 ```
+
+## CUP Player input and real keyboard path (2026-11-14)
+
+`player_input` owns digital ramp/release, forward/reverse control selection,
+analog steering latch and twin-track rules. Host action bindings and normalized
+axis queries are explicit devices, including errors at the actual query point.
+The defaults (800 throttle/steer push, 70 brake push, 720 throttle/brake return,
+700 steer return) come from the immutable C defaults. Return words are signed
+16-bit; products and negations wrap before signed comparisons. Input state is
+per Player, the analog latch is shared, and countdown throttle retains its
+existing prefix owner rather than a second persistent copy.
+
+At zero speed, brake can select negative throttle; at negative speed, the keys
+exchange acceleration/braking roles. Left wins simultaneous steering presses.
+Digital input overrides analog latching. Axis zero is queried even without a
+per-player analog gate, so device errors preserve earlier throttle/brake writes.
+Countdown stage four is an early return; other countdown stages clamp only
+preheat throttle, leaving old brake/steer values intact. Start-stage/press state
+feeds the real fast-start branch in parent physics.
+
+**PI01:** 226 scenarios / 1,341 operations / 20,890 words match unchanged C,
+including the device query trace. All digital combinations, signed speeds,
+countdown stages and held flags, analog endpoints, twin tracks, signed rate and
+product overflow, player gates, releases and axis-failure prefixes are checked.
+The oracle's initial trace accidentally counted the twin-track right field as
+an axis query because they alias; it now identifies the actual normalization
+read sequence. Production logic was not changed for that fixture correction.
+
+The runtime's `step_keys` applies input at the Player's actual scheduler position
+before prefix/parent physics. Raw `step` remains available for physics tests.
+The browser now passes booleans every fixed update, replacing direct 65536/32768
+assignments. Its direct-value Wasm export is compiled only with `gpu-tests`.
+The native example's `--keys` uses the same bound owner. The proxy still starts
+in driving mode: full countdown timing/menus are not introduced by this slice.
+
+The expanded fresh-runtime oracle compares both paths on all eight maps and
+fifteen cars: **1,968 updates / 12,302,404 fields**, including input state,
+preheat, launch, real shared effects/RNG, contact and vehicle updates. New input
+sequences are 24 updates each; earlier direct-physics sequences remain. Browser
+input/native final fields match over 24 updates, alongside the existing direct
+120-update test, GPU tests, ten scenery probes and zero idle uploads. Workspace
+checks, related constructor/prefix/scenery oracles and C preservation pass.
+
+**Still incomplete:** auxiliary brake/parameter restoration, collision/progress
+Player prefix, turret/fire, route/lap rules, environment/palette and lifecycle.
+The bound key API explicitly rejects auxiliary braking until its actual owner
+is implemented; the browser does not bind it yet. The input kernel is CUP's
+driving/countdown region, not the deathmatch-restoration branch or a complete
+Player tick. No full race or general per-frame browser-parity claim.
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_input.c build/native/libtankracer_core.a -lm -o build/native/player_input_reference.exe
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_runtime_reference.exe
+$env:TANKRACER_PLAYER_INPUT_REFERENCE=(Resolve-Path build/native/player_input_reference.exe).Path
+$env:TANKRACER_VEHICLE_RUNTIME_REFERENCE=(Resolve-Path build/native/vehicle_runtime_reference.exe).Path
+cargo test -p tankracer-game --test player_input_reference --test vehicle_runtime_reference --locked -- --ignored --nocapture
+```

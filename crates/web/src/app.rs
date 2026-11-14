@@ -105,6 +105,34 @@ impl App {
         Ok(())
     }
 
+    pub fn step_keys(
+        &mut self,
+        dt: i32,
+        left: bool,
+        right: bool,
+        throttle: bool,
+        brake: bool,
+    ) -> Result<(), JsValue> {
+        if let (Some(vehicle), Some(world)) = (&mut self.vehicle, &mut self.world) {
+            vehicle.step_keys(
+                tankracer_game::player_input::Keys {
+                    left,
+                    right,
+                    throttle,
+                    brake,
+                    auxiliary: false,
+                },
+                dt,
+                &world.camera,
+            )?;
+            if self.follow_camera {
+                world.camera = vehicle.view.camera();
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "gpu-tests")]
     pub fn step_vehicle(
         &mut self,
         dt: i32,

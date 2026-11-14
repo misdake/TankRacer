@@ -136,6 +136,19 @@ try{
  const still=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
  for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(still[key],0,key);
  await writeFile(path.join(output,'drive.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ // Real keyboard action -> Player ramps -> same native/Wasm physics owner.
+ const keysDriven=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_player(...files);
+   for(let tick=0;tick<24;tick++)m.app.step_keys(16,false,tick>=8&&tick<12,true,false);
+   m.app.render();m.app.check_graphics();
+   return Array.from(m.app.vehicle_state());
+ })`);
+ const keysOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--keys'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const keysState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(keysOutput);
+ assert.ok(keysState,keysOutput);
+ assert.deepEqual(keysDriven,[...JSON.parse(keysState[1]),...JSON.parse(keysState[2]),Number(keysState[3])|0,24]);
+ report.playerInput={ticks:24,state:keysDriven};
  // Reload at identical poses: new GPU buffers still require sorted index banks.
  const reloads=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
