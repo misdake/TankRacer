@@ -2289,3 +2289,24 @@ browser Wasm remains 183,235 B. Native resource-only movement is still pending:
 bind prefix/full physics/after-pose to the shared tick method, then run a fresh
 resource-initialized probe. Avoid per-frame clones of vehicle dynamics when
 projecting the store into the physics API.
+
+## Resource-only native movement probe, uncommitted (2026-11-14)
+
+The current worktree adds `vehicle_runtime::SinglePlayer` and the `drive`
+example. The fresh resource-created player runs prefix, connected physics and
+the complete after-pose chain through the shared factory tick. This is a
+terrain/vehicle slice: scene objects, race startup/rules, opponents and browser
+integration are not complete. The runtime code has not yet received its own
+C parity qualification or broader lint/regression checks.
+
+Reproduced successfully with no C library, memory snapshot, emulator or server:
+
+```powershell
+cargo run -p tankracer-game --example drive --release --locked -- assets/game 0 1 120
+```
+
+ENGLAND/car 1: position `[0, 0, 0]` -> `[637, 1172, 37953]`, final velocity
+`[9694, -584, 468392]`, 117 grounded updates, final seed `2312014916`.
+The repeat measured 1.39 microseconds/update on this host; it is not a
+whole-game or browser benchmark. Next verify the collider radius/resource
+bindings, then qualify this fresh startup and tick wiring in short C comparisons.

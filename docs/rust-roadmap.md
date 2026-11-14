@@ -14,21 +14,23 @@ as needed to reach the next playable slice.
 
 ## Current checkpoint
 
-- **M3 active; M1/M2 complete.** Rust currently runs the ENGLAND static world and
-  free camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
-  The complete moving Rust vehicle is **not running**.
+- **M3 active; M1/M2 complete.** Browser runs the ENGLAND static world and free
+  camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
+  Moving Rust vehicles are not yet connected to the browser.
 - Last verified code: **`2ca8a24`**. Fresh players use the shared tagged entity
   table/factory, class registry, drawing lists and tick activation: 122 / 84,668
   words match C, including flags/memberships. Eight affected object suites and
   workspace/native/Wasm/build/preservation checks pass. Connected full physics
-  (1,254 updates / 17,591,969 words) is also qualified. No independent runtime yet.
-  Shared shield startup still requires its original 180-draw initialization.
-- **Next runnable increment:** bind prefix/full physics/after-pose to the shared
-  vehicle tick -> resource-initialized native movement -> moving browser proxy.
-  Vehicle frame/destroy interfaces still report unsupported; creation alone does
-  not run a game. Borrow/project store dynamics without per-frame state clones.
-  M3 stays open until this runs without C or test snapshots. Bring additional
-  readers forward only when required by that slice.
+  (1,254 updates / 17,591,969 words) is also qualified.
+- **Uncommitted increment:** `vehicle_runtime.rs` and the `drive` example now
+  initialize from resources and run prefix/physics/after-pose through shared ticks.
+  ENGLAND/car 1 moves for 120 updates, grounded for 117, without C or snapshots.
+  This smoke test does not qualify the new startup/update wiring against C.
+  Other maps, collision radius, lifecycle and full startup RNG remain unverified.
+- **Next runnable increment:** qualify this fresh native path against C in short
+  sequences, then connect a moving browser proxy. Keep M3 open until its browser
+  exit condition runs independently. Reuse owned dynamics without per-frame
+  clones; bring other readers forward only when needed for this slice.
 - Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
   full startup/shared RNG replay, pickup activation/projection/backup/restore,
   fragment drawing and long-name/header aliases. Keep these explicit through M5-M7.
