@@ -17,19 +17,21 @@ as needed to reach the next playable slice.
 - **M3 active; M1/M2 complete.** Browser now drives a fresh Rust/Wasm vehicle on
   ENGLAND, displayed as a simple proxy: 6 draws / 8,774 triangles. Arrows drive;
   C toggles follow/free camera. `/?inspect` keeps the static inspection view.
-- Last verified code: **`3b54c15`**. Native/browser share resource loading and
-  tick runtime; no C or snapshots at runtime. VR01 still passes 38 scenarios /
-  1,056 updates / 6,581,504 fields against C across all maps/cars. Browser input
-  works; a fresh 120-update run matches Native final position/velocity/RNG.
-  `npm run test:rust` passes, including 133 GPU cases; production build and C
-  preservation pass. Production Wasm: **485,537 B**. Details are in linked docs.
-- **Next runnable increment:** bind authored scenery collision objects to this
-  live browser/runtime path before closing M3. Audit supported versus missing
-  level classes and their startup dependencies; preserve factory order/RNG.
-  Vehicle lifecycle, full Player/race startup and shared-world RNG are still
-  incomplete. Bring readers forward only when required for the runnable slice;
-  borrow owned dynamics without per-frame clones. Real vehicles/cameras are M4.
-- Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
+- Last verified code: **`afb6db8`**. Native `drive ... --scenery` now constructs
+  real Obstacle/Crush/Fall before the player (111 ENGLAND actors). Scheduler,
+  queues, collision and mutable meshes share owners; Fall reads actual vehicle
+  poses. SR01: 8 maps / 68 updates / 906,126 fields match C, including real Fall
+  hits and Crush deformation. Eleven native suites and `npm run test:rust` pass,
+  including existing VR01 and 133 GPU cases. C preservation passes. Production
+  Wasm: **493,755 B**. The browser has **not enabled these scenery actors yet**.
+- **Next runnable increment:** enable this qualified scenery bootstrap in the
+  browser with read-only render views of live transforms/current meshes. Batch
+  compatible objects, account retained metadata and verify collision/render
+  changes. Then complete required collision subclasses (Bounce/Spin/Closer,
+  etc.) before closing M3; the loader explicitly reports deferred classes.
+  Full Player/race startup, vehicle lifecycle and complete-world RNG/allocation
+  order are still incomplete. Real vehicle meshes/cameras remain M4.
+- Pending beyond it: vehicle blast response and remaining readers,
   full startup/shared RNG replay, pickup activation/projection/backup/restore,
   fragment drawing and long-name/header aliases. Keep these explicit through M5-M7.
 - Combined live ENGLAND extra map memory: **638,906 B in Wasm** = 377,176 B
