@@ -14,27 +14,28 @@ as needed to reach the next playable slice.
 
 ## Current checkpoint
 
-- **M3 active; M1/M2 complete.** Browser runs the ENGLAND static world and free
-  camera: 5 draws, 8,762 visible triangles; 133 GPU pixel cases verified.
-  Moving Rust vehicles are not yet connected to the browser.
-- Last verified code: **`900297e`**. Resource-only Native `drive` runs fresh
-  vehicle prefix/physics/after-pose through shared ticks, with no C or snapshots.
-  38 scenarios / 1,056 updates / 6,581,504 fields match C across all maps/cars.
-  Fixed pickup quad defaults and authored CIRCUIT power (60, not default 70).
-  Constructor/catalogue/fade/full-scene regression, workspace tests, native/Wasm
-  lint, browser build and C preservation pass. Detailed scope is in physics docs.
-- **Next runnable increment:** connect this runtime to a moving browser proxy;
-  load its resource archives and terrain without duplicated long-lived ownership.
-  Then bind authored scenery collision objects before closing M3. Vehicle
-  lifecycle, full Player/race startup and shared-world RNG are still incomplete.
-  Reuse owned dynamics without per-frame clones; bring other readers forward
-  only when needed for the runnable slice.
+- **M3 active; M1/M2 complete.** Browser now drives a fresh Rust/Wasm vehicle on
+  ENGLAND, displayed as a simple proxy: 6 draws / 8,774 triangles. Arrows drive;
+  C toggles follow/free camera. `/?inspect` keeps the static inspection view.
+- Last verified code: **`3b54c15`**. Native/browser share resource loading and
+  tick runtime; no C or snapshots at runtime. VR01 still passes 38 scenarios /
+  1,056 updates / 6,581,504 fields against C across all maps/cars. Browser input
+  works; a fresh 120-update run matches Native final position/velocity/RNG.
+  `npm run test:rust` passes, including 133 GPU cases; production build and C
+  preservation pass. Production Wasm: **485,537 B**. Details are in linked docs.
+- **Next runnable increment:** bind authored scenery collision objects to this
+  live browser/runtime path before closing M3. Audit supported versus missing
+  level classes and their startup dependencies; preserve factory order/RNG.
+  Vehicle lifecycle, full Player/race startup and shared-world RNG are still
+  incomplete. Bring readers forward only when required for the runnable slice;
+  borrow owned dynamics without per-frame clones. Real vehicles/cameras are M4.
 - Pending beyond it: vehicle blast response, Bounce/Spin/remaining readers,
   full startup/shared RNG replay, pickup activation/projection/backup/restore,
   fragment drawing and long-name/header aliases. Keep these explicit through M5-M7.
-- Extra map memory so far: render metadata **376,808 B in Wasm**; native collision
-  graphs 175-330 KB/map are not yet in the live Wasm total. Aggregate them before
-  claiming budget compliance. Original resources/GPU/dynamic memory are separate.
+- Combined live ENGLAND extra map memory: **638,906 B in Wasm** = 377,176 B
+  render/browser metadata + 261,730 B collision data/Arc. One terrain graph is
+  shared. Other maps still need combined live accounting when enabled.
+  Original resources/GPU storage/dynamic game memory remain separate.
 - Preserve the working C/browser reference. Rust output: `build/rust/site`.
   Local milestone commits are authorized; **do not push** unless asked.
 
