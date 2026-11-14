@@ -32,9 +32,9 @@ Updated: **2026-11-14**. Read this together with `git status`.
 - **M1/M2 complete; M3 active.** Runnable Rust/Wasm vehicle proxy, terrain and
   live Obstacle/Crush/Fall/Bounce/Closer/Spin scenery; Mover motion is connected.
   Arrows drive; A handbrakes; C switches follow/free camera; `/?inspect` stays static.
-- **Verified code: `b0c8b57`.** Original Player input plus actual handbrake and
-  parameter restoration run in the browser. Input: 226 cases / 1,341 operations;
-  brake: 97 cases / 1,164 operations match C. Bound input + direct physics:
+- **Verified code: `74f0285`.** Original Player input, handbrake/restoration and
+  active-race collision-indication prefix run in the browser. Input: 226 cases /
+  1,341 operations; brake: 97 / 1,164; indication: 114 / 912 match C. Bound input + direct physics:
   eight maps / fifteen cars / 2,880 updates / 18,041,268 matching fields.
   Countdown/fast-start kernel is qualified; browser proxy still starts immediately.
 - Original BIO exploding Mover hit, explosion allocation/smoke/retirement and
@@ -42,15 +42,16 @@ Updated: **2026-11-14**. Read this together with `git status`.
   Workspace tests/lints, constructor/prefix/scenery oracles and C preservation
   pass. Browser: 144 GPU cases, direct 120-update plus key/brake 24-update native
   final fields, DOM A press/release, ten short scenery probes and zero idle uploads.
-  Production Wasm: **693,690 B**; controlled exports are test-build only. Explosion sprites/full
+  Production Wasm: **694,304 B**; controlled exports are test-build only. Explosion sprites/full
   fragment drawing remain pending. Details are in the specialist docs.
-- **Next runnable increment:** Player's active-race collision marker/impact
-  decay and ground/tank/obstacle velocity-change contributions, before parent
-  physics. Bind the race-active gate explicitly and qualify threshold/tie/wrap
-  branches and short sequences. Then progress/required startup owners. Preserve
-  direct physics tests; do not expand M3 into all later effects or declare it
-  closed from helper tests. Pickup suppression is kernel-qualified; the full
-  pickup owner/activation is still later work.
+- **Next runnable increment:** authored WayPoint construction/linkage on the
+  common factory/symbol/scheduler owners, ordered query grid, lap circuit and
+  weather table. This is the resource/startup dependency for actual route/lap
+  progress; do not substitute an isolated progress helper. Check all-map records
+  and short queries against C, account extra map data, then connect Player route
+  and required startup owners. Preserve direct physics tests. Pickup suppression
+  is kernel-qualified; full activation remains later work. The proxy's race-active
+  gate currently starts true; complete race transitions are not implemented.
 - **Still missing:** full Player/race startup and lifecycle, complete world
   RNG/allocation order, real vehicle rendering, pickups/weapons/race rules,
   optional scenery, opponents/menus/audio and all-map full-game qualification.
