@@ -2,9 +2,7 @@
 use std::{collections::BTreeSet, fs, path::PathBuf, process::Command, sync::Arc};
 use tankracer_assets::{
     archive::Archive,
-    config::{Part, ResolveContext, Surfaces, Tank},
-    model::ShapeArchive,
-    object_catalog::Catalog,
+    config::{Part, ResolveContext},
     terrain::TerrainData,
 };
 use tankracer_game::{
@@ -13,7 +11,8 @@ use tankracer_game::{
     pose,
     scene_objects::collision::{Collision, Services, Sound},
     vehicle_loading::Request,
-    vehicle_model::{BuildContext, Bundles, ModelBank, VehicleModel},
+    vehicle_model::BuildContext,
+    vehicle_resources,
     vehicle_runtime::{Devices, Settings, SinglePlayer},
     vehicle_scene::spray,
     vehicle_startup::Environment,
@@ -43,15 +42,6 @@ impl Devices for Headless {
     fn impact_feedback(&mut self, _: i32) -> Result<(), i32> {
         Ok(())
     }
-}
-fn shapes(bytes: &[u8]) -> ShapeArchive<'_> {
-    let archive = Archive::parse(bytes).unwrap();
-    let file = archive
-        .entries()
-        .iter()
-        .find(|e| e.name.ends_with(".SS"))
-        .unwrap();
-    ShapeArchive::parse(archive.get(file.name).unwrap()).unwrap()
 }
 fn words(game: &mut SinglePlayer) -> Vec<u32> {
     let v = game.vehicles.entries[0].as_ref().unwrap();
@@ -99,17 +89,9 @@ fn words(game: &mut SinglePlayer) -> Vec<u32> {
 fn fresh_resource_only_runtime_matches_native_updates() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
     let data_file = fs::read(root.join("DATA/FASTFILE.DAT")).unwrap();
-    let data = Archive::parse(&data_file).unwrap();
-    let surfaces = Surfaces::decode(data.get("SURFS.DAT").unwrap()).unwrap();
-    let catalog = Catalog::decode(data.get("OBPARAMS.DAT").unwrap()).unwrap();
     let vehicles = ["BRONZE", "SILVER", "GOLD"]
         .map(|tier| fs::read(root.join("TANKS").join(tier).join("FASTFILE.DAT")).unwrap());
     let shared = fs::read(root.join("INGAME/FASTFILE.DAT")).unwrap();
-    let source = Bundles {
-        vehicle: vehicles.iter().map(|b| shapes(b)).collect(),
-        shared: vec![shapes(&shared)],
-        level: vec![],
-    };
     let maps = [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ];
@@ -157,18 +139,16 @@ fn fresh_resource_only_runtime_matches_native_updates() {
             .find(|e| e.name.ends_with(".BSM"))
             .unwrap();
         let terrain = Arc::new(TerrainData::decode_bsm(archive.get(bsm.name).unwrap()).unwrap());
-        let tank = Tank::decode(data.get(&format!("TANK{car}.DAT")).unwrap()).unwrap();
-        let model = VehicleModel::build(
-            &tank,
-            &source,
-            &mut ModelBank::default(),
-            &surfaces,
+        let resources = vehicle_resources::prepare(
+            &data_file,
+            &vehicles.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+            &shared,
+            car as u32,
             BuildContext {
                 resolve: ResolveContext {
                     player: true,
                     mode: mode as u32,
                     map: map as u32,
-                    circuit_power_mul: catalog.general.circuit_power_mul,
                     ..ResolveContext::default()
                 },
                 ambient_wobble: false,
@@ -176,12 +156,12 @@ fn fresh_resource_only_runtime_matches_native_updates() {
             },
         )
         .unwrap();
-        assert!(model.parts[Part::Body.slot()].is_some());
+        assert!(resources.model.parts[Part::Body.slot()].is_some());
         let mut game = SinglePlayer::new(
             terrain,
-            surfaces.clone(),
+            resources.surfaces,
             Request {
-                model,
+                model: resources.model,
                 spawn: pose::Pose::default(),
                 static_allocation: true,
                 environment: Environment {

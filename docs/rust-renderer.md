@@ -2,7 +2,8 @@
 
 The Rust browser shell uses `assets` for immutable source data, `scene` for
 native-testable game-specific preparation/camera, `render` for typed geometry,
-materials and WebGL, and `web` for browser ownership. Simulation has not migrated.
+materials and WebGL, and `web` for browser ownership. The `game` crate now runs
+the terrain/vehicle update slice; the full race remains in the C reference.
 
 The renderer uploads indexed, world-space vertices once. Vertex shaders perform
 the matrix transform and hardware performs projection clipping. The frame sends
@@ -90,3 +91,41 @@ GPU/browser performance is a later, separate measurement.
 
 Production builds omit GPU probes. The C source, native program and previous
 browser site are unchanged and remain available to differential tests.
+
+## M3 moving browser proxy (2026-11-14)
+
+The normal Rust page now loads DATA, BRONZE and INGAME resources and drives a
+fresh vehicle in Wasm. A shared `vehicle_resources::prepare` path serves both
+the native example and browser; raw archive mounts are transient. Rendering and
+simulation share one decoded `Arc<TerrainData>`; no collision graph is cloned.
+Arrow keys supply throttle/brake/steering at fixed 16 ms ticks. C toggles the
+temporary follow/free camera; `/?inspect` preserves static inspection. These
+are M3 controls/camera, not the final Player controller or original chase camera.
+No race rules, placed scenery collision actors or gameplay menus are claimed.
+
+The render view receives integer pose/bounds through a single Q3/Q12 coordinate
+boundary. Source local axes form matrix columns, with both local and world Z
+reflected so right-handed mesh winding remains intact. A native translated
+quarter-turn test checks this independently. The unit cube uploads once; its
+transform changes without streaming vertex data. Opaque world -> proxy ->
+transparent world ordering retains depth testing/writes and premultiplied blend
+semantics. The moving view uses **6 draws / 8,774 triangles**; 133 GPU cases and
+the existing static keyboard/pointer/layout/upload checks still pass.
+
+`npm run test:rust` now also launches the normal page, verifies actual keyboard
+driving and compares a fresh 120-update Wasm run with the independently launched
+native Rust example. Final position `[637,1172,37953]`, velocity
+`[9694,-584,468392]`, RNG `2312014916` and frame 120 agree. This browser check
+compares those final fields, not every field of every frame; VR01 separately
+qualifies the fresh native path against C. A screenshot confirms the visible
+proxy and scene. A local headless run took about 0.8 ms for the 120 calls,
+including JS/Wasm calls and view/camera updates, excluding drawing/loading.
+This is not a whole-frame or hardware-GPU benchmark.
+
+ENGLAND now enforces the **combined** per-map budget at load: **638,906 B** in
+Wasm, comprising 377,176 B render metadata (including browser/GPU-handle metadata)
+and 261,730 B collision data plus its Arc header. Source/GPU storage and dynamic
+vehicle/effect state remain separate. Other maps still need their combined live
+budget measured when enabled. Production Wasm is **485,537 B**; test-only GPU
+probes and vehicle inspection exports are omitted. M3 remains open for authored
+scenery collision binding before the M4 vehicle renderer.

@@ -2341,3 +2341,11 @@ static, 183,235 B Wasm; render/collision map metadata are unchanged.
 $env:TANKRACER_VEHICLE_RUNTIME_REFERENCE=(Resolve-Path build/native/vehicle_runtime_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_runtime_reference --locked -- --ignored --nocapture
 ```
+
+The following browser increment shares `vehicle_resources::prepare` with this
+example and VR01. The same 38-case C matrix still passes after that resource
+path consolidation. The browser now runs `SinglePlayer` directly in Wasm, with
+a read-only proxy view and a shared terrain Arc; see the renderer's M3 section
+for the actual browser verification and its narrower final-field comparison.
+Authored object collision binding is the next M3 slice. Full Player/race rules,
+remaining lifecycle methods and complete-world startup RNG are still pending.

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build:rust": "node tools/build_rust.mjs",
-    "test:rust": "cargo test --workspace --locked && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy -p tankracer-web --target wasm32-unknown-unknown --all-features -- -D warnings && node tools/build_rust.mjs --test && node tests/rust-browser.mjs",
+    "test:rust": "cargo test --workspace --locked && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy -p tankracer-web --target wasm32-unknown-unknown --all-features -- -D warnings && cargo build -p tankracer-game --example drive --release --locked && node tools/build_rust.mjs --test && node tests/rust-browser.mjs",
     "build": "python tools/build.py",
     "start": "node tools/serve.mjs",
     "test": "node tests/parity.mjs && node tests/cup.mjs && node tests/site.mjs",

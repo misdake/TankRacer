@@ -160,6 +160,7 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "tankracer-assets",
+ "tankracer-game",
  "tankracer-render",
  "tankracer-scene",
  "wasm-bindgen",

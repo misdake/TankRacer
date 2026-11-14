@@ -1,12 +1,7 @@
 //! Terrain/vehicle milestone runner. No C library, dump, emulator or server.
 use std::{error::Error, fs, path::PathBuf, sync::Arc, time::Instant};
 use tankracer_assets::{
-    archive::Archive,
-    config::{ResolveContext, Surfaces, Tank},
-    level::Level,
-    model::ShapeArchive,
-    object_catalog::Catalog,
-    terrain::TerrainData,
+    archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
 };
 use tankracer_game::{
     drive,
@@ -14,7 +9,8 @@ use tankracer_game::{
     pose,
     scene_objects::collision::{self, Collision, Sound},
     vehicle_loading::Request,
-    vehicle_model::{BuildContext, Bundles, ModelBank, VehicleModel},
+    vehicle_model::BuildContext,
+    vehicle_resources,
     vehicle_runtime::{Devices, Settings, SinglePlayer},
     vehicle_scene::spray,
     vehicle_startup::Environment,
@@ -36,17 +32,6 @@ impl Devices for Headless {
         Ok(())
     }
 }
-fn shapes(bytes: &[u8]) -> Result<ShapeArchive<'_>, Box<dyn Error>> {
-    let archive = Archive::parse(bytes)?;
-    let file = archive
-        .entries()
-        .iter()
-        .find(|e| e.name.ends_with(".SS"))
-        .ok_or("missing shape archive")?;
-    Ok(ShapeArchive::parse(
-        archive.get(file.name).ok_or("missing shapes")?,
-    )?)
-}
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let root = args
@@ -63,24 +48,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("map 0..7, car 1..15, ticks > 0".into());
     }
     let data_file = fs::read(root.join("DATA/FASTFILE.DAT"))?;
-    let data = Archive::parse(&data_file)?;
-    let surfaces = Surfaces::decode(data.get("SURFS.DAT").ok_or("missing surfaces")?)?;
-    let tank = Tank::decode(data.get(&format!("TANK{car}.DAT")).ok_or("missing tank")?)?;
-    let catalog = Catalog::decode(data.get("OBPARAMS.DAT").ok_or("missing object settings")?)
-        .map_err(|e| format!("object settings: {e:?}"))?;
     let files = ["BRONZE", "SILVER", "GOLD"]
         .map(|tier| fs::read(root.join("TANKS").join(tier).join("FASTFILE.DAT")))
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
     let shared = fs::read(root.join("INGAME/FASTFILE.DAT"))?;
-    let source = Bundles {
-        vehicle: files
-            .iter()
-            .map(|b| shapes(b))
-            .collect::<Result<Vec<_>, _>>()?,
-        shared: vec![shapes(&shared)?],
-        level: vec![],
-    };
     let level_file = fs::read(root.join("LEVELS").join(maps[map]).join("FASTFILE.DAT"))?;
     let archive = Archive::parse(&level_file)?;
     let bsm = archive
@@ -109,28 +81,26 @@ fn main() -> Result<(), Box<dyn Error>> {
         .find(|o| o.class == "Player")
         .map(pose::Pose::from_level)
         .unwrap_or_default();
-    let model = VehicleModel::build(
-        &tank,
-        &source,
-        &mut ModelBank::default(),
-        &surfaces,
+    let resources = vehicle_resources::prepare(
+        &data_file,
+        &files.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+        &shared,
+        car as u32,
         BuildContext {
             resolve: ResolveContext {
                 player: true,
                 map: map as u32,
-                circuit_power_mul: catalog.general.circuit_power_mul,
                 ..ResolveContext::default()
             },
             ambient_wobble: false,
             session_active: false,
         },
-    )
-    .map_err(|e| format!("model: {e:?}"))?;
+    )?;
     let mut game = SinglePlayer::new(
         terrain,
-        surfaces,
+        resources.surfaces,
         Request {
-            model,
+            model: resources.model,
             spawn,
             static_allocation: true,
             environment: Environment {

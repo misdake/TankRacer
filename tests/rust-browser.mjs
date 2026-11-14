@@ -1,6 +1,6 @@
 // End-to-end Rust/Wasm/WebGL pixel tests in a real Chromium WebGL context.
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn,execFileSync} from 'node:child_process';
 import {existsSync} from 'node:fs';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -60,7 +60,7 @@ try{
  };
  await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
  await send('Runtime.enable');await send('Page.enable');await send('Network.enable');
- await send('Page.navigate',{url:base+'/'});
+ await send('Page.navigate',{url:base+'/?inspect'});
  await wait(async()=>{
   const error=await evaluate('document.body?.dataset.error');if(error)throw Error(error);
   return evaluate('document.body?.dataset.ready==="true"');
@@ -99,9 +99,40 @@ try{
   const size=await evaluate('(()=>{const r=document.getElementById("game").getBoundingClientRect();return {width:r.width,height:r.height,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight};})()');
   assert.ok(Math.abs(size.width/size.height-4/3)<0.002);assert.equal(size.scrollWidth,width);assert.equal(size.scrollHeight,height);
  }
+ // The normal page runs the same fresh resource-only runtime inside Wasm.
+ await send('Page.navigate',{url:base+'/'});
+ await wait(async()=>{
+  const error=await evaluate('document.body?.dataset.error');if(error)throw Error(error);
+  return evaluate('document.body?.dataset.ready==="true"');
+ },'Wasm vehicle initialization');
+ const carStart=await evaluate(`import('/main.js').then(m=>Array.from(m.app.vehicle_position()))`);
+ assert.equal(carStart.length,3);
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
+ await wait(()=>evaluate(`import('/main.js').then(m=>Math.abs(m.app.vehicle_position()[2]-${carStart[2]})>500)`),'keyboard vehicle motion');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
+ await evaluate(`import('/main.js').then(m=>m.stop())`);
+ const driven=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_player(...files);
+   const begin=performance.now();
+   for(let tick=0;tick<120;tick++)m.app.step_vehicle(16,65536,0,tick>=40&&tick<60?12000:0);
+   const milliseconds=performance.now()-begin;
+   m.app.render();
+   return {state:Array.from(m.app.vehicle_state()),milliseconds,frame:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())};
+ })`);
+ const native=path.join(root,'target/release/examples/drive'+(process.platform==='win32'?'.exe':''));
+ assert.ok(existsSync(native),'Build the native Rust drive example for Wasm comparison');
+ const nativeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','120'],{encoding:'utf8',windowsHide:true});
+ const nativeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(nativeOutput);
+ assert.ok(nativeState,nativeOutput);
+ assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
+ assert.equal(driven.frame.draws,6);assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+12);
+ assert.ok(driven.scene.acceleration_bytes<1_000_000);
+ assert.equal(driven.scene.acceleration_bytes,driven.scene.render_acceleration_bytes+driven.scene.collision_acceleration_bytes);
+ await writeFile(path.join(output,'drive.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  assert.deepEqual(errors,[]);assert.equal(requests.filter(url=>new URL(url).pathname.startsWith('/api/')).length,0);
  assert.ok(requests.some(url=>url.endsWith('/pkg/tankracer_bg.wasm')));
- Object.assign(report,{passed:true,...gpu,frame,scene,free_camera:true,keyboard_motion:true,pointer_look:true,stationary_upload_bytes:0,aspect_ratios:3,rust_wasm:true,raw_webgl2:true});
+ Object.assign(report,{passed:true,...gpu,frame,scene,free_camera:true,keyboard_motion:true,pointer_look:true,stationary_upload_bytes:0,aspect_ratios:3,rust_wasm:true,raw_webgl2:true,vehicle:driven,native_wasm_updates:120,keyboard_driving:true});
  console.log('RUST BROWSER: PASS',report);
 }catch(error){report.error=error.stack;throw error;}
 finally{

@@ -19,7 +19,9 @@ args.push('--locked');
 run('wasm-pack',args);
 await cp(path.join(root,'browser'),output,{recursive:true});
 await mkdir(path.join(output,'assets'),{recursive:true});
-await copyFile(path.join(root,'assets/game/LEVELS/ENGLAND/FASTFILE.DAT'),path.join(output,'assets/ENGLAND.DAT'));
+for(const [source,name]of [
+ ['LEVELS/ENGLAND','ENGLAND'],['DATA','DATA'],['TANKS/BRONZE','BRONZE'],['INGAME','INGAME'],
+]) await copyFile(path.join(root,'assets/game',source,'FASTFILE.DAT'),path.join(output,'assets',`${name}.DAT`));
 console.log(`Rust site: ${output}`);
 console.log(`Wasm: ${(await stat(path.join(output,'pkg/tankracer_bg.wasm'))).size} bytes`);
 console.log(`Serve: node tools/serve.mjs 8133 build/rust/${testing?'test-site':'site'}`);

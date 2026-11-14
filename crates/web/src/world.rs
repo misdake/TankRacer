@@ -1,4 +1,6 @@
 use glam::Vec3;
+use std::sync::Arc;
+use tankracer_assets::{archive::Archive, budget::MapBudget, terrain::TerrainData};
 use tankracer_render::{
     gpu::{GpuMesh, Renderer, Texture},
     material::{AlphaEncoding, Blend, Cull, Material, Pipeline},
@@ -11,6 +13,8 @@ use wasm_bindgen::JsValue;
 
 pub struct WorldView {
     pub camera: Camera,
+    pub terrain: Arc<TerrainData>,
+    acceleration_bytes: usize,
     scene: WorldScene,
     meshes: Vec<GpuMesh>,
     atlas: Texture,
@@ -20,6 +24,23 @@ impl WorldView {
     pub fn load(renderer: &Renderer, bytes: &[u8]) -> Result<Self, JsValue> {
         let mut scene =
             WorldScene::load_archive(bytes).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let archive = Archive::parse(bytes).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let file = archive
+            .entries()
+            .iter()
+            .find(|e| e.name.ends_with(".BSM"))
+            .ok_or_else(|| JsValue::from_str("Level has no terrain"))?;
+        let terrain = Arc::new(
+            TerrainData::decode_bsm(archive.get(file.name).unwrap())
+                .map_err(|e| JsValue::from_str(&e.to_string()))?,
+        );
+        let mut budget = MapBudget::default();
+        budget
+            .account(scene.stats.acceleration_bytes)
+            .map_err(JsValue::from_str)?;
+        budget
+            .account(terrain.resident_bytes() + 2 * std::mem::size_of::<usize>())
+            .map_err(JsValue::from_str)?;
         let camera = scene.inspection_camera();
         let atlas = renderer.upload_rgba(
             scene.atlas.width,
@@ -31,6 +52,12 @@ impl WorldView {
             .iter()
             .map(|b| renderer.upload_mesh(&b.geometry))
             .collect::<Result<Vec<_>, _>>()?;
+        budget
+            .account(
+                std::mem::size_of::<Self>() - std::mem::size_of::<WorldScene>()
+                    + meshes.capacity() * std::mem::size_of::<GpuMesh>(),
+            )
+            .map_err(JsValue::from_str)?;
         // Source ownership/index tables stay for later detachable features;
         // static vertex bytes and atlas pixels now live only on the GPU.
         for batch in &mut scene.batches {
@@ -43,10 +70,17 @@ impl WorldView {
             meshes,
             atlas,
             camera,
+            terrain,
+            acceleration_bytes: budget.bytes(),
         })
     }
 
-    pub fn draw(&mut self, renderer: &mut Renderer, size: [u32; 2]) -> Result<(), JsValue> {
+    pub fn draw(
+        &mut self,
+        renderer: &mut Renderer,
+        size: [u32; 2],
+        vehicle: Option<&crate::vehicle::VehicleView>,
+    ) -> Result<(), JsValue> {
         if self
             .scene
             .order
@@ -61,12 +95,31 @@ impl WorldView {
         let right = self.camera.right();
         let mut frame = renderer.begin_frame(None, size, [0.48, 0.62, 0.72, 1.]);
         frame.set_billboard_right([right.x, right.z]);
-        for (batch, mesh) in self.scene.batches.iter().zip(&self.meshes) {
+        for (batch, mesh) in self
+            .scene
+            .batches
+            .iter()
+            .zip(&self.meshes)
+            .filter(|(b, _)| b.kind != BatchKind::Transparent)
+        {
             if batch.geometry.indices.is_empty() {
                 continue;
             }
             let material = material(batch.kind);
             frame.draw(mesh, &material, Some(&self.atlas), vp);
+        }
+        // Dynamic opaque geometry must write depth before blended world faces.
+        if let Some(vehicle) = vehicle {
+            vehicle.draw(&mut frame, vp);
+        }
+        let alpha = BatchKind::Transparent.slot();
+        if !self.scene.batches[alpha].geometry.indices.is_empty() {
+            frame.draw(
+                &self.meshes[alpha],
+                &material(BatchKind::Transparent),
+                Some(&self.atlas),
+                vp,
+            );
         }
         Ok(())
     }
@@ -78,7 +131,7 @@ impl WorldView {
     pub fn stats(&self) -> String {
         let s = &self.scene.stats;
         format!(
-            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{}}}",
+            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{}}}",
             s.source_meshes,
             s.source_triangles,
             s.rendered_triangles,
@@ -87,9 +140,13 @@ impl WorldView {
             s.unique_vertices,
             s.vertex_bytes,
             s.index_bytes,
-            s.acceleration_bytes,
+            self.acceleration_bytes,
             self.scene.atlas.width,
-            self.scene.atlas.height
+            self.scene.atlas.height,
+            self.acceleration_bytes
+                - self.terrain.resident_bytes()
+                - 2 * std::mem::size_of::<usize>(),
+            self.terrain.resident_bytes() + 2 * std::mem::size_of::<usize>()
         )
     }
 }
