@@ -4,13 +4,24 @@ This is the short source of truth. Read it before/after each milestone and after
 context recovery; check the actual worktree before resuming. Detailed evidence:
 [assets](rust-assets.md), [physics](rust-physics.md), [renderer](rust-renderer.md).
 
-## Goal
+## Plan in brief
 
-Incrementally replace the C runtime with readable Rust, compiled to Wasm, and a
-small raw WebGL renderer with ordinary world-space meshes/materials. Deliver a
-standalone single-player CUP game, detachable scenery plugins and a measured,
-optimized package. Keep a runnable build at every step; qualify helpers only
-as needed to reach the next playable slice.
+- Deliver standalone single-player CUP in clean **Rust -> Wasm**, with our own
+  raw WebGL renderer. Preserve the runnable C game as the reference.
+- Separate immutable resources, authoritative simulation and read-only render
+  views. Use world-space meshes, explicit materials, atlases and batching.
+- Grow one runnable slice at a time: build/render shell -> static world ->
+  physics/collisions -> vehicles/cameras -> race rules/effects -> detachable
+  scenery -> opponents/menus/all maps -> optimization and packaging.
+- Keep physics, update order and RNG exact; allow small visual differences,
+  never incorrect blend/depth states. Minor scenery must support config and
+  runtime toggles with complete cleanup.
+- Measure whole-frame costs before optimizing. Remove repeated work and improve
+  data layout; extra per-map data should stay below **1 MB**, never exceed
+  **2 MB** resident/uncompressed. The exact accounting rules are below.
+- At every completed increment, re-read this plan, verify its runnable exit,
+  replace the checkpoint and commit verified work. After context recovery,
+  resume from that checkpoint and the actual Git diff.
 
 ## Current checkpoint
 
@@ -24,6 +35,9 @@ as needed to reach the next playable slice.
   hits and Crush deformation. Eleven native suites and `npm run test:rust` pass,
   including existing VR01 and 133 GPU cases. C preservation passes. Production
   Wasm: **493,755 B**. The browser has **not enabled these scenery actors yet**.
+- **Unverified worktree:** `scene_meshes.rs` adds material/version render views;
+  `vehicle_model.rs` exposes cached models. These are unfinished browser-scenery
+  preparation, not part of the verified checkpoint. Inspect/test them before use.
 - **Next runnable increment:** enable this qualified scenery bootstrap in the
   browser with read-only render views of live transforms/current meshes. Batch
   compatible objects, account retained metadata and verify collision/render

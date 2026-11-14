@@ -3,6 +3,8 @@
 A Rust rewrite is in progress, starting with a small world-space WebGL 2
 renderer. The runnable C game below remains the reference during migration.
 The short plan and current checkpoint are in [the roadmap](docs/rust-roadmap.md).
+Re-read it after each completed increment and after context recovery; the
+repository instructions in `AGENTS.md` require this checkpoint routine.
 
 ```sh
 rustup target add wasm32-unknown-unknown
