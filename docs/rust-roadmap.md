@@ -26,19 +26,20 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 ## Current checkpoint
 
 - **M3 active; M1/M2 complete.** Rust/Wasm drives a vehicle proxy with real
-  Obstacle/Crush/Fall/Bounce/Closer scenery: 141 constructed actors, 118 rendered.
+  Obstacle/Crush/Fall/Bounce/Closer/Spin scenery. ENGLAND: 141 constructed actors,
+  118 rendered; controlled SWAMP browser views render 83 actors.
   Live poses/current meshes feed read-only rendering. Arrows drive; C switches
   follow/free camera; `/?inspect` stays static.
-- Verified code: **`87a7aa3`**. Closer now loads, polls proximity, closes and
-  shatters through real method/scheduler/collision owners. CL01: 97 scenarios /
-  163 operations exact against C. SR03: eight maps / 156 updates / 2,540,971
-  fields exact, including closing/shattered Closer and low gravity.
+- Verified code: **`b8bfc65`**. Spin loading/hit/tick uses the actual factory,
+  collider and stop queue; preserves terrain cadence, yaw and edge pivots.
+  SP01: 88 scenarios / 295 operations exact against C. SR04: eight maps /
+  204 updates / 3,316,937 fields exact, including SWAMP/EAST Spin collisions.
 - Related native suites, workspace tests/lints, source preservation and browser
   checks pass: 144 GPU cases, 120-update native/Wasm final fields, reloads and
-  six 12-update collision cases; stationary uploads zero. Full race startup,
+  eight 12-update collision cases; stationary uploads zero. Full race startup,
   per-frame browser state parity and full image parity remain unqualified.
-- **Next runnable increment:** Spin, then other required collision subclasses,
-  using actual loading/update/collision owners and current meshes. Check branches
+- **Next runnable increment:** Mover (a Spin subclass), then remaining required
+  collision/startup bindings, using actual owners and current meshes. Check branches
   and short sequences. Full Player/race startup, vehicle lifecycle and complete
   world RNG/allocation order remain incomplete; M3 is not closed. M4 adds real
   vehicle meshes/cameras. The loader reports deferred classes explicitly.
@@ -47,10 +48,11 @@ context recovery; check the actual worktree before resuming. Detailed evidence:
 - Default probe: **396 draws / 10,033 triangles**; 37 scenery opaque/masked
   draws and 354 globally ordered transparent runs. Reduce transparent draws and
   add culling while preserving ordering and exact material/depth states.
-- Extra ENGLAND map memory: **797,177 B** (535,447 render + 261,730 collision);
-  tested shattering peak **811,681 B**. Other maps need combined live accounting
-  when enabled. Resources/GPU/dynamic game memory are separate. Production Wasm:
-  **658,917 B**. Detailed contracts and evidence belong in the specialist docs.
+- Extra ENGLAND map memory: **797,177 B**, tested shattering peak **811,681 B**.
+  SWAMP: **926,310 B** (660,758 render + 265,552 collision), 655-657 draws in
+  collision views; transparent batching is still pending. Other maps need live
+  accounting. Resources/GPU/dynamic game memory are separate. Production Wasm:
+  **670,727 B**. Detailed contracts/evidence belong in the specialist docs.
 - Preserve the working C/browser reference. Rust output: `build/rust/site`.
   Local milestone commits are authorized; **do not push** unless asked.
 
