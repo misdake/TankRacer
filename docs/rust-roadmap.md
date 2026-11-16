@@ -30,32 +30,35 @@ Deliverables and fixed acceptance boundaries: [milestones](rust-milestones.md).
 
 Updated: **2026-11-17**. Read this together with `git status`.
 
-- **M1-M3 and M4.1 accepted; verified code: `1e10aa9`.** The Rust/Wasm driving
-  scene draws authored body, turret and gun from read-only physical part poses.
-  Geometry/material extraction, local damage/recoil refresh and GPU submission
-  are separate from unchanged physics. See [M4 evidence](rust-m4-vehicle.md).
+- **M1-M3 and M4.1-M4.2 accepted; verified code: `f7b9dc8`.** The Rust/Wasm
+  driving scene draws authored body, turret, gun and both track/wheel meshes
+  from read-only physical part poses. Fixed-tick visual travel supplies GPU UV
+  phases; animation uploads no vertices and cannot mutate physics/RNG.
+  See [M4 evidence](rust-m4-vehicle.md).
   M2 remains the ENGLAND static scope; [M3 acceptance](rust-m3-acceptance.md)
   records the original moving-proxy qualification (baseline `686cb74`).
   Arrows drive; A handbrakes; C switches follow/free camera; `/?inspect` stays static.
-- **Focused M4.1 checks passed:** eight scene tests, including all 15 cars at
-  four articulated poses and private-geometry invalidation; native/Wasm lints;
-  actual browser 144 GPU cases, direct/key/brake native/Wasm final fields, ten
-  scenery probes, reloads and zero idle uploads. Front/side/rear-quarter views
-  preserve physics/RNG. Production build and source preservation pass; unrelated
-  C suites were not repeated. Production Wasm: **716,818 B**.
-- **Next runnable increment: M4.2.** Add actual tracks/wheels and their motion/UV
-  animation to the existing driving scene, preserving physics and resident
-  geometry. Then M4.3: original cameras, shadows and additional vehicle layers.
+- **Focused M4.2 checks passed:** eight scene tests, including 15 cars/four
+  articulated poses; original x86 track oracle: 90 cases / 11,880 GPU corners;
+  native/Wasm lints; browser 170 GPU cases, direct/key/brake native/Wasm final
+  fields and ten scenery probes. Draw-every-tick versus draw-at-end sequences
+  preserve animation/physics/RNG; handbrake freezes, reload resets, redraws and
+  animation upload zero vertices. Production build and source preservation pass;
+  game/physics source is unchanged. Unrelated C suites were not repeated.
+  Production Wasm: **721,163 B**.
+- **Next runnable increment: M4.3.** Original camera modes, ground/body shadows
+  and additional vehicle layers/attachments, one usable slice at a time. Keep
+  the current driving scene and physical updates unchanged.
 - **Later owners:** M5 full world/Player startup, allocation/RNG order, race
   lifecycle, laps, pickups/weapons/HUD/effects; M6 configurable scenery; M7
   opponents, original menus/audio/full CUP/all maps; M8 full optimization/package.
   A complete Rust race, per-frame browser/C parity and full image parity remain
   unqualified. Qualified component kernels are not integrated game features.
-- **Measured baseline:** default vehicle 61 triangles / 3 draws; ENGLAND scene
-  398 draws / 10,082 triangles / 22 pipeline changes. Vehicle render caches:
-  16,113 B, separately counted. Extra resident map data including routes:
-  ENGLAND **767,421 B** (781,925 B shattering peak), SWAMP **879,610 B**,
-  BIO **949,436 B**; all below 1 MB. Other maps' full live aggregates remain
+- **Measured baseline:** default vehicle 105 triangles / 9 draws; ENGLAND scene
+  404 draws / 10,126 triangles / 25 pipeline changes. Vehicle render caches:
+  35,098 B, separately counted; world vertex layout remains 44 B. Extra resident
+  map data: ENGLAND **769,325 B** (785,669 B shattering peak), SWAMP **880,874 B**,
+  BIO **950,660 B**; all below 1 MB. Other maps' full live aggregates remain
   unqualified; transparent batching/culling remain pending. Keep original
   resources, GPU and dynamic game memory separate.
 - Rust output: `build/rust/site`; preserve the C/browser reference. Local
@@ -68,7 +71,7 @@ Updated: **2026-11-17**. Read this together with `git status`.
 | M1 done | Rust/Wasm build, browser shell, own raw WebGL renderer, explicit state and GPU tests. |
 | M2 done | ENGLAND static scene, categorized resources/materials, atlas/batches and free camera. |
 | M3 done | Independent moving proxy: precise terrain, suspension, drive, poses and collision; C module/short-sequence parity. [Acceptance](rust-m3-acceptance.md). |
-| M4 active; M4.1 done | Body/turret/gun accepted. Next tracks/wheels, then cameras, shadows and material layers. |
+| M4 active; M4.1-M4.2 done | Body/turret/gun and animated tracks/wheels accepted. Next cameras, shadows and material layers. |
 | M5 | Pickups, weapons, destruction, laps, timing and HUD; playable core race. |
 | M6 | Cones, signs, birds and ENGLAND train as independent configurable plugins; runtime toggle and complete cleanup. |
 | M7 | Opponents, original menus, full CUP and all eight maps. |
