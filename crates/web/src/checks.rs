@@ -701,6 +701,61 @@ pub fn run(renderer: &mut Renderer) -> Result<String, JsValue> {
         )?;
         cases += 1;
     }
+    // Optional UV streams must wrap each corner inside its atlas region, stay
+    // independent between channels, and never leak into an ordinary mesh VAO.
+    {
+        let pixels: Vec<_> = (0..1024)
+            .flat_map(|pixel| {
+                if (128..640).contains(&pixel) {
+                    let row = ((pixel - 128) / 2) as u8;
+                    [row, 255 - row, 32, 255]
+                } else {
+                    [255, 0, 255, 255]
+                }
+            })
+            .collect();
+        let texture = renderer.upload_rgba(1, 1024, &pixels)?;
+        for (channel, base, phases) in [(0usize, 0.5, 8usize), (1, 250.5, 5)] {
+            let mut data = MeshData::quad(0.);
+            for vertex in &mut data.vertices {
+                vertex.uv = [0.5, (128. + base * 2.) / 1024.];
+            }
+            let mut coefficient = [0., 0., 128. / 1024., 512. / 1024.];
+            coefficient[channel] = if channel == 0 { 32. / 512. } else { 2. / 512. };
+            let animated =
+                renderer.upload_animated_mesh(&data, &vec![coefficient; data.vertices.len()])?;
+            let ordinary = renderer.upload_mesh(&data)?;
+            for phase in 0..phases {
+                let mut material = Material::opaque([1.; 4]);
+                material.uv_phase[channel] = phase as f32;
+                let row = (base as usize + phase * if channel == 0 { 32 } else { 2 }) & 255;
+                let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+                frame.draw(&animated, &material, Some(&texture), Mat4::IDENTITY);
+                expect(
+                    &frame,
+                    "wheel/tread atlas row",
+                    [row as f32 / 255., (255 - row) as f32 / 255., 32. / 255., 1.],
+                )?;
+                cases += 1;
+                // Preserve the nonzero material phase deliberately. A mesh with
+                // no animation stream still samples its original UVs.
+                let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+                frame.draw(&ordinary, &material, Some(&texture), Mat4::IDENTITY);
+                let row = base as u8;
+                expect(
+                    &frame,
+                    "UV stream VAO restoration",
+                    [
+                        f32::from(row) / 255.,
+                        f32::from(255 - row) / 255.,
+                        32. / 255.,
+                        1.,
+                    ],
+                )?;
+                cases += 1;
+            }
+        }
+    }
     renderer.check_error()?;
     Ok(format!(
         "{{\"passed\":true,\"pixel_cases\":{cases},\"depth_comparisons\":8,\"blend_transitions\":81}}"

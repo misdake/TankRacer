@@ -80,3 +80,83 @@ M4.2 adds tracks/wheels and their animation. M4.3 adds original cameras, shadows
 and extra vehicle layers/attachments. M4.1 displays authoritative turret/gun poses;
 the enclosing original turret-key/fire gameplay path remains later integration.
 The current runtime still starts immediately and is not a complete race.
+
+## M4.2 accepted (2026-11-17)
+
+Both authored track meshes now render from `poses.tracks`, including independent
+suspension pitch and translation. The wheels are textured faces inside those
+meshes, not separate rotating wheel models. Their animation follows the original
+eight wheel-atlas rows and five tread phases, using the model's qualified UV
+triangle/corner tables. No additional geometry is invented.
+
+### Animation and GPU design
+
+`scene::vehicle::tracks::Tracks` owns two wrapping visual travel counters.
+After each successful fixed simulation update the browser adapter samples the
+existing track speed, yaw rate and handbrake lock without writing gameplay state.
+The original 434B70 arithmetic clamps speed to +/-300000, truncates yaw*400/1024,
+and accumulates left/right speed minus/plus turn. High-speed overflow, unsigned
+counter wrap and reverse travel retain the x86 behavior. Handbrake locks the
+counters; pausing updates stops visual progression too. New sessions reset them.
+
+Original 434C60 maps `(travel >> 17) & 7` to wheel rows 32 apart, and
+`(travel >> 17) % 5` to tread offsets two rows apart. The original helper was
+called by drawing; Rust advances visual travel at fixed updates so rendering
+frequency, skipped draws and repeated camera-only redraws cannot alter it.
+The old C presenter's capped latest-speed estimate for skipped frames is not
+used. This is presentation state and consumes no RNG.
+
+At load time, preparation emits phase-zero UVs and optional per-corner scroll
+coefficients. Only animated mesh passes allocate the extra attribute-9 stream;
+ordinary world/scenery vertices keep their existing 44-byte layout. Each part
+draw supplies two phase uniforms. The vertex shader wraps V to the source byte
+range inside the atlas region before interpolation, including the 250+8 -> 2
+tread boundary. Uniforms are explicit on every draw and ordinary VAOs disable
+the optional stream. Existing alpha/cull/depth states remain authoritative.
+
+Animation changes neither vertex/index buffers nor geometry revisions. Normal
+damage/recoil preparation still uploads only a changed part. A changed animated
+prototype also refreshes its scroll stream; session resource teardown releases it.
+
+### Focused verification
+
+- Native scene tests pass with the existing 15-car/four-pose test extended to
+  track transforms: 6,664 triangles across its cases. Physics source is unchanged.
+- A test-only Python/Unicorn oracle executes the original executable's actual
+  434B70/434C60 instructions, with authored logical UV tables translated into
+  fixture pointers. **90 cases / 11,880 GPU corners** match travel and UVs across
+  all 15 cars, all 40 wheel/tread phase pairs on the default car, reverse, yaw,
+  clamping, locking and wrapping arithmetic. This adds no production dependency.
+- Browser GPU checks pass **170 pixel cases**, including 26 new atlas-region,
+  byte-wrap and animated/ordinary VAO cases; eight depth comparisons and 81 blend
+  transitions remain passing. Front/side/rear-quarter screenshots were inspected.
+- Two 24-update browser sequences, drawing every tick versus only at the end,
+  produce identical travel, physics and RNG. Turning gives differential travel;
+  redraws preserve phase, handbrake locks it, reloads reset it, and animation
+  uploads zero vertices. Existing direct/key/brake native/Wasm comparisons and
+  ten scenery probes still pass.
+- Native/Wasm lints, production build and C source preservation pass. Unrelated
+  C module suites were not repeated. The original executable is needed only for
+  the optional oracle, not for building or running Rust/Wasm.
+
+Additional oracle reproduction (requires Python `pefile` and `unicorn`):
+
+```powershell
+$env:TANKRACER_ORIGINAL_EXE="<path to original tankrace.exe>"
+cargo test -p tankracer-scene --test vehicle --locked -- --ignored --nocapture
+```
+
+Default vehicle: **5 parts / 105 triangles / 9 opaque draws**; the track meshes
+need their distinct opaque/keyed/two-sided passes. Current default scene:
+**404 draws / 10,126 triangles / 25 pipeline changes**. Vehicle render caches:
+**35,098 B**, GPU storage excluded. Geometry remains resident during animation.
+Production Wasm: **721,163 B**; animation inspection exports are test-build only.
+
+Measured extra resident map data: ENGLAND **769,325 B** (785,669 B shattering
+peak), SWAMP **880,874 B**, BIO **950,660 B**. The small growth is GPU-handle
+bookkeeping; animated per-vehicle storage is accounted separately. All tested
+totals remain below 1,000,000 B; other maps' full live aggregates stay unqualified.
+
+Next is M4.3: original camera modes, shadows and additional vehicle layers and
+attachments. The current chase/free camera is unchanged. Complete turret/fire
+input, race rules and effects remain their later gameplay integration work.

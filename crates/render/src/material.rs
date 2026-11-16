@@ -114,6 +114,8 @@ pub struct Material {
     pub texture_alpha: AlphaEncoding,
     pub output_alpha: AlphaEncoding,
     pub geometry_culling: bool,
+    /// Optional per-vertex V scrolling channels; zero for ordinary geometry.
+    pub uv_phase: [f32; 2],
 }
 
 impl Material {
@@ -125,6 +127,7 @@ impl Material {
             texture_alpha: AlphaEncoding::Straight,
             output_alpha: AlphaEncoding::Straight,
             geometry_culling: false,
+            uv_phase: [0.; 2],
         }
     }
 }

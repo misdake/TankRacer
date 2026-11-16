@@ -10,6 +10,7 @@ pub struct GpuMesh {
     pub(super) vao: Option<WebGlVertexArrayObject>,
     vertices: Option<WebGlBuffer>,
     indices: Option<WebGlBuffer>,
+    uv_scroll: Option<WebGlBuffer>,
     pub(super) count: i32,
     vertex_count: usize,
     index_capacity: usize,
@@ -31,6 +32,7 @@ impl GpuMesh {
             vao: None,
             vertices: None,
             indices: None,
+            uv_scroll: None,
             count: mesh.indices.len() as i32,
             vertex_count: mesh.vertices.len(),
             index_capacity: mesh.indices.len(),
@@ -114,6 +116,43 @@ impl GpuMesh {
         );
         Ok(())
     }
+
+    /// Only animated meshes allocate this stream. Ordinary vertices retain the
+    /// compact layout; attribute 9 is disabled and its generic value stays zero.
+    pub(super) fn uv_scroll(&mut self, values: &[[f32; 4]]) -> Result<(), JsValue> {
+        if !values.is_empty() && values.len() != self.vertex_count {
+            return Err("UV animation changes mesh topology".into());
+        }
+        if values.is_empty() && self.uv_scroll.is_none() {
+            return Ok(());
+        }
+        self.gl.bind_vertex_array(self.vao.as_ref());
+        if values.is_empty() {
+            self.gl.disable_vertex_attrib_array(9);
+            self.gl.delete_buffer(self.uv_scroll.as_ref());
+            self.uv_scroll = None;
+        } else {
+            if self.uv_scroll.is_none() {
+                self.uv_scroll = Some(
+                    self.gl
+                        .create_buffer()
+                        .ok_or("Cannot allocate UV animation buffer")?,
+                );
+            }
+            self.gl
+                .bind_buffer(Gl::ARRAY_BUFFER, self.uv_scroll.as_ref());
+            self.gl.buffer_data_with_u8_array(
+                Gl::ARRAY_BUFFER,
+                bytemuck::cast_slice(values),
+                Gl::STATIC_DRAW,
+            );
+            self.gl.enable_vertex_attrib_array(9);
+            self.gl
+                .vertex_attrib_pointer_with_i32(9, 4, Gl::FLOAT, false, 16, 0);
+        }
+        self.gl.bind_vertex_array(None);
+        Ok(())
+    }
 }
 
 /// Transform stream shared by every material pass of one prototype mesh.
@@ -163,6 +202,7 @@ impl Drop for GpuMesh {
         self.gl.delete_vertex_array(self.vao.as_ref());
         self.gl.delete_buffer(self.vertices.as_ref());
         self.gl.delete_buffer(self.indices.as_ref());
+        self.gl.delete_buffer(self.uv_scroll.as_ref());
     }
 }
 

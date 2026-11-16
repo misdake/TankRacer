@@ -2,6 +2,7 @@
 use glam::Mat4;
 use tankracer_game::vehicle_startup::Player;
 use tankracer_render::gpu::{Frame, GpuMesh, Renderer, Texture};
+use tankracer_render::material::Material;
 use tankracer_scene::{
     transparency,
     vehicle::VehicleScene,
@@ -46,10 +47,14 @@ impl VehicleView {
             .iter()
             .map(|p| {
                 let mut passes = std::array::from_fn(|_| None);
-                for (pass, data) in passes.iter_mut().zip(&p.geometry.batches) {
+                for ((pass, data), scroll) in passes
+                    .iter_mut()
+                    .zip(&p.geometry.batches)
+                    .zip(&p.geometry.uv_scroll)
+                {
                     if !data.indices.is_empty() {
                         *pass = Some(Pass {
-                            mesh: renderer.upload_mesh(data)?,
+                            mesh: renderer.upload_animated_mesh(data, scroll)?,
                             vertices: data.vertices.len(),
                             indices: data.indices.len(),
                         });
@@ -76,7 +81,12 @@ impl VehicleView {
             if gpu.revision == part.revision {
                 continue;
             }
-            for (pass, data) in gpu.passes.iter_mut().zip(&part.geometry.batches) {
+            for ((pass, data), scroll) in gpu
+                .passes
+                .iter_mut()
+                .zip(&part.geometry.batches)
+                .zip(&part.geometry.uv_scroll)
+            {
                 if data.indices.is_empty() {
                     *pass = None;
                 } else if let Some(pass) = pass
@@ -84,11 +94,12 @@ impl VehicleView {
                     && pass.indices == data.indices.len()
                 {
                     renderer.update_vertices(&mut pass.mesh, &data.vertices)?;
+                    renderer.update_uv_scroll(&mut pass.mesh, scroll)?;
                     // Local preparation emits contiguous triangle indices. The
                     // blended bank is reordered by the joint sorter below.
                 } else {
                     *pass = Some(Pass {
-                        mesh: renderer.upload_mesh(data)?,
+                        mesh: renderer.upload_animated_mesh(data, scroll)?,
                         vertices: data.vertices.len(),
                         indices: data.indices.len(),
                     });
@@ -108,7 +119,10 @@ impl VehicleView {
                 if let Some(pass) = &gpu.passes[kind.slot()] {
                     frame.draw_model(
                         &pass.mesh,
-                        &crate::world::material(kind),
+                        &Material {
+                            uv_phase: part.uv_phase,
+                            ..crate::world::material(kind)
+                        },
                         Some(&self.atlas),
                         vp,
                         part.transform,
@@ -158,7 +172,10 @@ impl VehicleView {
             .mesh;
         frame.draw_range(
             mesh,
-            &crate::world::material(BatchKind::Transparent),
+            &Material {
+                uv_phase: self.scene.parts[part].uv_phase,
+                ..crate::world::material(BatchKind::Transparent)
+            },
             Some(&self.atlas),
             [vp, self.scene.parts[part].transform],
             range,
@@ -170,6 +187,13 @@ impl VehicleView {
             .flat_map(|p| p.passes.iter().flatten())
             .map(|p| p.indices / 3)
             .sum()
+    }
+    pub fn advance_tracks(&mut self, player: &Player) {
+        self.scene.tracks.advance(
+            player.physics.powertrain.track_speed,
+            player.physics.motion.angular[1],
+            player.brake.reverse_braking,
+        );
     }
     pub fn opaque_draws(&self) -> usize {
         self.parts

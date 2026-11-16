@@ -23,6 +23,15 @@ pub struct Materials {
 pub struct Prepared {
     pub batches: [MeshData; 5],
     pub transparent: Vec<TransparentTriangle>,
+    /// Optional wheel/tread V coefficients, atlas origin and byte-wrap period.
+    pub uv_scroll: [Vec<[f32; 4]>; 5],
+}
+#[derive(Clone, Copy)]
+pub(crate) struct UvRow {
+    pub triangle: usize,
+    pub corner: usize,
+    pub base: u8,
+    pub channel: usize,
 }
 impl Materials {
     /// Deterministic union includes preloaded replacement models, so a collision
@@ -71,6 +80,15 @@ impl Materials {
         geometry: &Geometry,
         materials: &[SourceMaterial],
     ) -> Result<Prepared, Box<dyn Error>> {
+        self.prepare_animated(geometry, materials, &[])
+    }
+
+    pub(crate) fn prepare_animated(
+        &self,
+        geometry: &Geometry,
+        materials: &[SourceMaterial],
+        rows: &[UvRow],
+    ) -> Result<Prepared, Box<dyn Error>> {
         let bindings = materials
             .iter()
             .map(|m| {
@@ -83,8 +101,9 @@ impl Materials {
         let mut prepared = Prepared {
             batches: std::array::from_fn(|_| MeshData::default()),
             transparent: Vec::new(),
+            uv_scroll: std::array::from_fn(|_| Vec::new()),
         };
-        for triangle in &geometry.triangles {
+        for (index, triangle) in geometry.triangles.iter().enumerate() {
             if triangle.flags & 64 != 0 {
                 continue;
             }
@@ -112,16 +131,26 @@ impl Materials {
             let double_sided = triangle.flags & 1 != 0 || triangle.billboard.is_some();
             let kind = BatchKind::for_surface(class, double_sided)?;
             let region = binding.map_or(self.atlas.white, |i| self.atlas.regions[i]);
+            let mut scroll = [[0.; 4]; 3];
             let mut corners = std::array::from_fn::<_, 3, _>(|i| {
                 let vertex = geometry.vertices[triangle.indices[i] as usize];
                 let local = triangle
                     .billboard
                     .as_ref()
                     .map_or(vertex, |b| [b.center[0], vertex[1], b.center[1]]);
+                let mut uv = triangle.uv[i];
+                if let Some(row) = rows.iter().find(|r| r.triangle == index && r.corner == i) {
+                    uv[1] = row.base;
+                    let period = region.height as f32 / self.atlas.height as f32;
+                    scroll[i][row.channel] =
+                        period / 256. * if row.channel == 0 { 32. } else { 2. };
+                    scroll[i][2] = region.y as f32 / self.atlas.height as f32;
+                    scroll[i][3] = period;
+                }
                 Vertex {
                     position: from_world(local.map(i32::from)).to_array(),
                     color: legacy_color(triangle.color, binding.is_some()),
-                    uv: self.atlas.uv(region, triangle.uv[i]),
+                    uv: self.atlas.uv(region, uv),
                     billboard_offset: triangle.billboard.as_ref().map_or(0., |b| {
                         f32::from(b.half_width) / 128.
                             * if b.positive_vertices & (1 << i) != 0 {
@@ -135,6 +164,7 @@ impl Materials {
             });
             if winding == Some(true) {
                 corners.swap(1, 2);
+                scroll.swap(1, 2);
             }
             let batch = &mut prepared.batches[kind.slot()];
             let first = batch.vertices.len() as u32;
@@ -151,6 +181,9 @@ impl Materials {
             }
             batch.vertices.extend(corners);
             batch.indices.extend(indices);
+            if !rows.is_empty() {
+                prepared.uv_scroll[kind.slot()].extend(scroll);
+            }
         }
         Ok(prepared)
     }

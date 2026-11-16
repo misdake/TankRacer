@@ -270,6 +270,11 @@ impl Session {
         self.game
             .step_keys(keys, dt, true, 0, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Player input update: {e:?}")))?;
+        self.view.advance_tracks(
+            self.game.vehicles.entries[self.game.player.0]
+                .as_ref()
+                .unwrap(),
+        );
         Ok(())
     }
     #[cfg(feature = "gpu-tests")]
@@ -283,6 +288,11 @@ impl Session {
         self.game
             .step(input, dt, true, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Vehicle update: {e:?}")))?;
+        self.view.advance_tracks(
+            self.game.vehicles.entries[self.game.player.0]
+                .as_ref()
+                .unwrap(),
+        );
         Ok(())
     }
 }

@@ -37,6 +37,7 @@ pub struct Renderer {
     output_premultiplied: WebGlUniformLocation,
     geometry_culling: WebGlUniformLocation,
     billboard_right: WebGlUniformLocation,
+    uv_phase: WebGlUniformLocation,
     fallback: Texture,
     pipeline: Option<Pipeline>,
     mesh: Option<web_sys::WebGlVertexArrayObject>,
@@ -175,6 +176,7 @@ impl Renderer {
         gl.pixel_storei(Gl::UNPACK_FLIP_Y_WEBGL, 0);
         gl.pixel_storei(Gl::UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
         gl.pixel_storei(Gl::UNPACK_COLORSPACE_CONVERSION_WEBGL, Gl::NONE as i32);
+        gl.vertex_attrib4f(9, 0., 0., 0., 0.);
         let program = Program::new(&gl, include_str!("world.vert"), include_str!("world.frag"))?;
         let uniform = |name| {
             gl.get_uniform_location(&program.raw, name)
@@ -190,6 +192,7 @@ impl Renderer {
         let output_premultiplied = uniform("uOutputPremultiplied")?;
         let geometry_culling = uniform("uGeometryCulling")?;
         let billboard_right = uniform("uBillboardRight")?;
+        let uv_phase = uniform("uUvPhase")?;
         let fallback = Texture::rgba(&gl, 1, 1, &[255; 4])?;
         gl.use_program(Some(&program.raw));
         gl.uniform1i(Some(&uniform("uTexture")?), 0);
@@ -206,6 +209,7 @@ impl Renderer {
             output_premultiplied,
             geometry_culling,
             billboard_right,
+            uv_phase,
             fallback,
             pipeline: None,
             mesh: None,
@@ -220,6 +224,29 @@ impl Renderer {
 
     pub fn upload_mesh(&self, data: &MeshData) -> Result<GpuMesh, JsValue> {
         GpuMesh::new(&self.gl, data)
+    }
+
+    pub fn upload_animated_mesh(
+        &self,
+        data: &MeshData,
+        scroll: &[[f32; 4]],
+    ) -> Result<GpuMesh, JsValue> {
+        let mut mesh = self.upload_mesh(data)?;
+        mesh.uv_scroll(scroll)?;
+        Ok(mesh)
+    }
+
+    pub fn update_uv_scroll(
+        &mut self,
+        mesh: &mut GpuMesh,
+        scroll: &[[f32; 4]],
+    ) -> Result<(), JsValue> {
+        mesh.uv_scroll(scroll)?;
+        self.pending_vertex_bytes = self
+            .pending_vertex_bytes
+            .saturating_add(std::mem::size_of_val(scroll) as u32);
+        self.mesh = None;
+        Ok(())
     }
 
     pub fn instances(&self) -> Result<GpuInstances, JsValue> {
@@ -354,6 +381,7 @@ impl Renderer {
         gl.uniform_matrix4fv_with_f32_array(Some(&self.model), false, &model.to_cols_array());
         gl.uniform1i(Some(&self.instanced), i32::from(instanced));
         gl.uniform4fv_with_f32_array(Some(&self.color), &material.color);
+        gl.uniform2fv_with_f32_array(Some(&self.uv_phase), &material.uv_phase);
         gl.uniform1f(Some(&self.cutoff), material.alpha_cutoff.unwrap_or(-1.));
         gl.uniform1i(Some(&self.textured), i32::from(texture.is_some()));
         gl.uniform1i(

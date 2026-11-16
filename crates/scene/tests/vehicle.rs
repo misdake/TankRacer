@@ -118,6 +118,8 @@ fn all_fifteen_cars_bind_authored_materials_and_world_part_poses() {
                     Part::Body => poses.body,
                     Part::Turret => poses.turret,
                     Part::Gun => poses.gun,
+                    Part::LeftTrack => poses.tracks[0],
+                    Part::RightTrack => poses.tracks[1],
                     _ => unreachable!(),
                 };
                 let mut triangles = 0;
@@ -223,4 +225,153 @@ fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
         "stationary redraw must not rebuild"
     );
     assert_eq!(geometry(&model), snapshot);
+}
+
+#[test]
+#[ignore = "requires TANKRACER_ORIGINAL_EXE, Python pefile/unicorn; only tiny original UV routines run"]
+fn original_track_uvs_match_gpu_coefficients_and_wrapping_travel() {
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
+    use tankracer_scene::vehicle::tracks::Tracks;
+    let original = std::env::var_os("TANKRACER_ORIGINAL_EXE").expect("TANKRACER_ORIGINAL_EXE");
+    let files = Files::load();
+    let models: Vec<_> = (1..=15).map(|id| files.model(id)).collect();
+    let mut cases = Vec::new();
+    for car in 0..15 {
+        for phase in if car == 0 {
+            (0..40).collect::<Vec<_>>()
+        } else {
+            vec![0, 7, 39]
+        } {
+            cases.push((car, [phase << 17, (39 - phase) << 17], 0, 0, false));
+        }
+    }
+    for (speed, yaw, locked) in [
+        (400000, 0, false),
+        (-400000, 0, false),
+        (1234, -1931, false),
+        (-1234, 1931, false),
+        (300000, 100000, false),
+        (100000, i32::MIN, false),
+        (12345, 134217728, false),
+        (400000, 1000, true),
+    ] {
+        cases.push((0, [u32::MAX - 10, 10], speed, yaw, locked));
+    }
+    let mut input = vec![cases.len() as u32];
+    for &(car, travel, speed, yaw, locked) in &cases {
+        input.extend(travel);
+        input.extend([speed as u32, yaw as u32, u32::from(locked)]);
+        for (side, kind) in [Part::LeftTrack, Part::RightTrack].into_iter().enumerate() {
+            let geometry = models[car].parts[kind.slot()].as_ref().unwrap().geometry();
+            input.push(geometry.triangles.len() as u32);
+            input.extend(
+                geometry
+                    .triangles
+                    .iter()
+                    .flat_map(|t| t.uv.into_iter().flatten().map(u32::from)),
+            );
+            for group in &models[car].tracks[side].groups {
+                input.push(group.len() as u32);
+                for r in group {
+                    input.extend([
+                        u32::from(r.triangle),
+                        u32::from(r.corner),
+                        u32::from(r.snapped_v),
+                    ]);
+                }
+            }
+        }
+    }
+    let script =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/reference_tracks.py");
+    let mut child = Command::new("python")
+        .arg(script)
+        .arg(original)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(
+            &input
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let words: Vec<_> = output
+        .stdout
+        .chunks_exact(4)
+        .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+        .collect();
+    let mut cursor = words.iter().copied();
+    let mut corners = 0;
+    for (car, travel, speed, yaw, locked) in cases {
+        let model = &models[car];
+        let mut scene = files.scene(model);
+        let mut tracks = Tracks { travel };
+        tracks.advance(speed, yaw, locked);
+        assert_eq!(
+            tracks.travel,
+            [cursor.next().unwrap(), cursor.next().unwrap()]
+        );
+        scene.tracks = tracks;
+        scene.refresh(model, &pose::State::default()).unwrap();
+        for kind in [Part::LeftTrack, Part::RightTrack] {
+            let mesh = model.parts[kind.slot()].as_ref().unwrap();
+            let mut expected = mesh.geometry().clone();
+            for triangle in &mut expected.triangles {
+                for uv in &mut triangle.uv {
+                    *uv = [cursor.next().unwrap() as u8, cursor.next().unwrap() as u8];
+                }
+            }
+            let expected = scene
+                .materials
+                .prepare(&expected, &mesh.source.materials)
+                .unwrap();
+            let part = scene.parts.iter().find(|p| p.kind == kind).unwrap();
+            for ((batch, scroll), expected) in part
+                .geometry
+                .batches
+                .iter()
+                .zip(&part.geometry.uv_scroll)
+                .zip(&expected.batches)
+            {
+                assert_eq!(batch.vertices.len(), scroll.len());
+                for ((vertex, scroll), expected) in
+                    batch.vertices.iter().zip(scroll).zip(&expected.vertices)
+                {
+                    let v = if scroll[3] > 0. {
+                        scroll[2]
+                            + (vertex.uv[1] - scroll[2]
+                                + scroll[0] * part.uv_phase[0]
+                                + scroll[1] * part.uv_phase[1])
+                                .rem_euclid(scroll[3])
+                    } else {
+                        vertex.uv[1]
+                    };
+                    assert_eq!(vertex.uv[0], expected.uv[0]);
+                    assert!(
+                        (v - expected.uv[1]).abs() < 1e-6,
+                        "car={} part={kind:?} phase={:?}",
+                        car + 1,
+                        part.uv_phase
+                    );
+                    corners += 1;
+                }
+            }
+        }
+    }
+    assert!(cursor.next().is_none());
+    eprintln!(
+        "original tracks: 90 cases / {corners} GPU corners; all 15 cars, 40 phase pairs, clamp/reverse/turn/lock/wrap"
+    );
 }

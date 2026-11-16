@@ -283,6 +283,13 @@ impl App {
     }
 
     #[cfg(feature = "gpu-tests")]
+    pub fn vehicle_tracks(&self) -> Vec<u32> {
+        self.vehicle
+            .as_ref()
+            .map_or_else(Vec::new, |v| v.view.scene.tracks.travel.to_vec())
+    }
+
+    #[cfg(feature = "gpu-tests")]
     pub fn player_controls(&self) -> Vec<i32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
             let p = v.game.vehicles.entries[0].as_ref().unwrap();

@@ -134,9 +134,9 @@ try{
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
  assert.equal(driven.scene.scenery_objects,118);
  assert.ok(driven.scene.scenery_opaque_draws<driven.scene.scenery_objects);
- assert.equal(driven.scene.vehicle_parts,3);
+ assert.equal(driven.scene.vehicle_parts,5);
  assert.ok(driven.scene.vehicle_triangles>12,'authored geometry replaces the cube');
- assert.ok(driven.scene.vehicle_opaque_draws>=3&&driven.scene.vehicle_opaque_draws<=12);
+ assert.ok(driven.scene.vehicle_opaque_draws>=5&&driven.scene.vehicle_opaque_draws<=20);
  assert.ok(driven.scene.vehicle_render_bytes>0);
  assert.equal(driven.frame.draws,4+driven.scene.scenery_opaque_draws+driven.scene.vehicle_opaque_draws+driven.scene.transparent_runs);
  assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+driven.scene.vehicle_triangles);
@@ -174,6 +174,30 @@ try{
   report.vehicleViews.push({name,...view});
   await writeFile(path.join(output,'vehicle-'+name+'.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  }
+ // Visual travel samples every simulation update, including updates with no
+ // draw. Drawing each tick or only the last tick must produce identical phases.
+ const animation=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   const results=[];
+   for(const everyTick of [false,true]){
+     m.app.load_player(...files);m.app.render();let vertices=0;
+     for(let tick=0;tick<24;tick++){
+       m.app.step_vehicle(16,65536,0,tick>=8&&tick<16?12000:0);
+       if(everyTick){m.app.render();vertices+=JSON.parse(m.app.frame_stats()).vertex_upload_bytes;}
+     }
+     m.app.render();m.app.check_graphics();
+     const tracks=Array.from(m.app.vehicle_tracks()),state=Array.from(m.app.vehicle_state());
+     m.app.render();
+     results.push({tracks,state,vertices,redraw:Array.from(m.app.vehicle_tracks()),frame:JSON.parse(m.app.frame_stats())});
+   }
+   return results;
+ })`);
+ assert.deepEqual(animation[0].tracks,animation[1].tracks,'animation is independent of draw cadence');
+ assert.deepEqual(animation[0].state,animation[1].state,'draw cadence preserves physics/RNG');
+ assert.notDeepEqual(animation[0].tracks,[0,0]);
+ assert.notEqual(animation[0].tracks[0],animation[0].tracks[1],'turning gives left/right differential travel');
+ for(const run of animation){assert.deepEqual(run.tracks,run.redraw);assert.equal(run.vertices,0);assert.equal(run.frame.vertex_upload_bytes,0);}
+ report.trackAnimation=animation;
  // Real keyboard action -> Player ramps -> same native/Wasm physics owner.
  const keysDriven=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
@@ -189,13 +213,14 @@ try{
  report.playerInput={ticks:24,state:keysDriven};
  const handbrake=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
-   m.app.load_handbrake(...files);const controls=[];
+   m.app.load_handbrake(...files);const controls=[],tracks=[Array.from(m.app.vehicle_tracks())];
    for(let tick=0;tick<24;tick++){
      m.app.step_keys(16,false,tick>=8&&tick<12,true,false,tick%12>=4&&tick%12<8);
      controls.push(Array.from(m.app.player_controls()));
+     tracks.push(Array.from(m.app.vehicle_tracks()));
    }
    m.app.render();m.app.check_graphics();
-   return {state:Array.from(m.app.vehicle_state()),controls};
+   return {state:Array.from(m.app.vehicle_state()),controls,tracks};
  })`);
  const brakeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--handbrake'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
  const brakeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(brakeOutput);
@@ -205,15 +230,16 @@ try{
  assert.deepEqual(handbrake.controls.at(-1),JSON.parse(brakeControls[1]));
  assert.ok(handbrake.controls.some(c=>c[3]===1),'high-speed overrides activate');
  assert.ok(handbrake.controls.some(c=>c[1]===40000&&c[0]===0&&c[7]===1),'held handbrake changes real drive inputs');
+ handbrake.controls.forEach((c,i)=>{if(c[7]===1)assert.deepEqual(handbrake.tracks[i+1],handbrake.tracks[i],'handbrake freezes visual tracks');});
  report.handbrake=handbrake;
  // Reload at identical poses: new GPU buffers still require sorted index banks.
  const reloads=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
    const results=[];
-   for(let i=0;i<2;i++){m.app.load_player(...files);m.app.render();m.app.check_graphics();results.push({frame:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats())});}
+   for(let i=0;i<2;i++){m.app.load_player(...files);m.app.render();m.app.check_graphics();results.push({frame:JSON.parse(m.app.frame_stats()),scene:JSON.parse(m.app.scene_stats()),tracks:Array.from(m.app.vehicle_tracks())});}
    return results;
  })`);
- for(const reload of reloads){assert.equal(reload.scene.scenery_objects,driven.scene.scenery_objects);assert.ok(reload.frame.index_upload_bytes>0);}
+ for(const reload of reloads){assert.equal(reload.scene.scenery_objects,driven.scene.scenery_objects);assert.ok(reload.frame.index_upload_bytes>0);assert.deepEqual(reload.tracks,[0,0]);}
  // SR07: WayPoint participates in shared identity; FX/3D debris drawing is later.
  const collisions=[];
  report.collisions=collisions;
