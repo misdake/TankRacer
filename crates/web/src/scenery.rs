@@ -222,6 +222,9 @@ impl View {
             .and_then(Option::as_ref)
             .map_or(&[], |g| &g.transparent)
     }
+    pub fn geometry_count(&self) -> usize {
+        self.groups.len()
+    }
     pub fn update_indices(
         &mut self,
         renderer: &mut Renderer,

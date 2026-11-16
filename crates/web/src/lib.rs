@@ -9,6 +9,8 @@ mod scenery;
 #[cfg(target_arch = "wasm32")]
 mod vehicle;
 #[cfg(target_arch = "wasm32")]
+mod vehicle_view;
+#[cfg(target_arch = "wasm32")]
 mod world;
 
 #[cfg(target_arch = "wasm32")]

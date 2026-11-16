@@ -26,6 +26,10 @@ pub struct WorldView {
     scenery_objects: usize,
     scenery_triangles: usize,
     scenery_opaque_draws: usize,
+    vehicle_parts: usize,
+    vehicle_triangles: usize,
+    vehicle_opaque_draws: usize,
+    vehicle_bytes: usize,
 }
 
 impl WorldView {
@@ -87,6 +91,10 @@ impl WorldView {
             scenery_objects: 0,
             scenery_triangles: 0,
             scenery_opaque_draws: 0,
+            vehicle_parts: 0,
+            vehicle_triangles: 0,
+            vehicle_opaque_draws: 0,
+            vehicle_bytes: 0,
         })
     }
 
@@ -98,6 +106,11 @@ impl WorldView {
     ) -> Result<(), JsValue> {
         if let Some(session) = &mut session {
             session.scenery.refresh(renderer, &session.game.objects)?;
+            let player = session.game.vehicles.entries[session.game.player.0]
+                .as_ref()
+                .ok_or("Missing render player")?;
+            session.view.refresh(renderer, player)?;
+            let vehicle_base = session.scenery.geometry_count() + 1;
             self.transparent_objects.clear();
             self.transparent_objects.push(transparency::Object {
                 geometry: 0,
@@ -106,17 +119,25 @@ impl WorldView {
             session
                 .scenery
                 .transparent_objects(&mut self.transparent_objects);
+            session
+                .view
+                .transparent_objects(vehicle_base, &mut self.transparent_objects);
             if self.order.update(
                 &self.transparent_objects,
                 |id| {
                     if id == 0 {
                         &self.scene.transparent
-                    } else {
+                    } else if id < vehicle_base {
                         session.scenery.transparent(id)
+                    } else {
+                        session.view.transparent(id - vehicle_base)
                     }
                 },
                 &self.camera,
-                session.scenery.revision,
+                session
+                    .scenery
+                    .revision
+                    .wrapping_add(session.view.scene.revision),
             ) {
                 for (geometry, indices) in self
                     .order
@@ -130,10 +151,14 @@ impl WorldView {
                             &mut self.meshes[BatchKind::Transparent.slot()],
                             indices,
                         )?;
-                    } else {
+                    } else if geometry < vehicle_base {
                         session
                             .scenery
                             .update_indices(renderer, geometry, indices)?;
+                    } else {
+                        session
+                            .view
+                            .update_indices(renderer, geometry - vehicle_base, indices)?;
                     }
                 }
             }
@@ -155,6 +180,10 @@ impl WorldView {
             self.scenery_objects = session.scenery.objects;
             self.scenery_triangles = session.scenery.triangles;
             self.scenery_opaque_draws = session.scenery.opaque_draws;
+            self.vehicle_parts = session.view.scene.parts.len();
+            self.vehicle_triangles = session.view.triangles();
+            self.vehicle_opaque_draws = session.view.opaque_draws();
+            self.vehicle_bytes = session.view.resident_bytes();
         } else {
             if self
                 .scene
@@ -187,7 +216,7 @@ impl WorldView {
         // Dynamic opaque geometry must write depth before blended world faces.
         if let Some(session) = &session {
             session.scenery.opaque(&mut frame, vp);
-            session.view.draw(&mut frame, vp);
+            session.view.opaque(&mut frame, vp);
         }
         let alpha = BatchKind::Transparent.slot();
         if let Some(session) = &session {
@@ -202,10 +231,17 @@ impl WorldView {
                         [vp, Mat4::IDENTITY],
                         range,
                     )?;
-                } else {
+                } else if object.geometry <= session.scenery.geometry_count() {
                     session
                         .scenery
                         .draw_transparent(&mut frame, object, vp, range)?;
+                } else {
+                    session.view.draw_transparent(
+                        &mut frame,
+                        object.geometry - session.scenery.geometry_count() - 1,
+                        vp,
+                        range,
+                    )?;
                 }
             }
         } else if !self.scene.batches[alpha].geometry.indices.is_empty() {
@@ -236,12 +272,16 @@ impl WorldView {
         self.scenery_objects = 0;
         self.scenery_triangles = 0;
         self.scenery_opaque_draws = 0;
+        self.vehicle_parts = 0;
+        self.vehicle_triangles = 0;
+        self.vehicle_opaque_draws = 0;
+        self.vehicle_bytes = 0;
     }
 
     pub fn stats(&self) -> String {
         let s = &self.scene.stats;
         format!(
-            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"route_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{}}}",
+            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"route_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{},\"vehicle_parts\":{},\"vehicle_triangles\":{},\"vehicle_opaque_draws\":{},\"vehicle_render_bytes\":{}}}",
             s.source_meshes,
             s.source_triangles,
             s.rendered_triangles,
@@ -262,7 +302,11 @@ impl WorldView {
             self.scenery_triangles,
             self.scenery_bytes,
             self.scenery_opaque_draws,
-            self.order.runs.len()
+            self.order.runs.len(),
+            self.vehicle_parts,
+            self.vehicle_triangles,
+            self.vehicle_opaque_draws,
+            self.vehicle_bytes
         )
     }
 }

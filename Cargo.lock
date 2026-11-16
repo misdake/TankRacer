@@ -151,6 +151,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "tankracer-assets",
+ "tankracer-game",
  "tankracer-render",
 ]
 

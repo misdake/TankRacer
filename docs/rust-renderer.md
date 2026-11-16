@@ -359,5 +359,7 @@ scenery probes, native/Wasm final fields, DOM A press/release, reloads and zero
 idle uploads pass. Production Wasm is **703,997 B**, without controlled test
 exports. The complete acceptance scope is in `rust-m3-acceptance.md`.
 
-M1-M3 are closed. Actual body/turret/gun rendering starts M4.1 using the already
-owned model/pose data; full race/effect/plugin work stays in its later stages.
+M1-M3 are closed. M4.1 subsequently replaces the box with authored body/turret/gun
+geometry using read-only model/pose data. See [M4 vehicle rendering](rust-m4-vehicle.md)
+for current resource ownership, focused verification and measurements. Full
+race/effect/plugin work stays in its later stages.

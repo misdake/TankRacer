@@ -119,7 +119,7 @@ impl App {
         )?;
         self.follow_camera = true;
         world.reset_dynamic();
-        world.camera = vehicle.view.camera();
+        world.camera = vehicle.camera();
         self.vehicle = Some(vehicle);
         Ok(())
     }
@@ -146,7 +146,7 @@ impl App {
                 &world.camera,
             )?;
             if self.follow_camera {
-                world.camera = vehicle.view.camera();
+                world.camera = vehicle.camera();
             }
         }
         Ok(())
@@ -172,7 +172,7 @@ impl App {
                 &world.camera,
             )?;
             if self.follow_camera {
-                world.camera = vehicle.view.camera();
+                world.camera = vehicle.camera();
             }
         }
         Ok(())
@@ -183,7 +183,7 @@ impl App {
         if self.follow_camera
             && let (Some(vehicle), Some(world)) = (&self.vehicle, &mut self.world)
         {
-            world.camera = vehicle.view.camera();
+            world.camera = vehicle.camera();
         }
     }
 

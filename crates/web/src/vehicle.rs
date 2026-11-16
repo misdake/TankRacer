@@ -1,5 +1,5 @@
-//! M3 terrain/vehicle session. The renderer receives a read-only proxy view.
-use glam::{Mat4, Vec3};
+//! Terrain/vehicle session. Rendering reads canonical state without changing it.
+use glam::Vec3;
 use std::sync::Arc;
 use tankracer_assets::{
     archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
@@ -16,11 +16,7 @@ use tankracer_game::{
     vehicle_scene::spray,
     vehicle_startup::Environment,
 };
-use tankracer_render::{
-    geometry::MeshData,
-    gpu::{Frame, GpuMesh, Renderer},
-    material::Material,
-};
+use tankracer_render::gpu::Renderer;
 use tankracer_scene::{
     camera::Camera,
     transform::{physics_pose, physics_position},
@@ -50,32 +46,9 @@ impl Devices for SilentDevices<'_> {
         Ok(())
     }
 }
-pub struct VehicleView {
-    mesh: GpuMesh,
-    bounds: Mat4,
-    transform: Mat4,
-    pub position: Vec3,
-    forward: Vec3,
-}
-impl VehicleView {
-    pub fn draw(&self, frame: &mut Frame<'_>, view_projection: Mat4) {
-        frame.draw(
-            &self.mesh,
-            &Material::opaque([0.9, 0.6, 0.16, 1.]),
-            None,
-            view_projection * self.transform * self.bounds,
-        );
-    }
-    pub fn camera(&self) -> Camera {
-        Camera::looking_at(
-            self.position - self.forward * 22. + Vec3::Y * 10.,
-            self.position + Vec3::Y * 2.,
-        )
-    }
-}
 pub struct Session {
     pub game: SinglePlayer,
-    pub view: VehicleView,
+    pub view: crate::vehicle_view::VehicleView,
     pub scenery: crate::scenery::View,
     loaded: scenery::Loaded,
 }
@@ -139,11 +112,6 @@ impl Session {
             },
         )
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let bounds = resources.model.geometry_bounds;
-        let min = physics_position([bounds.min[0], bounds.min[1], bounds.max[2]]);
-        let max = physics_position([bounds.max[0], bounds.max[1], bounds.min[2]]);
-        let bounds =
-            Mat4::from_translation((min + max) * 0.5) * Mat4::from_scale((max - min) * 0.5);
         let mut startup = Startup::new(
             terrain,
             Settings {
@@ -262,23 +230,15 @@ impl Session {
             player.physics.powertrain.local_velocity = velocity;
         }
         let scenery = crate::scenery::View::load(renderer, &loaded, level, shared)?;
-        let view = VehicleView {
-            mesh: renderer.upload_mesh(&MeshData::cube())?,
-            bounds,
-            transform: Mat4::IDENTITY,
-            position: Vec3::ZERO,
-            forward: Vec3::NEG_Z,
-        };
-        let mut session = Self {
+        let view = crate::vehicle_view::VehicleView::load(renderer, player, bronze, shared)?;
+        Ok(Self {
             game,
             view,
             scenery,
             loaded,
-        };
-        session.refresh_view();
-        Ok(session)
+        })
     }
-    fn refresh_view(&mut self) {
+    pub fn camera(&self) -> Camera {
         let body = self.game.vehicles.entries[0]
             .as_ref()
             .unwrap()
@@ -286,9 +246,13 @@ impl Session {
             .motion
             .poses
             .body;
-        self.view.transform = physics_pose(body.position, body.matrix.0);
-        self.view.position = physics_position(body.position);
-        self.view.forward = -self.view.transform.z_axis.truncate().normalize_or_zero();
+        let transform = physics_pose(body.position, body.matrix.0);
+        let position = physics_position(body.position);
+        let forward = -transform.z_axis.truncate().normalize_or_zero();
+        Camera::looking_at(
+            position - forward * 22. + Vec3::Y * 10.,
+            position + Vec3::Y * 2.,
+        )
     }
     fn prepare_camera(&mut self, camera: &Camera) {
         let p = camera.position * 128.;
@@ -306,7 +270,6 @@ impl Session {
         self.game
             .step_keys(keys, dt, true, 0, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Player input update: {e:?}")))?;
-        self.refresh_view();
         Ok(())
     }
     #[cfg(feature = "gpu-tests")]
@@ -320,7 +283,6 @@ impl Session {
         self.game
             .step(input, dt, true, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Vehicle update: {e:?}")))?;
-        self.refresh_view();
         Ok(())
     }
 }

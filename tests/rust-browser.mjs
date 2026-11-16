@@ -134,14 +134,46 @@ try{
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
  assert.equal(driven.scene.scenery_objects,118);
  assert.ok(driven.scene.scenery_opaque_draws<driven.scene.scenery_objects);
- assert.equal(driven.frame.draws,5+driven.scene.scenery_opaque_draws+driven.scene.transparent_runs);
- assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+12);
+ assert.equal(driven.scene.vehicle_parts,3);
+ assert.ok(driven.scene.vehicle_triangles>12,'authored geometry replaces the cube');
+ assert.ok(driven.scene.vehicle_opaque_draws>=3&&driven.scene.vehicle_opaque_draws<=12);
+ assert.ok(driven.scene.vehicle_render_bytes>0);
+ assert.equal(driven.frame.draws,4+driven.scene.scenery_opaque_draws+driven.scene.vehicle_opaque_draws+driven.scene.transparent_runs);
+ assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+driven.scene.vehicle_triangles);
  assert.ok(driven.scene.acceleration_bytes<1_000_000);
  assert.ok(driven.scene.route_acceleration_bytes>0);
  assert.equal(driven.scene.acceleration_bytes,driven.scene.render_acceleration_bytes+driven.scene.collision_acceleration_bytes+driven.scene.route_acceleration_bytes);
- const still=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
- for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(still[key],0,key);
+ const still=await evaluate(`import('/main.js').then(m=>{m.app.render();return {frame:JSON.parse(m.app.frame_stats()),state:Array.from(m.app.vehicle_state())};})`);
+ for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(still.frame[key],0,key);
+ assert.deepEqual(still.state,driven.state,'rendering preserves physics and shared RNG');
  await writeFile(path.join(output,'drive.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ // Inspect authored body/turret/gun from several sides through the real camera
+ // adapter. These are render-only moves; the physics/RNG checkpoint must hold.
+ report.vehicleViews=[];
+ await evaluate(`import('/main.js').then(m=>m.app.toggle_camera())`);
+ for(const [name,offset]of [['front',[0,5,-12]],['side',[12,5,0]],['rear-quarter',[-9,6,9]]]){
+  const view=await evaluate(`import('/main.js').then(m=>{
+   const position=Array.from(m.app.vehicle_position());
+   const center=[position[0]/1024,position[1]/1024,-position[2]/1024];
+   const forward=Array.from(m.app.camera_forward());
+   m.app.look(-Math.atan2(forward[0],-forward[2])/.003,Math.asin(forward[1])/.003);
+   const desired=center.map((v,i)=>v+${JSON.stringify(offset)}[i]);
+   for(let i=0;i<20;i++){
+    const current=Array.from(m.app.camera_position()),delta=desired.map((v,j)=>v-current[j]),distance=Math.hypot(...delta);
+    if(distance<.0001)break;
+    m.app.move_camera(Math.min(distance/45,.1),delta[0],delta[1],-delta[2],false);
+   }
+   const current=Array.from(m.app.camera_position());
+   const direction=center.map((v,i)=>v+(i===1?1.4:0)-current[i]),length=Math.hypot(...direction);
+   m.app.look(Math.atan2(direction[0],-direction[2])/.003,-Math.asin(direction[1]/length)/.003);
+   m.app.render();m.app.check_graphics();
+   return {state:Array.from(m.app.vehicle_state()),frame:JSON.parse(m.app.frame_stats())};
+  })`);
+  assert.deepEqual(view.state,driven.state,name+' camera preserves physics');
+  assert.equal(view.frame.vertex_upload_bytes,0,name+' camera keeps local meshes resident');
+  report.vehicleViews.push({name,...view});
+  await writeFile(path.join(output,'vehicle-'+name+'.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ }
  // Real keyboard action -> Player ramps -> same native/Wasm physics owner.
  const keysDriven=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));

@@ -31,14 +31,14 @@ pub struct SourceMaterial {
     pub spellings: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Billboard {
     pub center: [i16; 2],
     pub half_width: u16,
     pub positive_vertices: u8,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Triangle {
     pub source_offset: u32,
     pub normal: [i16; 3],
@@ -88,7 +88,7 @@ impl<'a> Reader<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Geometry {
     pub vertices: Vec<[i16; 3]>,
     pub triangles: Vec<Triangle>,

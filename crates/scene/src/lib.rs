@@ -5,4 +5,5 @@ pub mod camera;
 pub mod model;
 pub mod transform;
 pub mod transparency;
+pub mod vehicle;
 pub mod world;
