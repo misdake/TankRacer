@@ -29,6 +29,8 @@ pub struct Keys {
     pub throttle: bool,
     pub brake: bool,
     pub auxiliary: bool,
+    pub turret_left: bool,
+    pub turret_right: bool,
 }
 impl Device for Keys {
     fn down(&mut self, action: Action) -> Result<bool, i32> {

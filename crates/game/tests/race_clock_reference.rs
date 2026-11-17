@@ -92,12 +92,14 @@ fn input(i: usize, strategy: usize) -> session::Input {
             brake: i == 8,
             right: (7..=9).contains(&i),
             auxiliary: i == 8,
+            turret_left: strategy == 7 && (6..=8).contains(&i),
+            turret_right: strategy == 7 && (8..=10).contains(&i),
             ..Default::default()
         }),
         camera: Default::default(),
     }
 }
-fn snapshot(s: &session::Session) -> Vec<u32> {
+fn snapshot(s: &session::Session, turret: bool) -> Vec<u32> {
     let mut out = runtime_codec::words(s.world(), true);
     let c = s.clock().unwrap();
     let r = s.player().race;
@@ -109,6 +111,20 @@ fn snapshot(s: &session::Session) -> Vec<u32> {
         r.laps as u16 as u32,
         u32::from(r.driving),
     ]);
+    if turret {
+        let p = s.player();
+        let t = p.turret;
+        out.extend([
+            p.physics.pose_input.turret_yaw as i32 as u32,
+            t.velocity as u32,
+            t.cooldown as u32,
+            u32::from(t.centering),
+            u32::from(t.moving),
+            t.center_lock as i32 as u32,
+            u32::from(t.pressed[0]),
+            u32::from(t.pressed[1]),
+        ]);
+    }
     out
 }
 #[test]
@@ -161,7 +177,7 @@ fn launch_strategies_and_raw_time_match_c() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/game");
     let mut fields = 0;
     for (map, car) in [(0, 1), (2, 6), (5, 11)] {
-        for strategy in 3..=6 {
+        for strategy in 3..=7 {
             let output = Command::new(&oracle)
                 .arg(&root)
                 .args([
@@ -191,7 +207,7 @@ fn launch_strategies_and_raw_time_match_c() {
                     at += 2;
                     s.tick(input(tick - 1, strategy), &mut Headless).unwrap();
                 }
-                let actual = snapshot(&s);
+                let actual = snapshot(&s, strategy == 7);
                 for (field, a) in actual.iter().enumerate() {
                     assert_eq!(
                         *a,
@@ -206,6 +222,6 @@ fn launch_strategies_and_raw_time_match_c() {
         }
     }
     eprintln!(
-        "race clock: 12 sequences / 144 integrated updates / {fields} fields; timely/early/late throttle, exact release and overshoot"
+        "race clock + turret: 15 sequences / 180 integrated updates / {fields} fields; timely/early/late throttle, release/overshoot and actual turret poses"
     );
 }

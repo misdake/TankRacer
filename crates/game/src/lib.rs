@@ -59,6 +59,7 @@ pub mod suspension;
 pub mod symbols;
 pub mod tank_collision;
 pub mod terrain;
+pub mod turret;
 pub mod vector;
 pub mod vehicle;
 pub mod vehicle_animation;

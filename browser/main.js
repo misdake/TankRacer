@@ -8,10 +8,11 @@ const held = new Keys();
 const canvas = document.getElementById('game');
 const inspecting = new URLSearchParams(location.search).has('inspect');
 canvas.title = inspecting ? 'Drag to look · WASD to move · Q/E down/up · Shift to move faster'
- : 'Arrow keys to drive · A to handbrake · C to change view · V for rear view · F for free camera';
+ : 'Arrow keys to drive · A to handbrake · Z/X to turn turret · C to change view · V for rear view · F for free camera';
 const movementKeys = new Set([
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyC', 'KeyV', 'KeyF',
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ShiftLeft', 'ShiftRight',
+  'KeyZ', 'KeyX',
 ]);
 window.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -77,6 +78,7 @@ try {
         accumulator += seconds * 1000;
         while (accumulator >= 16) {
           app.set_camera_keys(held.has('KeyC'), held.has('KeyV'));
+          app.set_turret_keys(held.has('KeyZ'), held.has('KeyX'));
           app.step_keys(16, held.has('ArrowLeft'), held.has('ArrowRight'),
             held.has('ArrowUp'), held.has('ArrowDown'), held.handbrake);
           accumulator -= 16;

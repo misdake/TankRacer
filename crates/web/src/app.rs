@@ -159,6 +159,7 @@ impl App {
                     throttle,
                     brake,
                     auxiliary,
+                    ..Default::default()
                 },
                 dt,
             )?;
@@ -266,6 +267,37 @@ impl App {
         if let Some(vehicle) = &mut self.vehicle {
             vehicle.camera_keys = tankracer_game::chase_camera::Keys { cycle, rear };
         }
+    }
+    pub fn set_turret_keys(&mut self, left: bool, right: bool) {
+        if let Some(vehicle) = &mut self.vehicle {
+            vehicle.turret_keys = [left, right];
+        }
+    }
+    #[cfg(feature = "gpu-tests")]
+    pub fn turret_state(&self) -> Vec<i32> {
+        self.vehicle.as_ref().map_or_else(Vec::new, |v| {
+            let p = v.runtime.player();
+            let t = p.turret;
+            [
+                i32::from(p.physics.pose_input.turret_yaw),
+                t.velocity,
+                t.cooldown,
+                i32::from(t.centering),
+                i32::from(t.moving),
+                i32::from(t.center_lock),
+                i32::from(t.pressed[0]),
+                i32::from(t.pressed[1]),
+            ]
+            .into_iter()
+            .chain(p.physics.motion.poses.turret.matrix.0)
+            .chain(p.physics.motion.poses.gun.position)
+            .chain(p.physics.motion.poses.physical_position)
+            .chain([
+                v.runtime.world().shared.random as i32,
+                v.runtime.world().frame as i32,
+            ])
+            .collect()
+        })
     }
     #[cfg(feature = "gpu-tests")]
     pub fn camera_state(&self) -> Vec<i32> {

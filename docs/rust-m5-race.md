@@ -185,8 +185,29 @@ the existing 191 GPU cases pass. Production Wasm: **836,272 B**. Logs:
 `build/rust/tests/m5-2-hud-*`; commands include `reference hud`, `unit`, `lint`,
 `web` and `node tools/build_rust.mjs`.
 
-Next M5.2 slice: actual turret input and visible poses, then real inventory/fire/
-projectile/pickup ownership. M5.2 as a whole remains open.
+### M5.2b turret actions
+
+Z/X now feed `turret::State` through Player's actual input position, after its
+collision indication update and before auxiliary braking/Tank dispatch. Original
+acceleration, damping, both-button recenter latch, cooldown, centering lock,
+signed angle wrapping and crossing-zero stop are retained. The authoritative
+`physics.pose_input.turret_yaw` drives the existing turret/gun meshes and cockpit
+HUD arrow. Drawing never rotates the game state. The single-player owner holds
+the source player-slot cooldown/latch; no multi-player manager was added.
+
+The C turret oracle covers **150 branch cases + 48 sequential updates / 1,584
+fields**, including arithmetic limits. The clock/Player/prefix/physics oracle
+now includes actual turret poses: **15 sequences / 180 updates / 1,176,942 fields**.
+Native/Wasm agree on 24 updates, and the browser checks actual Z keydown/release.
+Existing 2,880 physical updates / 18,041,268 fields and four native checkpoints
+remain unchanged without turret actions. Workspace **115 passed / 70 external
+ignored**, lints, 191 GPU cases and production pass. Wasm **837,234 B** without
+test probes. Logs: `build/rust/tests/m5-2-turret-*`; select `reference turret
+race-clock vehicle-runtime` and use `drive ... --scenery --chase --turret`.
+
+Next integrate real inventory/fire/projectile/pickup ownership; M5.2 as a whole
+remains open. The cold actor data must move to the authoritative scene before
+its first mutable gameplay consumer; assets cannot own live pickup updates.
 
 `tests/reference_world_startup.c` links unchanged native C libraries and observes
 real dispatch through a linker wrapper. No constructor is stubbed or replaced.

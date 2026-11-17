@@ -155,6 +155,14 @@ impl<D: Devices> Methods<Handle> for Execution<'_, D> {
             )?;
             if outcome.driving {
                 crate::player_collision::step(&mut v.collision, self.frame.dt, self.race_active);
+                player.turret.tick(
+                    &mut v.pose_input.turret_yaw,
+                    crate::turret::Keys {
+                        left: keys.turret_left,
+                        right: keys.turret_right,
+                    },
+                    self.frame.dt,
+                );
                 let fast = outcome.auxiliary_down
                     && v.powertrain.local_velocity[2].wrapping_abs() > 250000;
                 let restoring =

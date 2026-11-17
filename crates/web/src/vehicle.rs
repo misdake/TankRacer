@@ -43,6 +43,7 @@ pub struct Session {
     pub scenery: crate::scenery::View,
     loaded: scenery::Loaded,
     pub camera_keys: tankracer_game::chase_camera::Keys,
+    pub turret_keys: [bool; 2],
 }
 pub struct Files<'a> {
     pub data: &'a [u8],
@@ -178,6 +179,7 @@ impl Session {
             scenery,
             loaded,
             camera_keys: Default::default(),
+            turret_keys: [false; 2],
         })
     }
     pub fn chase(&self) -> &tankracer_game::chase_camera::State {
@@ -186,7 +188,9 @@ impl Session {
     pub fn camera(&self) -> Camera {
         Camera::from_chase(self.runtime.camera())
     }
-    pub fn step_keys(&mut self, keys: player_input::Keys, dt: i32) -> Result<(), JsValue> {
+    pub fn step_keys(&mut self, mut keys: player_input::Keys, dt: i32) -> Result<(), JsValue> {
+        keys.turret_left = self.turret_keys[0];
+        keys.turret_right = self.turret_keys[1];
         self.runtime
             .tick(
                 tankracer_game::session::Input {

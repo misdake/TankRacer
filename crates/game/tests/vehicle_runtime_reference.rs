@@ -182,6 +182,7 @@ fn fresh_resource_only_runtime_matches_native_updates() {
                             left: i % 12 == 10,
                             right: (4..8).contains(&(i % 12)) || i % 12 == 10,
                             auxiliary: controls == 2 && (4..8).contains(&(i % 12)),
+                            ..Default::default()
                         },
                         [16, 17, 20, 12][i % 4],
                         controls == 2 || i >= 3,

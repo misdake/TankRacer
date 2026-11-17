@@ -80,7 +80,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let with_scenery = args.iter().skip(4).any(|v| v == "--scenery");
     let with_brake = args.iter().skip(4).any(|v| v == "--handbrake");
     let with_race = args.iter().skip(4).any(|v| v == "--race");
-    let with_keys = with_brake || args.iter().skip(4).any(|v| v == "--keys");
+    let with_turret = args.iter().skip(4).any(|v| v == "--turret");
+    let with_keys = with_turret || with_brake || args.iter().skip(4).any(|v| v == "--keys");
     let with_views = args.iter().skip(4).any(|v| v == "--views");
     let with_chase = with_race || with_views || args.iter().skip(4).any(|v| v == "--chase");
     let maps = tankracer_assets::level::CUP_MAPS;
@@ -175,6 +176,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 throttle: true,
                 right: (ticks / 3..ticks / 2).contains(&tick),
                 auxiliary: with_brake && (4..8).contains(&(tick % 12)),
+                turret_left: with_turret && (tick < 6 || tick == 12),
+                turret_right: with_turret && (10..=12).contains(&tick),
                 ..Default::default()
             })
         } else {
@@ -206,6 +209,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
         result.map_err(|e| format!("tick {tick}: {e:?}"))?;
         let game = runner.world();
+        if with_turret {
+            let p = game.vehicles.entries[0].as_ref().ok_or("Missing Player")?;
+            let t = p.turret;
+            let record: Vec<_> = [
+                i32::from(p.physics.pose_input.turret_yaw),
+                t.velocity,
+                t.cooldown,
+                i32::from(t.centering),
+                i32::from(t.moving),
+                i32::from(t.center_lock),
+                i32::from(t.pressed[0]),
+                i32::from(t.pressed[1]),
+            ]
+            .into_iter()
+            .chain(p.physics.motion.poses.turret.matrix.0)
+            .chain(p.physics.motion.poses.gun.position)
+            .chain(p.physics.motion.poses.physical_position)
+            .chain([game.shared.random as i32, game.frame as i32])
+            .collect();
+            println!("turret={record:?}");
+        }
         if with_race && let Runner::Session(s) = &runner {
             let c = s.clock().ok_or("Missing race clock")?;
             let p = s.player();

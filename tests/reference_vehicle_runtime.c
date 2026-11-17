@@ -18,6 +18,7 @@
 #include "frame_player_collision.h"
 #include "frame_race.h"
 #include "frame_time.h"
+#include "frame_turret.h"
 static unsigned char *ram,fresh[0x1128];
 static uint32_t object,entity,poses,actors[1],count=1,after_calls;
 static int controls;
@@ -65,6 +66,7 @@ static void snapshot(void)
     scene_state();
     if(controls){emit(object+0x94,3);raw(object+0x1106,1);raw(object+0x1107,1);emit(0x544fb8,1);}
     if(controls>=3){emit(0x53e4f0,2);emit(0x5904e0,1);emit(object+0xcba,1);raw(object+0xdda,2);raw(object+0xdea,1);}
+    if(controls==7){narrow(object+0x762,2);emit(object+0xe0f,1);emit(0x544fa0,1);raw(0x544fa8,1);raw(object+0xd0a,1);narrow(object+0xe0b,2);raw(0x544fac,1);raw(0x544fb0,1);}
 }
 int main(int argc,char **argv)
 {
@@ -125,11 +127,13 @@ int main(int argc,char **argv)
             if(controls>=3){
                 set(0x74b605,controls==3 ? i>=1u : controls==4 ? 1u : i>=3u,1);
                 set(0x74b606,i==8u,1);set(0x74b601,0,1);set(0x74b602,i>=7u&&i<=9u,1);set(0x74b60f,i==8u,1);
+                set(0x74b60a,controls==7&&i>=6u&&i<=8u,1);set(0x74b60b,controls==7&&i>=8u&&i<=10u,1);
             }
             status=frame_player_input_step(read_data,write_data,0,object,&rates,&result);if(status)return 8;
             set(0x53e3fc,controls!=2||i%12u!=7u,4);
             if(result.driving){
                 status=frame_player_collision_state(read_data,write_data,0,object);if(status)return 8;
+                if(controls==7){status=frame_turret_input(read_data,write_data,0,object);if(status)return 8;}
                 status=frame_player_aux_brake(read_data,write_data,0,object,result.auxiliary_down);if(status)return 8;
             }
         }else{

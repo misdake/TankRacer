@@ -114,6 +114,12 @@ try{
  await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyA',key:'a',windowsVirtualKeyCode:65});
  await wait(()=>evaluate(`import('/main.js').then(m=>m.app.player_controls()[7]===0)`),'A handbrake release');
  report.keyboardHandbrake=true;
+ const initialTurret=await evaluate(`import('/main.js').then(m=>m.app.turret_state()[0])`);
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyZ',key:'z',windowsVirtualKeyCode:90});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.turret_state()[0]!==${initialTurret})`),'Z turret input changes actual pose');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyZ',key:'z',windowsVirtualKeyCode:90});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.turret_state()[6]===0)`),'Z release reaches original turret input');
+ report.keyboardTurret=true;
  await send('Input.dispatchKeyEvent',{type:'keyUp',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
  // Real DOM bindings: C is a rising-edge cycle, V is held rear view, F
  // releases the inspection camera without cycling the original camera mode.
@@ -282,6 +288,20 @@ try{
  assert.equal(hud.draws,3,'one atlas preserves original opaque/alpha/opaque order in three draws');assert.equal(hud.vertexUpload,0);assert.equal(hud.indexUpload,0);assert.equal(hud.unchanged,true);
  report.hud=hud;
  await writeFile(path.join(output,'race-hud.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ const turretSequence=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_world(files[3]);m.app.load_player(...files);const sequence=[];
+   for(let i=0;i<24;i++){
+    m.app.set_turret_keys(i<6||i===12,i>=10&&i<=12);
+    m.app.step_keys(16,false,i>=8&&i<12,true,false,false);sequence.push(Array.from(m.app.turret_state()));
+   }m.app.render();m.app.check_graphics();return sequence;
+ })`);
+ const turretOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--chase','--turret'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const nativeTurret=[...turretOutput.matchAll(/^turret=(\[[^\n]+\])/gm)].map(m=>JSON.parse(m[1]));
+ assert.equal(nativeTurret.length,24);assert.deepEqual(turretSequence,nativeTurret);
+ assert.notEqual(turretSequence[5][0],0,'authoritative turret angle rotates');
+ assert.equal(turretSequence[12][3],1,'both keys start original recenter sequence');
+ report.nativeWasmTurretUpdates=turretSequence.length;
  // Visual travel samples every simulation update, including updates with no
  // draw. Drawing each tick or only the last tick must produce identical phases.
  const animation=await evaluate(`import('/main.js').then(async m=>{
