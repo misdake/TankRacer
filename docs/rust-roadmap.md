@@ -41,7 +41,7 @@ Updated: **2026-11-17**. Read this together with `git status`.
   `startup` runs standalone in Rust; its complete actor world remains read-only
   because optional ticks have not been integrated. Missing methods fail, never
   silently update. No RNG skipping or identity padding is permitted.
-- **Current code checkpoint: M5.2c movement module (verified, commit pending).**
+- **Current code checkpoint: M5.2c movement module at `45606ca`.**
   HUD is at `ef5adf9`, turret at `bbd0f56`. The normal
   browser runs original 3000 ms countdown, launch rules, race time and source-
   derived fonts/dial/map/countdown/GO/timer/speed/cockpit indicator on the accepted
