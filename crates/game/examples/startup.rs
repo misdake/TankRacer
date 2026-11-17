@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         constructed.camera.entity.0,
         constructed.finish.entity.0,
         constructed.scenery().construction.len(),
-        world.objects.components.actors.entries.len(),
+        world.objects.components.actors.entries().len(),
         constructed.camera.variant,
         constructed.camera.pose.position[0],
         constructed.camera.pose.position[1],

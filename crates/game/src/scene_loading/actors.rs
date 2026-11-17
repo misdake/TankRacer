@@ -20,6 +20,7 @@ pub(super) fn register(registry: &mut Registry) {
             class.methods[LEAVE as usize] = Some(MethodId(113));
         }
         if kind == Kind::Powerup {
+            class.methods[TICK as usize] = Some(crate::powerup::TICK);
             class.methods[AFTER_CONSTRUCT as usize] = Some(methods::IDENTITY);
         }
         let id = ClassId(registry.classes.len());
@@ -154,7 +155,7 @@ impl<S: ShapeSource> Loader<'_, S> {
                 .queue(call.context.ticks, call.entity, false, env.work_limit)
                 .map_err(|_| -3)?;
         }
-        self.actors.as_mut().ok_or(-5)?.entries.push((id, value));
+        self.actors.as_mut().ok_or(-5)?.insert(id, value)?;
         *call.result = 0;
         Ok(())
     }

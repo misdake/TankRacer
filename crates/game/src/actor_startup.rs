@@ -122,11 +122,36 @@ pub struct Sound {
 }
 #[derive(Default)]
 pub struct Store {
-    pub entries: Vec<(ObstacleId, Actor)>,
+    entries: Vec<(ObstacleId, Actor)>,
     pub(crate) pickup: pickup::Setup,
     pub track_cameras: Vec<ObstacleId>,
 }
 impl Store {
+    pub fn entries(&self) -> &[(ObstacleId, Actor)] {
+        &self.entries
+    }
+    pub fn get_mut(&mut self, id: ObstacleId) -> Option<&mut Actor> {
+        let at = self
+            .entries
+            .binary_search_by_key(&id.0, |(id, _)| id.0)
+            .ok()?;
+        Some(&mut self.entries[at].1)
+    }
+    pub(crate) fn insert(&mut self, id: ObstacleId, actor: Actor) -> Result<(), i32> {
+        match self.entries.binary_search_by_key(&id.0, |(id, _)| id.0) {
+            Ok(_) => Err(-1),
+            Err(at) => {
+                self.entries.insert(at, (id, actor));
+                Ok(())
+            }
+        }
+    }
+    pub(crate) fn remove(&mut self, id: ObstacleId) {
+        if let Ok(at) = self.entries.binary_search_by_key(&id.0, |(id, _)| id.0) {
+            self.entries.remove(at);
+        }
+        self.track_cameras.retain(|other| *other != id);
+    }
     pub fn pickup_geometry(&self) -> &pickup::Geometry {
         &self.pickup.geometry
     }

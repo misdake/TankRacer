@@ -3,6 +3,7 @@ use super::*;
 use tankracer_assets::object_catalog;
 #[derive(Debug)]
 pub struct Pickup {
+    pub flight: crate::powerup::Flight,
     pub kind: u32,
     pub model: Arc<Model>,
     pub parachute: Arc<Model>,
@@ -23,7 +24,7 @@ pub struct Setup {
     pub lap: u8,
     pub geometry: Geometry,
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Geometry {
     pub separation: i32,
     pub diameter: u32,
@@ -139,6 +140,7 @@ impl Pickup {
             pose.matrix = Matrix::from_angles(angles);
         }
         Ok(Self {
+            flight: Default::default(),
             kind,
             model,
             parachute,

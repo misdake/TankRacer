@@ -470,7 +470,7 @@ impl App {
             i64::from(constructed.camera.entity.0),
             i64::from(constructed.finish.entity.0),
             constructed.scenery().construction.len() as i64,
-            world.objects.components.actors.entries.len() as i64,
+            world.objects.components.actors.entries().len() as i64,
             i64::from(constructed.camera.variant),
             i64::from(constructed.camera.pose.position[0]),
             i64::from(constructed.camera.pose.position[1]),

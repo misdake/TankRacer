@@ -41,6 +41,7 @@ pub mod player_input;
 pub mod player_route;
 pub mod pose;
 pub mod powertrain;
+pub mod powerup;
 pub mod race_clock;
 pub mod random;
 pub mod sampling;

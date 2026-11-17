@@ -12,6 +12,8 @@ use crate::{
 };
 use std::{error::Error, sync::Arc};
 use tankracer_assets::{archive::Archive, object_catalog::Camera, terrain::TerrainData};
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 pub struct StartingCamera {

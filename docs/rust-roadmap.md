@@ -41,7 +41,7 @@ Updated: **2026-11-17**. Read this together with `git status`.
   `startup` runs standalone in Rust; its complete actor world remains read-only
   because optional ticks have not been integrated. Missing methods fail, never
   silently update. No RNG skipping or identity padding is permitted.
-- **Current code checkpoint: M5.2c ownership prerequisite at `8c8d735`.**
+- **Current code checkpoint: M5.2c movement module (verified, commit pending).**
   HUD is at `ef5adf9`, turret at `bbd0f56`. The normal
   browser runs original 3000 ms countdown, launch rules, race time and source-
   derived fonts/dial/map/countdown/GO/timer/speed/cockpit indicator on the accepted
@@ -69,11 +69,18 @@ Updated: **2026-11-17**. Read this together with `git status`.
   Original production C/host/web/assets are preserved. HUD resource pixels are
   released after upload; no extra map query/precompute data was added. Detailed
   commands, coverage and remaining boundaries: [M5 evidence](rust-m5-race.md).
-- **M5.2c ownership prerequisite:** constructed actor state now lives once in
+- **M5.2c module qualification:** actual activation/fall/landing/parachute/blink/
+  settled-spin dispatch passes 87 C/native updates / 4,731 fields on three maps;
+  25 full cold starts remain exact. Workspace 115 passed / 71 external ignored,
+  native/Wasm lints and production build pass (842,491 B). No new rendering or
+  physical kernel changes; prior browser/GPU qualification remains scoped to
+  the driving subset. Powerup stays deferred in the normal loader until its
+  collection path exists. This is not a usable pickup interaction yet.
+  Constructed actor state lives once in
   `Scene.components.actors`, alongside colliders/memberships; loaded resources
   no longer own mutable actors. No live-state copies, RNG draws or no-op ticks.
-- **Next runnable slice: M5.2c pickup updates/collection.** Integrate activation,
-  falling and collection through that owner, then real inventory/
+- **Next runnable slice: M5.2c pickup collection.** Integrate collection through
+  that owner, then real inventory/
   fire/projectile/pickup ownership,
   pickup -> use -> hit -> cleanup, effects/HUD consumers. M5.2 is authorized in
   this run and remains open; dependencies require real owners, not stubs.

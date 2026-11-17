@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const out=path.join(root,'build/rust/tests');
 const references={
+  powerup:['reference_powerup.c','tankracer-game','world_startup::tests::powerup_phases_match_original_dispatch','TANKRACER_POWERUP_REFERENCE',['-Wl,--wrap=frame_native_dispatch'],'lib'],
   turret:['reference_turret.c','tankracer-game','turret_reference','TANKRACER_TURRET_REFERENCE'],
   hud:['reference_hud.c','tankracer-scene','hud','TANKRACER_HUD_REFERENCE'],
   'race-clock':['reference_vehicle_runtime.c','tankracer-game','race_clock_reference','TANKRACER_RACE_CLOCK_REFERENCE'],
@@ -54,7 +55,7 @@ async function reference(names){
   const report={requested:names,executed:[],not_selected:Object.keys(references).filter(n=>!names.includes(n)),passed:false};
   try{
     for(const name of names){
-      const [source,pkg,test,variable,flags=[]]=references[name];
+      const [source,pkg,test,variable,flags=[],target='test']=references[name];
       console.log(`REFERENCE RUN: ${name}`);
       const env={...process.env};let evidence;
       if(source){
@@ -71,7 +72,9 @@ async function reference(names){
         if(!env[variable])throw Error(`tracks requires ${variable}; no original executable is bundled`);
         await requireFile(env[variable]);evidence={original:await hash(env[variable])};
       }
-      const args=['test','-p',pkg,'--test',test,'--locked'];
+      const args=['test','-p',pkg];
+      if(target==='lib')args.push('--lib',test);else args.push('--test',test);
+      args.push('--locked');
       if(!source)args.push('original_track_uvs_match_gpu_coefficients_and_wrapping_travel');
       args.push('--','--include-ignored','--nocapture');run('cargo',args,env);
       report.executed.push({module:name,...evidence});

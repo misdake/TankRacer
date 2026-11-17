@@ -11,6 +11,7 @@ mod fragments;
 mod lifecycle;
 mod mesh_fragments;
 mod moving;
+mod powerups;
 mod spinning;
 use crate::{
     crush,
@@ -458,6 +459,7 @@ impl Methods<Handle> for View<'_> {
             let retiring = matches!(method, DETACH | RELEASE_ID);
             base.invoke(call, env)?;
             if retiring && let Some(id) = target {
+                self.components.actors.remove(id);
                 self.components.finish_crush_initial(id);
                 if let Some(object) = self.components.objects.get_mut(id.0) {
                     *object = None;
@@ -513,6 +515,7 @@ impl Methods<Handle> for View<'_> {
         }
         let id = target.ok_or(-1)?;
         match method {
+            crate::powerup::TICK => return self.tick_powerup(id, call, env),
             FALL_DESTROY => return self.destroy_fall(id, call, env),
             FALL_TICK => return self.tick_fall(id, call, env),
             BOUNCE_TICK => return self.tick_bounce(id, call, env),

@@ -220,6 +220,29 @@ compilation pass; Wasm is 837,641 B. Browser behavior was qualified at the prece
 turret checkpoint; this ownership-only step used focused constructor/compile
 checks. Evidence: `m5-2-owners-*`. Actual pickup updates/collection remain next.
 
+### M5.2c Powerup movement module
+
+`powerup` implements the actual inactive/proximity, falling, landing, terrain
+conformance, parachute descent, blinking and settled spin phases. The class
+dispatch updates its authoritative actor/collider/flags and publishes immediate
+grid/custom-render membership at activation; auxiliary dispatch runs before the
+final blink update. Removal retires the actor entry. The sorted actor store keeps
+identity lookup deterministic without a per-frame scan/copy or new map cache.
+
+The isolated original dispatch test constructs real full worlds and compares
+ENGLAND, BIO and EAST: **87 short updates / 4,731 fields**, including matrices,
+parachute, strict activation boundary, frame-based normalization, grid/custom
+list order and RNG. This is module qualification, not full-world update parity.
+The cold-world API remains read-only; unsupported actor methods still fail.
+Collection/inventory/use are not implemented and the normal driving loader still
+defers Powerup. Do not enable a successful no-op collection callback to show boxes.
+
+`reference powerup`, `reference world-startup`, workspace tests (115 passed / 71
+external ignored), native/Wasm lints and production compile pass. The complete
+startup remains 25 selections / 4,743 constructions / 111,065 fields. Wasm is
+842,491 B. This movement-only step did not change browser rendering/physical
+kernels or repeat GPU testing. Logs: `build/rust/tests/m5-2-powerup-*`.
+
 `tests/reference_world_startup.c` links unchanged native C libraries and observes
 real dispatch through a linker wrapper. No constructor is stubbed or replaced.
 The Rust reference covers **25 starts**: all 22 usable map/CUP selections with

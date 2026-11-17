@@ -212,7 +212,7 @@ fn snapshot(w: &Constructed) -> (Vec<u32>, Vec<(usize, u32, u32)>) {
             .objects
             .components
             .actors
-            .entries
+            .entries()
             .iter()
             .find(|(i, _)| *i == id)
             .map(|(_, a)| a);
@@ -393,7 +393,7 @@ fn complete_construction_has_real_owners_and_no_updates() {
         let p = world.vehicles.entries[world.player.0].as_ref().unwrap();
         assert!(w.scenery().deferred.is_empty());
         assert_eq!(w.scenery().construction.len(), w.scenery().entities.len());
-        assert!(!world.objects.components.actors.entries.is_empty());
+        assert!(!world.objects.components.actors.entries().is_empty());
         assert_eq!(w.camera.entity.0, p.physics.entity.0 + 1);
         assert_eq!(w.finish.entity.0, w.camera.entity.0 + 1);
         assert_eq!(w.finish.source, p.physics.entity);
