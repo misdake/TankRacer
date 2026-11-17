@@ -326,6 +326,19 @@ impl App {
         })
     }
 
+    /// Initial Player route binding for native/Wasm startup checks.
+    #[cfg(feature = "gpu-tests")]
+    pub fn player_route(&self) -> Vec<u32> {
+        self.vehicle.as_ref().map_or_else(Vec::new, |v| {
+            let route = v.runtime.player().route;
+            vec![
+                u32::from(route.checkpoint.is_some()),
+                route.checkpoint.map_or(0, |id| id.0),
+                route.passed,
+            ]
+        })
+    }
+
     /// Exact diagnostic text compared inside browser tests, never in production.
     #[cfg(feature = "gpu-tests")]
     pub fn simulation_probe(&self) -> String {
@@ -333,11 +346,12 @@ impl App {
             let game = v.runtime.world();
             let p = v.runtime.player();
             format!(
-                "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
+                "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
                 p.physics,
                 p.input,
                 p.brake,
                 p.prefix,
+                p.route,
                 game.objects.world.colliders,
                 game.objects.world.objects,
                 game.objects.components.movers,

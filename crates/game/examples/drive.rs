@@ -241,6 +241,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         game.shared.random,
         micros as f64 / ticks as f64
     );
+    if args.iter().skip(4).any(|v| v == "--route") {
+        println!(
+            "route={:?}",
+            [
+                u32::from(player.route.checkpoint.is_some()),
+                player.route.checkpoint.map_or(0, |id| id.0),
+                player.route.passed,
+            ]
+        );
+    }
     if with_keys {
         let i = player.input.drive;
         println!(

@@ -59,11 +59,12 @@ fn load(map: usize) -> loading::Loaded {
 fn snapshot(world: &SinglePlayer) -> String {
     let p = world.vehicles.entries[world.player.0].as_ref().unwrap();
     format!(
-        "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
+        "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
         p.physics,
         p.input,
         p.brake,
         p.prefix,
+        p.route,
         world.objects.world.colliders,
         world.objects.world.objects,
         world.objects.components.movers,

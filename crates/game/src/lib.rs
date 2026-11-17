@@ -37,6 +37,7 @@ pub mod obstacle_startup;
 pub mod player_brake;
 pub mod player_collision;
 pub mod player_input;
+pub mod player_route;
 pub mod pose;
 pub mod powertrain;
 pub mod random;

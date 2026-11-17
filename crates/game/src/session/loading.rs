@@ -141,7 +141,7 @@ impl Prepared {
         })
     }
     pub fn finish(self) -> Result<Loaded, Box<dyn Error>> {
-        let world = self
+        let mut world = self
             .startup
             .finish(
                 self.resources.surfaces,
@@ -158,6 +158,13 @@ impl Prepared {
                 },
             )
             .map_err(|e| format!("Player startup: {e:?}"))?;
+        // Route links and the actual Player must both exist before this query.
+        // The camera-free physics fixture with no authored scenery has no route.
+        if self.scenery.is_some() {
+            world
+                .initialize_player_route(100000)
+                .map_err(|e| format!("Player route startup: {e:?}"))?;
+        }
         Ok(Loaded {
             world,
             scenery: self.scenery,

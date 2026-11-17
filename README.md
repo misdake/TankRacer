@@ -28,7 +28,8 @@ is delivered. [M3 acceptance](docs/rust-m3-acceptance.md) records exact evidence
 and limits. **M4 is accepted for the driving scene:** [vehicle rendering](docs/rust-m4-vehicle.md)
 includes animated tracks/wheels, ground/body shadows, original chase/cockpit
 views, a four-segment aerial and the authored additive normal layer. Physics
-updates are unchanged. Next is M5 race ownership and lifecycle.
+updates are unchanged. M5 has started with real Player route binding; complete startup and race
+lifecycle remain pending. See the [M5 plan and evidence](docs/rust-m5-race.md).
 Full Player/race
 startup, pickups/weapons, optional content, AI, menus/audio and full CUP remain
 later milestones. Rust 1.95,

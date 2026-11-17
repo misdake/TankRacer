@@ -67,6 +67,25 @@ impl Startup {
     }
 }
 impl SinglePlayer {
+    pub(crate) fn initialize_player_route(&mut self, work_limit: u32) -> Result<(), Error> {
+        let player = self
+            .vehicles
+            .entries
+            .get_mut(self.player.0)
+            .and_then(Option::as_mut)
+            .ok_or(Error::MissingPlayer)?;
+        player.route = crate::player_route::State::at_start(
+            &crate::waypoint::View {
+                routes: &self.objects.components.waypoints,
+                world: &self.objects.world,
+                entities: &self.identity.entities,
+            },
+            player.physics.motion.poses.physical_position,
+            work_limit,
+        )
+        .map_err(Error::Route)?;
+        Ok(())
+    }
     pub fn terrain(&self) -> &Arc<TerrainData> {
         &self.terrain
     }

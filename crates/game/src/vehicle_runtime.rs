@@ -46,6 +46,7 @@ pub enum Error {
     Config(tankracer_assets::config::Error),
     MissingPlayer,
     UnsupportedConfiguration,
+    Route(i32),
 }
 /// Shared visual and prefix state has one owner. The two shield tail words are
 /// the gameplay effect-owner slots, not an additional independent flag bank.
