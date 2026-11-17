@@ -41,7 +41,7 @@ Updated: **2026-11-17**. Read this together with `git status`.
   `startup` runs standalone in Rust; its complete actor world remains read-only
   because optional ticks have not been integrated. Missing methods fail, never
   silently update. No RNG skipping or identity padding is permitted.
-- **Current code checkpoint: M5.2a HUD accepted at `ef5adf9`.** The normal
+- **Current code checkpoint: M5.2b turret at `bbd0f56`; HUD at `ef5adf9`.** The normal
   browser runs original 3000 ms countdown, launch rules, race time and source-
   derived fonts/dial/map/countdown/GO/timer/speed/cockpit indicator on the accepted
   driving subset. That subset retains its own constructor seed; it is not a
@@ -49,19 +49,25 @@ Updated: **2026-11-17**. Read this together with `git status`.
   animation/feedback order are unchanged. Free inspection cannot alter gameplay.
   Lap one/rank one reflects the current slice; inventory, lap records and
   warning events are not fabricated.
+  Z/X now drives authoritative turret/gun poses and cockpit HUD through the
+  original acceleration/decay/recenter/cooldown rules; this remains at Player's
+  input position before auxiliary brake/Tank dispatch.
 - **Current verification:** HUD C/native: 128 snapshots / 88,384 geometry/UV/
-  color/state fields across eight maps. Clock C/native: 144 updates / 941,304
-  fields; native/Wasm: 12 scene updates. Existing vehicle C regression: 2,880
+  color/state fields across eight maps. Turret C/native: 150 branches + 48
+  updates / 1,584 fields. Clock/Player/physics with actual turret: 180 updates /
+  1,176,942 fields; native/Wasm: 12 clock + 24 turret updates, real Z DOM input.
+  Existing vehicle C regression: 2,880
   updates / 18,041,268 fields; four saved driving checkpoints remain unchanged.
   Browser overlay pixels, three ordered atlas draws, stationary upload reuse,
-  state/time/RNG isolation and 191 GPU cases pass. Workspace 114 passed / 69
-  external ignored; lints/production pass. Wasm 836,272 B, without test exports.
+  state/time/RNG isolation and 191 GPU cases pass. Workspace 115 passed / 70
+  external ignored; lints/production pass. Wasm 837,234 B, without test exports.
   Original production C/host/web/assets are preserved. HUD resource pixels are
   released after upload; no extra map query/precompute data was added. Detailed
   commands, coverage and remaining boundaries: [M5 evidence](rust-m5-race.md).
-- **Next runnable slice: M5.2b player actions.** Bind original Z/X turret
-  acceleration/centering to the existing visible poses; test branches and short
-  C/native/Wasm sequences. Then real inventory/fire/projectile/pickup ownership,
+- **Next runnable slice: M5.2c interaction ownership.** Move cold actor state
+  from loaded resources to the authoritative scene before mutable pickup
+  consumers; verify the existing construction oracle. Then real inventory/
+  fire/projectile/pickup ownership,
   pickup -> use -> hit -> cleanup, effects/HUD consumers. M5.2 is authorized in
   this run and remains open; dependencies require real owners, not stubs.
 - **Remaining owners:** M5.1d checkpoint/lap/restoration/finish/restart/exit;
