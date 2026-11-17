@@ -76,12 +76,23 @@ Updated: **2026-11-17**. Read this together with `git status`.
   Construction is a read-only cold boundary, not a complete race tick. Actor
   ticks fail explicitly until M6; accepted browser driving keeps its previous
   subset/seed and unchanged physics/update order. No map precomputation added.
-- **Next increment: M5.1c race clock.** Introduce the real race/session owner,
-  countdown/release/driving gates and elapsed time at original update positions,
-  with branch and short C/native/Wasm sequences. Audit pre-entity race timing,
-  post-entity camera, queue drain and session action phases. Then M5.1d handles
-  progression/finish/restart/exit. Do not tick the complete construction using
-  unsupported optional actors or claim full race/frame parity.
+- **M5.1c countdown/clock accepted at `b09dabb`.**
+  Normal browser startup now uses the original 3000 ms countdown, launch gate
+  and race timer through Session/Player owners. Clock precedes the existing
+  update sequence; physics alone clamps raw elapsed to 10..100 ms. Release
+  preserves original frame/overshoot boundaries and fast-start input rules.
+  C/native: 12 sequences / 144 updates / 941,304 fields; native/Wasm: 12 scene
+  updates. Existing 2,880 vehicle updates / 18,041,268 fields, four saved native
+  checkpoints and browser/191 GPU cases pass. Workspace 113 passed / 68 external
+  ignored; lints/production pass. Wasm 819,845 B; no debug exports. Original C
+  production sources unchanged. No full cold-world ticks or lap/finish claims.
+- **Next: M5.2 interaction slices, also authorized by the user in this run.**
+  Integrate actual player actions and their visible consumers, then pickup ->
+  use -> hit -> cleanup. Preserve physical kernels/update positions and RNG;
+  qualify branches and short sequences. M5.1d retains progression/finish/restart/
+  exit ownership; implement real dependencies before claiming complete M5.2.
+  Do not tick the cold world through unsupported optional actors or fake their
+  updates. Complete-race and full-frame parity remain open.
 - **Later owners:** M5.2 pickups/weapons/damage/effects/HUD, forced effect material
   styles, starting-camera/environment shifts and camera impulses; M6 configurable
   scenery; M7
