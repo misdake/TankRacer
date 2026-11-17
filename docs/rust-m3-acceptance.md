@@ -90,8 +90,8 @@ Native C oracles must be built before running their ignored Rust tests. On the
 verified Windows host, after a native C build, the route/scene tail is reproduced by:
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_waypoint.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/waypoint_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_waypoint.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/waypoint_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
 $env:TANKRACER_WAYPOINT_REFERENCE=(Resolve-Path build/native/waypoint_reference.exe).Path
 $env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
 cargo test -p tankracer-game --test waypoint_reference --test scenery_runtime_reference --locked -- --ignored --nocapture

@@ -128,7 +128,7 @@ def main():
     if args.package:
         if not (ROOT/'dist/wasm/manifest.json').is_file():
             raise SystemExit('Build the Wasm site before packaging.')
-        target = ROOT/'build/TankRacerCUP-web.zip'
+        target = ROOT/'build/TankRacer-web.zip'
         with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
             for file in sorted((ROOT/'dist').rglob('*')):
                 if file.is_file():

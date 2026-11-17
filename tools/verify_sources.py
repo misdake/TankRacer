@@ -15,6 +15,8 @@ def main():
         assert digest(ROOT/name) == entry['sha256'], f'Changed exported file: {name}'
     for name, entry in manifest.get('extracted_files', {}).items():
         assert digest(ROOT/name) == entry['sha256'], f'Changed extracted host: {name}'
+    for name, entry in manifest.get('modified_files', {}).items():
+        assert digest(ROOT/name) == entry['sha256'], f'Changed adapted file: {name}'
     modules = json.loads((ROOT/'modules.json').read_text())
     assert len(modules) == len(set(modules)) == 97
     for name in modules:
@@ -31,7 +33,7 @@ def main():
     for entry in audio['sound_packs'].values():
         file = ROOT/'assets'/entry['path']
         assert file.stat().st_size == entry['bytes'] and digest(file) == entry['sha256'], file
-    print(f'PASS: {len(modules)} modules, all local includes, {len(manifest["unchanged_files"])} unchanged files, 2 audio packs')
+    print(f'PASS: {len(modules)} modules, all local includes, {len(manifest["unchanged_files"])} unchanged files, {len(manifest.get("modified_files", {}))} adapted files, 2 audio packs')
 
 if __name__ == '__main__':
     main()

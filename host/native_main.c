@@ -24,7 +24,7 @@ static int mount_file(uint32_t slot,const char *path)
 }
 static void help(void)
 {
-    fputs("Tank Racer CUP native host\n"
+    fputs("Tank Racer native host\n"
           "Usage: tankracer [--assets assets/game] [--map ENGLAND] [--cup B|S|G]\n"
           "                 [--vehicle 0..15] [--mode 0|1] [--no-opponents] [--snapshot]\n"
           "stdin: one 'frame_count hexadecimal_buttons focused' line per update.\n"

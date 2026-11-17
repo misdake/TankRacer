@@ -1,6 +1,6 @@
 # Runtime architecture
 
-The 97 C modules in `modules.json` are copied byte-for-byte from the qualified research implementation. Cleanup extracts the production host from the previous lifecycle test harness; gameplay algorithms and browser code are unchanged. `source-manifest.json` distinguishes unchanged files from extracted adapters.
+The 97 C modules in `modules.json` are copied byte-for-byte from the qualified research implementation. Cleanup extracts the production host from the previous lifecycle test harness; gameplay algorithms and browser logic are unchanged. `source-manifest.json` distinguishes unchanged files, extracted adapters and adapted presentation files, retaining their original and current hashes. The C browser page title and canvas label now use Tank Racer.
 
 ## Game data and updates
 

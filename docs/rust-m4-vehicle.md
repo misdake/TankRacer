@@ -296,7 +296,7 @@ remain subject to the same <1 MB target and absolute 2 MB cap.
 Reproduce the new reference check after building the preserved native libraries:
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_chase_camera.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/chase_camera_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_chase_camera.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/chase_camera_reference.exe
 $env:TANKRACER_CHASE_CAMERA_REFERENCE=(Resolve-Path build/native/chase_camera_reference.exe).Path
 cargo test -p tankracer-game --test chase_camera_reference --locked -- --include-ignored --nocapture
 cargo build -p tankracer-game --example drive --release --locked
@@ -397,7 +397,7 @@ Wasm: **760,475 B**. Results: `build/rust/tests/browser.json`, screenshots and
 Additional C reproduction after building the preserved native libraries:
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_layers.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_layers_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_layers.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_layers_reference.exe
 $env:TANKRACER_VEHICLE_LAYERS_REFERENCE=(Resolve-Path build/native/vehicle_layers_reference.exe).Path
 cargo test -p tankracer-scene --test vehicle_layers --locked -- --include-ignored --nocapture
 ```

@@ -1246,9 +1246,9 @@ claim. Next: canonical entity allocation/ID reuse, class methods and authored
 attachments/world ticks, then vehicle prefix/after-pose and the moving proxy.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_lifecycle.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/lifecycle_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_symbols.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/symbols_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_breakable.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/breakable_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_lifecycle.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/lifecycle_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_symbols.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/symbols_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_breakable.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/breakable_reference.exe
 $env:TANKRACER_LIFECYCLE_REFERENCE=(Resolve-Path build/native/lifecycle_reference.exe).Path
 $env:TANKRACER_SYMBOLS_REFERENCE=(Resolve-Path build/native/symbols_reference.exe).Path
 $env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_reference.exe).Path
@@ -1324,7 +1324,7 @@ Obstacle/Crush lifecycle and record retirement, authored class/attachment
 factories, then complete vehicle prefix/after-pose and independent world ticks.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_entity_factory.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/entity_factory_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_entity_factory.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/entity_factory_reference.exe
 $env:TANKRACER_ENTITY_FACTORY_REFERENCE=(Resolve-Path build/native/entity_factory_reference.exe).Path
 cargo test -p tankracer-game --test entity_factory_reference --locked -- --ignored --nocapture
 ```
@@ -1398,8 +1398,8 @@ prefix/after-pose still need connecting before the moving proxy runs independent
 Do not treat the new enter/destructor prefixes as a complete game lifecycle.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_crush.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/crush_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_crush.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/crush_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
 $env:TANKRACER_CRUSH_REFERENCE=(Resolve-Path build/native/crush_reference.exe).Path
 $env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
 cargo test -p tankracer-game --test crush_reference --test scene_startup_reference --locked -- --ignored --nocapture
@@ -1460,7 +1460,7 @@ connected to the same entity scheduler/symbols rather than duplicated in a final
 world owner. M3 remains open until the moving proxy actually runs independently.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_objects.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_objects_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_objects.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_objects_reference.exe
 $env:TANKRACER_SCENE_OBJECTS_REFERENCE=(Resolve-Path build/native/scene_objects_reference.exe).Path
 cargo test -p tankracer-game --test scene_objects_reference --locked -- --ignored --nocapture
 ```
@@ -1522,8 +1522,8 @@ owner to retire; plugin teardown must clean its owned lap entries too. M3 remain
 open, and this loader does not yet accept the complete object file.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_loading.c build/native/libtankracer_core.a -lm -o build/native/scene_loading_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_loading.c build/native/libtankracer_core.a -lm -o build/native/scene_loading_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
 $env:TANKRACER_SCENE_LOADING_REFERENCE=(Resolve-Path build/native/scene_loading_reference.exe).Path
 $env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_startup_reference.exe).Path
 cargo test -p tankracer-game --test scene_loading_reference --test obstacle_startup_reference --locked -- --ignored --nocapture
@@ -1584,7 +1584,7 @@ native allocator/read-fault prefix fidelity during partial resource construction
 is outside the typed resource boundary; no such new claim is made.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scene_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scene_startup_reference.exe
 $env:TANKRACER_SCENE_STARTUP_REFERENCE=(Resolve-Path build/native/scene_startup_reference.exe).Path
 cargo test -p tankracer-game --test scene_startup_reference --locked -- --ignored --nocapture
 ```
@@ -1656,7 +1656,7 @@ Next connect the shared collision owner, then auxiliary/debris and remaining
 class bindings before whole-world/vehicle integration. M3 remains open.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_fall.c build/native/libtankracer_core.a -lm -o build/native/fall_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_fall.c build/native/libtankracer_core.a -lm -o build/native/fall_reference.exe
 $env:TANKRACER_FALL_REFERENCE=(Resolve-Path build/native/fall_reference.exe).Path
 cargo test -p tankracer-game --test fall_reference --locked -- --ignored --nocapture
 ```
@@ -1723,7 +1723,7 @@ auxiliary/debris contact/update bindings on this owner, then remaining readers
 and vehicle prefix/after-pose plus scheduler -> independent moving proxy.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_obstacle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/obstacle_startup_reference.exe
 $env:TANKRACER_OBSTACLE_STARTUP_REFERENCE=(Resolve-Path build/native/obstacle_startup_reference.exe).Path
 $env:TANKRACER_BREAKABLE_REFERENCE=(Resolve-Path build/native/breakable_reference.exe).Path
 cargo test -p tankracer-game --test obstacle_startup_reference --test breakable_reference --locked -- --ignored --nocapture
@@ -1790,7 +1790,7 @@ fragment-rendering claim. Next: auxiliary mesh break and remaining readers,
 vehicle blast bindings, then complete vehicle prefix/after-pose and startup.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_shatter.c build/native/libtankracer_core.a -lm -o build/native/shatter_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_shatter.c build/native/libtankracer_core.a -lm -o build/native/shatter_reference.exe
 $env:TANKRACER_SHATTER_REFERENCE=(Resolve-Path build/native/shatter_reference.exe).Path
 cargo test -p tankracer-game --test shatter_reference --locked -- --include-ignored --nocapture
 ```
@@ -1861,7 +1861,7 @@ whole-frame performance claim. No new map acceleration data; the browser still
 runs only the static world/free camera. M3 remains open.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mesh_break.c build/native/libtankracer_core.a -lm -o build/native/mesh_break_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mesh_break.c build/native/libtankracer_core.a -lm -o build/native/mesh_break_reference.exe
 $env:TANKRACER_MESH_BREAK_REFERENCE=(Resolve-Path build/native/mesh_break_reference.exe).Path
 cargo test -p tankracer-game --test mesh_break_reference --locked -- --include-ignored --nocapture
 ```
@@ -1930,7 +1930,7 @@ prefix and the full after-pose operations into one scheduler, then run the
 independent moving proxy. M3 remains open; a qualified prefix is not a car.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_prefix.c build/native/libtankracer_core.a -lm -o build/native/vehicle_prefix_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_prefix.c build/native/libtankracer_core.a -lm -o build/native/vehicle_prefix_reference.exe
 $env:TANKRACER_VEHICLE_PREFIX_REFERENCE=(Resolve-Path build/native/vehicle_prefix_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_prefix_reference --locked -- --ignored --nocapture
 ```
@@ -1978,7 +1978,7 @@ the Rust browser still renders the static scene/free camera. No renderer or
 per-map acceleration data changed. M3 remains open.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_startup_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_startup.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_startup_reference.exe
 $env:TANKRACER_VEHICLE_STARTUP_REFERENCE=(Resolve-Path build/native/vehicle_startup_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_startup_reference --locked -- --ignored --nocapture
 ```
@@ -2032,7 +2032,7 @@ incomplete successful active-scene tick was added. Dynamic GPU extraction and
 whole-frame equivalence remain unclaimed; browser movement is still pending.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_quads.c build/native/libtankracer_core.a -lm -o build/native/vehicle_quads_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_quads.c build/native/libtankracer_core.a -lm -o build/native/vehicle_quads_reference.exe
 $env:TANKRACER_VEHICLE_QUADS_REFERENCE=(Resolve-Path build/native/vehicle_quads_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_quads_reference --locked -- --ignored --nocapture
 ```
@@ -2083,7 +2083,7 @@ overwritten in all three coordinates before any callback/query; removing those
 writes is a candidate source-proven simplification, to qualify by C comparison.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_energy.c build/native/libtankracer_core.a -lm -o build/native/vehicle_energy_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_energy.c build/native/libtankracer_core.a -lm -o build/native/vehicle_energy_reference.exe
 $env:TANKRACER_VEHICLE_ENERGY_REFERENCE=(Resolve-Path build/native/vehicle_energy_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_energy_reference --locked -- --ignored --nocapture
 ```
@@ -2120,7 +2120,7 @@ Shared debris/pickup fade, the after-pose coordinator and browser movement remai
 pending. These checks qualify components, not a complete moving game.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_particles.c build/native/libtankracer_core.a -lm -o build/native/vehicle_particles_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_particles.c build/native/libtankracer_core.a -lm -o build/native/vehicle_particles_reference.exe
 $env:TANKRACER_VEHICLE_PARTICLES_REFERENCE=(Resolve-Path build/native/vehicle_particles_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_particles_reference --locked -- --ignored --nocapture
 ```
@@ -2152,7 +2152,7 @@ game unit tests, browser build and C preservation pass. No extra map metadata
 or rendering change; browser movement remains pending.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_debris.c build/native/libtankracer_core.a -lm -o build/native/vehicle_debris_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_debris.c build/native/libtankracer_core.a -lm -o build/native/vehicle_debris_reference.exe
 $env:TANKRACER_VEHICLE_DEBRIS_REFERENCE=(Resolve-Path build/native/vehicle_debris_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_debris_reference --locked -- --ignored --nocapture
 ```
@@ -2179,7 +2179,7 @@ change. Activation, projection and full transient bootstrap remain pending M5
 work; this does not claim a working pickup or a complete after-pose coordinator.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_pickup_fade.c build/native/libtankracer_core.a -lm -o build/native/vehicle_pickup_fade_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_pickup_fade.c build/native/libtankracer_core.a -lm -o build/native/vehicle_pickup_fade_reference.exe
 $env:TANKRACER_VEHICLE_PICKUP_FADE_REFERENCE=(Resolve-Path build/native/vehicle_pickup_fade_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_pickup_fade_reference --locked -- --ignored --nocapture
 ```
@@ -2221,7 +2221,7 @@ wire this real chain into it next, then bind fresh-player scene identity and
 scheduling. No complete fresh scene, moving-browser or whole-game claim.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_scene.c build/native/libtankracer_core.a -lm -o build/native/vehicle_scene_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_scene.c build/native/libtankracer_core.a -lm -o build/native/vehicle_scene_reference.exe
 $env:TANKRACER_VEHICLE_SCENE_REFERENCE=(Resolve-Path build/native/vehicle_scene_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_scene_reference --locked -- --ignored --nocapture
 ```
@@ -2343,7 +2343,7 @@ tests, native/Wasm lint, browser build and C preservation. The browser is still
 static, 183,235 B Wasm; render/collision map metadata are unchanged.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_runtime_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_runtime_reference.exe
 $env:TANKRACER_VEHICLE_RUNTIME_REFERENCE=(Resolve-Path build/native/vehicle_runtime_reference.exe).Path
 cargo test -p tankracer-game --test vehicle_runtime_reference --locked -- --ignored --nocapture
 ```
@@ -2413,7 +2413,7 @@ ownership. Required collision subclasses are the next gameplay increment;
 transparent draw-call count remains an explicit renderer optimization task.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
 $env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
 cargo test -p tankracer-game --test scenery_runtime_reference --locked -- --ignored --nocapture
 ```
@@ -2482,7 +2482,7 @@ See the renderer note for current memory/draw accounting. M3 remains open for
 Closer, Spin and remaining required world/startup work.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_bounce.c build/native/libtankracer_core.a -lm -o build/native/bounce_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_bounce.c build/native/libtankracer_core.a -lm -o build/native/bounce_reference.exe
 $env:TANKRACER_BOUNCE_REFERENCE=(Resolve-Path build/native/bounce_reference.exe).Path
 cargo test -p tankracer-game --test bounce_reference --locked -- --ignored --nocapture
 ```
@@ -2524,7 +2524,7 @@ native/Wasm final-field comparison and C source preservation. Detailed logs:
 Spin, other required collision subclasses and full startup remain M3 work.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_closer.c build/native/libtankracer_core.a -lm -o build/native/closer_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_closer.c build/native/libtankracer_core.a -lm -o build/native/closer_reference.exe
 $env:TANKRACER_CLOSER_REFERENCE=(Resolve-Path build/native/closer_reference.exe).Path
 cargo test -p tankracer-game --test closer_reference --locked -- --ignored --nocapture
 ```
@@ -2574,7 +2574,7 @@ Related native suites, workspace checks, eight browser collision sequences,
 Mover (a Spin subclass) and remaining full startup/lifecycle work are next.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_spin.c build/native/libtankracer_core.a -lm -o build/native/spin_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_spin.c build/native/libtankracer_core.a -lm -o build/native/spin_reference.exe
 $env:TANKRACER_SPIN_REFERENCE=(Resolve-Path build/native/spin_reference.exe).Path
 cargo test -p tankracer-game --test spin_reference --locked -- --ignored --nocapture
 ```
@@ -2630,7 +2630,7 @@ probe (eight collision probes remain), 144 GPU cases, reloads, native/Wasm final
 fields and zero stationary uploads. Logs: `build/tests/rust-mover-*.log`.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mover.c build/native/libtankracer_core.a -lm -o build/native/mover_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_mover.c build/native/libtankracer_core.a -lm -o build/native/mover_reference.exe
 $env:TANKRACER_MOVER_REFERENCE=(Resolve-Path build/native/mover_reference.exe).Path
 cargo test -p tankracer-game --test mover_reference --locked -- --ignored --nocapture
 ```
@@ -2688,8 +2688,8 @@ explicit errors rather than successful no-ops. M3 still needs full required
 collision/startup/lifecycle bindings and world allocation/RNG qualification.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_blast.c build/native/libtankracer_core.a -lm -o build/native/blast_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_blast.c build/native/libtankracer_core.a -lm -o build/native/blast_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_scenery_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/scenery_runtime_reference.exe
 $env:TANKRACER_BLAST_REFERENCE=(Resolve-Path build/native/blast_reference.exe).Path
 $env:TANKRACER_SCENERY_RUNTIME_REFERENCE=(Resolve-Path build/native/scenery_runtime_reference.exe).Path
 cargo test -p tankracer-game --test blast_reference --test scenery_runtime_reference --locked -- --ignored --nocapture
@@ -2745,8 +2745,8 @@ driving/countdown region, not the deathmatch-restoration branch or a complete
 Player tick. No full race or general per-frame browser-parity claim.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_input.c build/native/libtankracer_core.a -lm -o build/native/player_input_reference.exe
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_runtime_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_input.c build/native/libtankracer_core.a -lm -o build/native/player_input_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_runtime.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_runtime_reference.exe
 $env:TANKRACER_PLAYER_INPUT_REFERENCE=(Resolve-Path build/native/player_input_reference.exe).Path
 $env:TANKRACER_VEHICLE_RUNTIME_REFERENCE=(Resolve-Path build/native/vehicle_runtime_reference.exe).Path
 cargo test -p tankracer-game --test player_input_reference --test vehicle_runtime_reference --locked -- --ignored --nocapture
@@ -2795,7 +2795,7 @@ Next Player binding: active-race collision marker/impact decay and vector-change
 contributions before parent physics. Full Player/race startup remains unfinished.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_brake.c build/native/libtankracer_core.a -lm -o build/native/player_brake_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_brake.c build/native/libtankracer_core.a -lm -o build/native/player_brake_reference.exe
 $env:TANKRACER_PLAYER_BRAKE_REFERENCE=(Resolve-Path build/native/player_brake_reference.exe).Path
 cargo test -p tankracer-game --test player_brake_reference --locked -- --ignored --nocapture
 ```
@@ -2835,7 +2835,7 @@ authored WayPoint construction/linkage and its ordered grid before route/lap
 progress can run on actual resources; an isolated progress helper is insufficient.
 
 ```powershell
-& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_collision.c build/native/libtankracer_core.a -lm -o build/native/player_collision_reference.exe
+& gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_player_collision.c build/native/libtankracer_core.a -lm -o build/native/player_collision_reference.exe
 $env:TANKRACER_PLAYER_COLLISION_REFERENCE=(Resolve-Path build/native/player_collision_reference.exe).Path
 cargo test -p tankracer-game --test player_collision_reference --locked -- --ignored --nocapture
 ```

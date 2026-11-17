@@ -1,5 +1,5 @@
 {
-  "project": "Tank Racer CUP",
+  "project": "Tank Racer",
   "exported": "2026-11-13",
   "baseline_wasm_sha256": "8e5df41a4acca702c231cdd7befc7ab47f2e694cde3d5af1753f46db50176b54",
   "unchanged_files": {
@@ -903,10 +903,6 @@
       "source": "web/vendor/README.md",
       "sha256": "99110d0ec5d55c599562ddfddc531db8247eee466e192f5bbff9d2d693393297"
     },
-    "web/index.html": {
-      "source": "web/index.html",
-      "sha256": "0c70b6ec31f7f8fb6fdcfa034c80069d455b896cc9cd64a88fcb8143987313b8"
-    },
     "assets/game/DATA/FASTFILE.DAT": {
       "source": "web/wasm/assets/DATA/FASTFILE.DAT",
       "sha256": "6876b03467812d400e46272a51a557b0775ecbf9f869c6e33b61c2b7ee3c808c"
@@ -978,6 +974,14 @@
     "tools/static_response.mjs": {
       "source": "tools/static_response.mjs",
       "sha256": "495907ef82c0383e04a7cf940582bccb1d5ea7ea8661be1f65bb832af23520d3"
+    }
+  },
+  "modified_files": {
+    "web/index.html": {
+      "source": "web/index.html",
+      "source_sha256": "0c70b6ec31f7f8fb6fdcfa034c80069d455b896cc9cd64a88fcb8143987313b8",
+      "sha256": "8b756e99f3ebe505b4d1d81030338e99486df89fddb65835b4d0a1d4fc78a0ba",
+      "change": "Rename the page title and canvas label to Tank Racer; game code is unchanged."
     }
   },
   "host_extraction": {

@@ -1,4 +1,4 @@
-# Tank Racer CUP
+# Tank Racer
 
 A Rust rewrite is in progress, starting with a small world-space WebGL 2
 renderer. The runnable C game below remains the reference during migration.
@@ -77,7 +77,7 @@ python tools/build.py --cc /path/to/gcc --emsdk /path/to/emsdk --package
 node tools/serve.mjs
 ```
 
-Open http://127.0.0.1:8124. Serve `dist/` on any static web server to deploy; `build/TankRacerCUP-web.zip` contains the same site. The included local server negotiates gzip for Wasm, game archives, audio packs and other compressible resources.
+Open http://127.0.0.1:8124. Serve `dist/` on any static web server to deploy; `build/TankRacer-web.zip` contains the same site. The included local server negotiates gzip for Wasm, game archives, audio packs and other compressible resources.
 
 `CC`, `AR` and `EMSDK` environment variables can replace the command-line tool paths. Use `--target native` or `--target wasm` to build one backend. Build outputs live in ignored `build/` and `dist/` directories. Toolchains live outside this repository.
 
