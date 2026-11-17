@@ -102,6 +102,7 @@ impl WorldView {
         renderer: &mut Renderer,
         size: [u32; 2],
         mut session: Option<&mut crate::vehicle::Session>,
+        mut hud: Option<&mut crate::hud::Hud>,
     ) -> Result<(), JsValue> {
         if let Some(session) = &mut session {
             session
@@ -210,6 +211,9 @@ impl WorldView {
                 )?;
             }
         }
+        if let (Some(hud), Some(session)) = (&mut hud, &session) {
+            hud.refresh(renderer, &session.runtime)?;
+        }
         let vp = self.camera.view_projection(size[0] as f32 / size[1] as f32);
         let right = self.camera.right();
         let mut frame = renderer.begin_frame(None, size, [0.48, 0.62, 0.72, 1.]);
@@ -274,6 +278,9 @@ impl WorldView {
         }
         if let Some(session) = &session {
             session.view.sight(&mut frame, vp, &self.camera);
+        }
+        if let Some(hud) = hud {
+            hud.draw(&mut frame);
         }
         Ok(())
     }

@@ -9,6 +9,9 @@ pub struct App {
     world: Option<crate::world::WorldView>,
     vehicle: Option<crate::vehicle::Session>,
     follow_camera: bool,
+    hud: Option<crate::hud::Hud>,
+    #[cfg(feature = "gpu-tests")]
+    hud_enabled: bool,
 }
 
 #[wasm_bindgen]
@@ -22,6 +25,9 @@ impl App {
             world: None,
             vehicle: None,
             follow_camera: true,
+            hud: None,
+            #[cfg(feature = "gpu-tests")]
+            hud_enabled: true,
         })
     }
 
@@ -34,7 +40,15 @@ impl App {
             vehicle.view.scene.cockpit = self.follow_camera && vehicle.chase().mode == 2;
         }
         if let Some(world) = &mut self.world {
-            return world.draw(&mut self.renderer, size, self.vehicle.as_mut());
+            let show_hud = self.follow_camera;
+            #[cfg(feature = "gpu-tests")]
+            let show_hud = show_hud && self.hud_enabled;
+            return world.draw(
+                &mut self.renderer,
+                size,
+                self.vehicle.as_mut(),
+                if show_hud { self.hud.as_mut() } else { None },
+            );
         }
         self.renderer.begin_frame(None, size, [0., 0., 0., 1.]);
         Ok(())
@@ -45,6 +59,7 @@ impl App {
         let stats = world.stats();
         self.world = Some(world);
         self.vehicle = None;
+        self.hud = None;
         Ok(stats)
     }
 
@@ -161,6 +176,23 @@ impl App {
             .runtime
             .begin_race()
             .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    pub fn load_hud(&mut self, common: &[u8], shared: &[u8], level: &[u8]) -> Result<(), JsValue> {
+        let vehicle = self.vehicle.as_ref().ok_or("Load a player first")?;
+        self.hud = Some(crate::hud::Hud::load(
+            &self.renderer,
+            common,
+            shared,
+            level,
+            vehicle.runtime.world().settings().map as usize,
+        )?);
+        Ok(())
+    }
+
+    #[cfg(feature = "gpu-tests")]
+    pub fn set_hud_probe(&mut self, visible: bool) {
+        self.hud_enabled = visible;
     }
 
     #[cfg(feature = "gpu-tests")]

@@ -263,6 +263,25 @@ try{
  assert.equal(raceSequence[5][7],1,'correctly timed throttle enables original fast start');
  assert.equal(raceSequence[7][3],1016,'race time uses raw elapsed, physics uses bounded dt');
  report.raceClockUpdates=raceSequence.length;
+ const hud=await evaluate(`import('/main.js').then(async m=>{
+  const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND','COMMON'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+  m.app.load_world(files[3]);m.app.load_player(...files.slice(0,4));m.app.load_hud(files[4],files[2],files[3]);m.app.begin_race();
+  const canvas=document.getElementById('game'),gl=canvas.getContext('webgl2');
+  const sample=()=>{m.app.render();const pixels=new Uint8Array(canvas.width*canvas.height*4);gl.readPixels(0,0,canvas.width,canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);return pixels;};
+  const state=m.app.simulation_probe(),race=Array.from(m.app.race_state());m.app.set_hud_probe(false);const base=sample();const baseStats=JSON.parse(m.app.frame_stats());
+  m.app.set_hud_probe(true);const rendered=sample();const stats=JSON.parse(m.app.frame_stats());let changed=0,center=0,corners=0;
+  for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++){
+   const p=(y*canvas.width+x)*4;if(base[p]===rendered[p]&&base[p+1]===rendered[p+1]&&base[p+2]===rendered[p+2])continue;
+   changed++;const sx=x*640/canvas.width,sy=(canvas.height-1-y)*480/canvas.height;if(sx>220&&sx<420&&sy>140&&sy<340)center++;else corners++;
+  }
+  sample();const still=JSON.parse(m.app.frame_stats());m.app.check_graphics();
+  return {changed,center,corners,draws:stats.draws-baseStats.draws,vertexUpload:still.vertex_upload_bytes,indexUpload:still.index_upload_bytes,
+    unchanged:state===m.app.simulation_probe()&&JSON.stringify(race)===JSON.stringify(Array.from(m.app.race_state()))};
+ })`);
+ assert.ok(hud.center>100,'actual alpha128 countdown is visible');assert.ok(hud.corners>1000,'font, map, timer and speedometer are visible over world depth');
+ assert.equal(hud.draws,3,'one atlas preserves original opaque/alpha/opaque order in three draws');assert.equal(hud.vertexUpload,0);assert.equal(hud.indexUpload,0);assert.equal(hud.unchanged,true);
+ report.hud=hud;
+ await writeFile(path.join(output,'race-hud.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  // Visual travel samples every simulation update, including updates with no
  // draw. Drawing each tick or only the last tick must produce identical phases.
  const animation=await evaluate(`import('/main.js').then(async m=>{

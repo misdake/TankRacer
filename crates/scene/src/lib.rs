@@ -2,6 +2,7 @@
 
 pub mod atlas;
 pub mod camera;
+pub mod hud;
 pub mod material;
 pub mod model;
 pub mod transform;

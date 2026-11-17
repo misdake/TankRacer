@@ -20,7 +20,7 @@ run('wasm-pack',args);
 await cp(path.join(root,'browser'),output,{recursive:true});
 await mkdir(path.join(output,'assets'),{recursive:true});
 for(const [source,name]of [
- ['LEVELS/ENGLAND','ENGLAND'],['DATA','DATA'],['TANKS/BRONZE','BRONZE'],['INGAME','INGAME'],
+ ['LEVELS/ENGLAND','ENGLAND'],['DATA','DATA'],['TANKS/BRONZE','BRONZE'],['INGAME','INGAME'],['COMMON','COMMON'],
 ]) await copyFile(path.join(root,'assets/game',source,'FASTFILE.DAT'),path.join(output,'assets',`${name}.DAT`));
 if(testing) for(const map of ['SWAMP','BIO']) await copyFile(path.join(root,'assets/game/LEVELS',map,'FASTFILE.DAT'),path.join(output,'assets',`${map}.DAT`));
 console.log(`Rust site: ${output}`);

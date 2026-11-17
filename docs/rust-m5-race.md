@@ -156,6 +156,38 @@ now serializes effect records through a private copy, keeping inspection read-on
 
 ## Verification
 
+### M5.2a HUD presentation
+
+The normal browser now draws the original CFONT1/2/3, dial, map and GO resources.
+`scene::hud` translates the original anchors, glyph advances, one-pixel font V
+offset, quarter-pixel needle rotation, minimap calibration, countdown scale,
+GO spacing, timer blink and speed arithmetic. The cockpit shows the original
+turret indicator. This is a read-only presentation of the current clock/vehicle;
+lap progression, lap records, inventory icons, warning events and standings
+changes require their M5.1d/M5.2 owners and are not fabricated here. The current
+opponent-free scene is still at lap one/rank one.
+
+One HUD atlas supplies ordered opaque -> alpha128 -> opaque runs: three draws
+during countdown/GO and one otherwise. Depth test/write are off for every HUD
+draw; keyed runs discard zero coverage, blended runs use premultiplied alpha.
+Static redraws reuse geometry; render/inspection never advances clock or RNG.
+The atlas contains original resources, not extra per-map query/precompute data;
+decoded pixel buffers are released after upload. The Rust build includes COMMON
+for the actual font/GO resources. Returning to inspection hides the HUD.
+
+`reference_hud.c` calls unchanged `frame_hud_draw` and compares **128 snapshots /
+88,384 fields** across eight maps: every quad's position, UV, color, order,
+depth/write/key/blend state, including cockpit indicators and boundary/blink
+times. The browser verifies visible overlay/countdown pixels over the 3D scene,
+three ordered atlas draws, zero stationary geometry uploads and unchanged game
+state/time. Workspace **114 passed / 69 external ignored**, lints, production and
+the existing 191 GPU cases pass. Production Wasm: **836,272 B**. Logs:
+`build/rust/tests/m5-2-hud-*`; commands include `reference hud`, `unit`, `lint`,
+`web` and `node tools/build_rust.mjs`.
+
+Next M5.2 slice: actual turret input and visible poses, then real inventory/fire/
+projectile/pickup ownership. M5.2 as a whole remains open.
+
 `tests/reference_world_startup.c` links unchanged native C libraries and observes
 real dispatch through a linker wrapper. No constructor is stubbed or replaced.
 The Rust reference covers **25 starts**: all 22 usable map/CUP selections with

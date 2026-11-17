@@ -52,8 +52,9 @@ try {
   app.load_world(world);
   if(!inspecting){
     status.textContent = 'Loading vehicle…';
-    const files = await Promise.all(['DATA','BRONZE','INGAME'].map(download));
-    app.load_player(...files,world);
+    const files = await Promise.all(['DATA','BRONZE','INGAME','COMMON'].map(download));
+    app.load_player(...files.slice(0,3),world);
+    app.load_hud(files[3],files[2],world);
     app.begin_race();
   }
   held.clear();
