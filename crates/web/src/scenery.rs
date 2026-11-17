@@ -11,14 +11,9 @@ use tankracer_scene::{
 };
 use wasm_bindgen::JsValue;
 
-struct Pass {
-    mesh: GpuMesh,
-    vertices: usize,
-    indices: usize,
-}
 struct Group {
     version: u64,
-    passes: [Option<Pass>; 5],
+    passes: [Option<GpuMesh>; 5],
     transparent: Vec<TransparentTriangle>,
     transforms: Vec<[f32; 16]>,
     uploaded: Vec<[f32; 16]>,
@@ -118,22 +113,7 @@ impl View {
                     .prepare(info.geometry, info.materials)
                     .map_err(error)?;
                 for (pass, data) in group.passes.iter_mut().zip(&prepared.batches) {
-                    if data.indices.is_empty() {
-                        *pass = None;
-                        continue;
-                    }
-                    if let Some(pass) = pass
-                        && pass.vertices == data.vertices.len()
-                        && pass.indices == data.indices.len()
-                    {
-                        renderer.update_vertices(&mut pass.mesh, &data.vertices)?;
-                    } else {
-                        *pass = Some(Pass {
-                            mesh: renderer.upload_mesh(data)?,
-                            vertices: data.vertices.len(),
-                            indices: data.indices.len(),
-                        });
-                    }
+                    renderer.sync_mesh(pass, data, Default::default())?;
                 }
                 group.transparent = prepared.transparent;
                 group.version = info.version;
@@ -153,7 +133,7 @@ impl View {
                 .passes
                 .iter()
                 .flatten()
-                .map(|p| p.indices / 3)
+                .map(|p| p.index_count() / 3)
                 .sum::<usize>();
         }
         for group in self.groups.iter_mut().flatten() {
@@ -190,8 +170,8 @@ impl View {
             {
                 if let Some(pass) = &group.passes[kind.slot()] {
                     frame.draw_instanced(
-                        &pass.mesh,
-                        &crate::world::material(kind),
+                        pass,
+                        &tankracer_scene::material::surface(kind),
                         Some(&self.atlas),
                         vp,
                         &group.instances,
@@ -235,7 +215,7 @@ impl View {
             .as_mut()
             .and_then(|g| g.passes[BatchKind::Transparent.slot()].as_mut())
             .ok_or_else(|| error("Missing transparent prototype"))?;
-        renderer.update_indices(&mut pass.mesh, indices)
+        renderer.update_indices(pass, indices)
     }
     pub fn draw_transparent(
         &self,
@@ -247,11 +227,10 @@ impl View {
         let mesh = &self.groups[object.geometry - 1].as_ref().unwrap().passes
             [BatchKind::Transparent.slot()]
         .as_ref()
-        .unwrap()
-        .mesh;
+        .unwrap();
         frame.draw_range(
             mesh,
-            &crate::world::material(BatchKind::Transparent),
+            &tankracer_scene::material::surface(BatchKind::Transparent),
             Some(&self.atlas),
             [vp, object.model],
             range,

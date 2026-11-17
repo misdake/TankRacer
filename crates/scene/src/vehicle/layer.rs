@@ -4,7 +4,35 @@ use tankracer_assets::config::Part;
 use tankracer_game::math::Matrix;
 use tankracer_render::material::NormalLayer;
 
-pub type NormalBanks = [Vec<[f32; 4]>; 5];
+/// Vehicle policy stays here; the generic mesh preparer only reorders attributes.
+pub fn attributes(
+    mesh: &tankracer_game::vehicle_model::Mesh,
+) -> Result<Vec<[[f32; 4]; 3]>, Box<dyn std::error::Error>> {
+    let normals = mesh
+        .source
+        .vertex_normals
+        .as_ref()
+        .ok_or("Vehicle layer is missing authored vertex normals")?;
+    mesh.geometry()
+        .triangles
+        .iter()
+        .map(|face| {
+            let mut data = [[0.; 4]; 3];
+            for (out, index) in data.iter_mut().zip(face.indices) {
+                let n = normals
+                    .get(index as usize)
+                    .ok_or("Missing authored vertex normal")?;
+                *out = [
+                    f32::from(n[0]),
+                    f32::from(n[1]),
+                    f32::from(n[2]),
+                    f32::from(u8::from(face.normal[1] > 1500)),
+                ];
+            }
+            Ok(data)
+        })
+        .collect()
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Context {

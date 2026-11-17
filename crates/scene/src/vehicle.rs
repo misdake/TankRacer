@@ -1,12 +1,12 @@
 //! Read-only vehicle render extraction. Part poses are already world-space;
 //! authored offsets, suspension, turret yaw and recoil must not be applied twice.
 use crate::{
-    model::{Materials, Prepared, UvRow},
+    model::{AttributeBanks, Materials, Prepared, UvRow},
     transform::{physics_pose, physics_position},
 };
 use glam::Mat4;
-use std::error::Error;
-use tankracer_assets::{config::Part, mesh::Geometry};
+use std::{error::Error, sync::Arc};
+use tankracer_assets::config::Part;
 use tankracer_game::{pose, vehicle_model::VehicleModel};
 
 pub mod aerial;
@@ -31,8 +31,9 @@ pub struct PartView {
     pub revision: u64,
     pub uv_phase: [f32; 2],
     pub basis: tankracer_game::math::Matrix,
-    pub layer_normals: layer::NormalBanks,
-    source: Geometry,
+    pub layer_normals: AttributeBanks,
+    source: Arc<tankracer_assets::model::Model>,
+    source_revision: u64,
     uv_rows: Vec<UvRow>,
 }
 
@@ -74,23 +75,7 @@ impl VehicleScene {
             if let Some(mesh) = &model.parts[kind.slot()] {
                 let uv_rows =
                     tracks::side(kind).map_or_else(Vec::new, |s| tracks::rows(&model.tracks[s]));
-                let normals = if layer::eligible(kind) {
-                    mesh.source.vertex_normals.as_deref()
-                } else {
-                    None
-                };
-                if layer::eligible(kind)
-                    && normals.is_none()
-                    && mesh.geometry().triangles.iter().any(|t| t.normal[1] > 1500)
-                {
-                    return Err("Vehicle layer is missing authored vertex normals".into());
-                }
-                let (geometry, layer_normals) = materials.prepare_vehicle(
-                    mesh.geometry(),
-                    &mesh.source.materials,
-                    &uv_rows,
-                    normals,
-                )?;
+                let (geometry, layer_normals) = prepare_part(&materials, mesh, kind, &uv_rows)?;
                 parts.push(PartView {
                     kind,
                     transform: Mat4::IDENTITY,
@@ -99,7 +84,8 @@ impl VehicleScene {
                     layer_normals,
                     revision: 1,
                     uv_phase: [0.; 2],
-                    source: mesh.geometry().clone(),
+                    source: Arc::clone(&mesh.source),
+                    source_revision: mesh.revision(),
                     uv_rows,
                 });
             }
@@ -145,20 +131,13 @@ impl VehicleScene {
             let mesh = model.parts[part.kind.slot()]
                 .as_ref()
                 .ok_or("Vehicle render part disappeared")?;
-            if mesh.geometry() != &part.source {
+            if mesh.revision() != part.source_revision || !Arc::ptr_eq(&mesh.source, &part.source) {
                 // Private collision damage and gun recoil modify authoritative
                 // local geometry. Only that part needs new GPU vertex data.
-                (part.geometry, part.layer_normals) = self.materials.prepare_vehicle(
-                    mesh.geometry(),
-                    &mesh.source.materials,
-                    &part.uv_rows,
-                    if layer::eligible(part.kind) {
-                        mesh.source.vertex_normals.as_deref()
-                    } else {
-                        None
-                    },
-                )?;
-                part.source.clone_from(mesh.geometry());
+                (part.geometry, part.layer_normals) =
+                    prepare_part(&self.materials, mesh, part.kind, &part.uv_rows)?;
+                part.source = Arc::clone(&mesh.source);
+                part.source_revision = mesh.revision();
                 part.revision = part.revision.wrapping_add(1);
                 self.revision = self.revision.wrapping_add(1);
             }
@@ -274,19 +253,16 @@ impl VehicleScene {
                 .parts
                 .iter()
                 .map(|p| {
-                    p.source.vertices.capacity() * std::mem::size_of::<[i16; 3]>()
-                        + p.layer_normals
-                            .iter()
-                            .map(|v| v.capacity() * 16)
-                            .sum::<usize>()
+                    p.layer_normals
+                        .iter()
+                        .map(|v| v.capacity() * 16)
+                        .sum::<usize>()
                         + p.uv_rows.capacity() * std::mem::size_of::<UvRow>()
                         + p.geometry
                             .uv_scroll
                             .iter()
                             .map(|v| v.capacity() * std::mem::size_of::<[f32; 4]>())
                             .sum::<usize>()
-                        + p.source.triangles.capacity()
-                            * std::mem::size_of::<tankracer_assets::mesh::Triangle>()
                         + p.geometry
                             .batches
                             .iter()
@@ -301,4 +277,30 @@ impl VehicleScene {
                 })
                 .sum::<usize>()
     }
+}
+
+fn prepare_part(
+    materials: &Materials,
+    mesh: &tankracer_game::vehicle_model::Mesh,
+    kind: Part,
+    rows: &[UvRow],
+) -> Result<(Prepared, AttributeBanks), Box<dyn Error>> {
+    let attributes = if layer::eligible(kind) {
+        Some(layer::attributes(mesh)?)
+    } else {
+        None
+    };
+    let prepared = materials.prepare_streamed(
+        mesh.geometry(),
+        &mesh.source.materials,
+        rows,
+        attributes.as_deref(),
+    )?;
+    if prepared.1[crate::world::BatchKind::Transparent.slot()]
+        .iter()
+        .any(|n| n[3] > 0.)
+    {
+        return Err("Vehicle normal layer requires an opaque or keyed base material".into());
+    }
+    Ok(prepared)
 }

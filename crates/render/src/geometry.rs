@@ -15,6 +15,12 @@ pub struct MeshData {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
 }
+/// Streams already supported by the renderer; absent streams allocate nothing.
+#[derive(Default, Clone, Copy)]
+pub struct MeshStreams<'a> {
+    pub uv_scroll: &'a [[f32; 4]],
+    pub normals: &'a [[f32; 4]],
+}
 
 impl MeshData {
     /// Counter-clockwise XY quad; also used by pixel-based pipeline tests.

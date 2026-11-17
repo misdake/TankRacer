@@ -79,7 +79,7 @@ try{
  assert.notDeepEqual(turned,initialForward);
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const gpu=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.run_gpu_checks()))`);
- assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=187);assert.equal(gpu.blend_transitions,81);
+ assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=191);assert.equal(gpu.blend_transitions,81);
  const frame=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
  const scene=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.scene_stats()))`);
  assert.equal(scene.source_meshes,612);assert.equal(scene.source_triangles,8881);
@@ -138,6 +138,11 @@ try{
  await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
  await wait(()=>evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()).some((v,i)=>Math.abs(v-${JSON.stringify(freePosition)}[i])>.05))`),'F free inspection binding');
  await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+ const inspectionAt=await evaluate(`import('/main.js').then(m=>m.app.vehicle_state()[7])`);
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyA',key:'a',windowsVirtualKeyCode:65});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.vehicle_state()[7]>${inspectionAt+3})`),'inspection A input routing');
+ assert.equal(await evaluate(`import('/main.js').then(m=>m.app.player_controls()[7])`),0,'inspection A must not apply the handbrake');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyA',key:'a',windowsVirtualKeyCode:65});
  assert.equal(await evaluate(`import('/main.js').then(m=>m.app.camera_state()[0])`),2);
  report.cameraBindings=true;
  await evaluate(`import('/main.js').then(m=>m.stop())`);
@@ -371,6 +376,27 @@ try{
    return results;
  })`);
  for(const reload of reloads){assert.equal(reload.scene.scenery_objects,driven.scene.scenery_objects);assert.ok(reload.frame.index_upload_bytes>0);assert.deepEqual(reload.tracks,[0,0]);}
+ // Running inspection must not feed its position or navigation A into the
+ // authoritative game camera/controls. BIO starts beside a live Mover so the
+ // former camera-distance update gate is exercised, not just an empty scene.
+ const inspection=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','BIO'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   const runs=[];
+   for(const free of [false,true]){
+     m.app.load_world(files[3]);m.app.load_collision(...files,8);
+     if(free)m.app.toggle_camera();const states=[];let moverActive=false;
+     for(let tick=0;tick<24;tick++){
+       if(free){for(let i=0;i<8;i++)m.app.move_camera(.1,1,1,1,true);m.app.look(37,-11);}
+       m.app.set_camera_keys(tick===3||tick===9,tick>=15&&tick<18);
+       m.app.step_keys(16,false,tick>=8&&tick<12,true,false,false);
+       m.app.render();states.push(m.app.simulation_probe());
+       moverActive ||= m.app.scenery_state()[6]>0;
+     }
+     m.app.check_graphics();runs.push({states,moverActive,position:Array.from(m.app.camera_position())});
+   }
+   return {ticks:24,identical:runs[0].states.every((s,i)=>s===runs[1].states[i]),firstMismatch:runs[0].states.findIndex((s,i)=>s!==runs[1].states[i]),moverActive:runs.every(r=>r.moverActive),cameraMoved:JSON.stringify(runs[0].position)!==JSON.stringify(runs[1].position)};
+ })`);
+ assert.ok(inspection.moverActive&&inspection.cameraMoved&&inspection.identical,JSON.stringify(inspection));report.runningInspection=inspection;
  // SR07: WayPoint participates in shared identity; FX/3D debris drawing is later.
  const collisions=[];
  report.collisions=collisions;

@@ -1,19 +1,14 @@
 //! Terrain/vehicle session. Rendering reads canonical state without changing it.
 use std::sync::Arc;
-use tankracer_assets::{
-    archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
-};
+use tankracer_assets::terrain::TerrainData;
+#[cfg(feature = "gpu-tests")]
+use tankracer_game::pose;
 use tankracer_game::{
     obstacle_collision::Invocation,
-    player_input, pose,
+    player_input,
     scene_objects::collision::{Collision, Services, Sound},
     scenery,
-    vehicle_loading::Request,
-    vehicle_model::BuildContext,
-    vehicle_resources,
-    vehicle_runtime::{Devices, Settings, SinglePlayer, Startup},
-    vehicle_scene::spray,
-    vehicle_startup::Environment,
+    vehicle_runtime::Devices,
 };
 use tankracer_render::gpu::Renderer;
 use tankracer_scene::camera::Camera;
@@ -43,12 +38,10 @@ impl Devices for SilentDevices<'_> {
     }
 }
 pub struct Session {
-    pub game: SinglePlayer,
+    pub runtime: tankracer_game::session::Session,
     pub view: crate::vehicle_view::VehicleView,
     pub scenery: crate::scenery::View,
     loaded: scenery::Loaded,
-    pub chase: tankracer_game::chase_camera::State,
-    camera_config: tankracer_assets::object_catalog::Camera,
     pub camera_keys: tankracer_game::chase_camera::Keys,
 }
 pub struct Files<'a> {
@@ -79,75 +72,23 @@ impl Session {
             shared,
             level,
         } = files;
-        let archive = Archive::parse(level).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let maps = [
-            "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
-        ];
-        let (map, name) = maps
-            .into_iter()
-            .enumerate()
-            .find(|(_, name)| archive.get(&format!("{}B.DAT", &name[..3])).is_some())
-            .ok_or("Unknown level archive")?;
-        let cup = if map == 7 {
-            2
-        } else if [3, 5, 6].contains(&map) {
-            1
-        } else {
-            0
-        };
-        let resources = vehicle_resources::prepare(
-            data,
-            &[bronze],
-            shared,
-            1,
-            BuildContext {
-                resolve: ResolveContext {
-                    player: true,
-                    map: map as u32,
-                    ..ResolveContext::default()
-                },
-                ambient_wobble: false,
-                session_active: false,
+        let selection = tankracer_game::session::loading::Selection::from_archive(level, 1)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let mut prepared = tankracer_game::session::loading::Prepared::load(
+            terrain,
+            tankracer_game::session::loading::Files {
+                data,
+                vehicles: &[bronze],
+                shared,
+                level,
             },
+            selection,
+            true,
         )
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let data_archive = Archive::parse(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let camera_config = tankracer_assets::object_catalog::Catalog::decode(
-            data_archive
-                .get("OBPARAMS.DAT")
-                .ok_or("Missing camera parameters")?,
-        )
-        .map_err(|e| JsValue::from_str(&format!("Camera parameters: {e:?}")))?
-        .camera;
-        let mut startup = Startup::new(
-            terrain,
-            Settings {
-                map: map as u32,
-                mode: 0,
-                special: false,
-                environment_flag: 0,
-                seed: 0,
-                spray_materials: spray::Materials {
-                    filth: 1,
-                    crap: 2,
-                    splash: 3,
-                },
-                light_material: 4,
-                hardware: true,
-            },
-        )
-        .map_err(|e| JsValue::from_str(&format!("Vehicle startup: {e:?}")))?;
-        let loaded = scenery::load(&mut startup, data, level, shared, name, cup)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let script_name = format!("{}{}.DAT", &name[..3], ["B", "S", "G"][cup]);
-        let script = Level::decode(archive.get(&script_name).ok_or("Missing player level")?)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let spawn = script
-            .objects
-            .iter()
-            .find(|o| o.class == "Player")
-            .map(pose::Pose::from_level)
-            .unwrap_or_default();
+        #[cfg(feature = "gpu-tests")]
+        let startup = &prepared.startup;
+        let spawn = prepared.spawn;
         #[cfg(feature = "gpu-tests")]
         let handbrake_probe = matches!(&start, Start::Handbrake);
         let (spawn, velocity) = match start {
@@ -213,22 +154,13 @@ impl Session {
                 )
             }
         };
-        let mut game = startup
-            .finish(
-                resources.surfaces,
-                Request {
-                    model: resources.model,
-                    spawn,
-                    static_allocation: true,
-                    environment: Environment {
-                        ambient_wobble: false,
-                        session_active: false,
-                        ambient_phase: 0,
-                        gun_pivot: [0; 3],
-                    },
-                },
-            )
-            .map_err(|e| JsValue::from_str(&format!("Vehicle startup: {e:?}")))?;
+        prepared.spawn = spawn;
+        let loaded = prepared
+            .finish()
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let camera_config = loaded.camera;
+        let mut game = loaded.world;
+        let loaded = loaded.scenery.ok_or("Missing prepared scenery")?;
         let player = game.vehicles.entries[0].as_mut().unwrap();
         player.physics.motion.previous_position = spawn.position;
         player.physics.motion.velocity = velocity;
@@ -238,93 +170,45 @@ impl Session {
         }
         let scenery = crate::scenery::View::load(renderer, &loaded, level, shared)?;
         let view = crate::vehicle_view::VehicleView::load(renderer, player, bronze, shared)?;
-        let chase = tankracer_game::chase_camera::State::new(&camera_config, (&*player).into())
-            .map_err(|e| JsValue::from_str(&format!("Camera initialization: {e:?}")))?;
+        let runtime = tankracer_game::session::Session::new(game, camera_config)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
         Ok(Self {
-            game,
+            runtime,
             view,
             scenery,
             loaded,
-            chase,
-            camera_config,
             camera_keys: Default::default(),
         })
     }
+    pub fn chase(&self) -> &tankracer_game::chase_camera::State {
+        self.runtime.camera()
+    }
     pub fn camera(&self) -> Camera {
-        Camera::from_chase(&self.chase)
+        Camera::from_chase(self.runtime.camera())
     }
-    pub fn advance_camera(&mut self, dt: i32, free: Option<&Camera>) -> Result<(), JsValue> {
-        let player = self.game.vehicles.entries[self.game.player.0]
-            .as_ref()
-            .unwrap();
-        self.chase
+    pub fn step_keys(&mut self, keys: player_input::Keys, dt: i32) -> Result<(), JsValue> {
+        self.runtime
             .tick(
-                &self.camera_config,
-                player.into(),
-                tankracer_game::chase_camera::Frame {
+                tankracer_game::session::Input {
                     dt,
-                    keys: self.camera_keys,
-                    hold_displacement: player.prefix.boost.active != 0,
-                    ..Default::default()
+                    controls: tankracer_game::session::Controls::Keys(keys),
+                    camera: self.camera_keys,
                 },
+                &mut SilentDevices(&self.loaded),
             )
-            .map_err(|e| JsValue::from_str(&format!("Camera update: {e:?}")))?;
-        if let Some(camera) = free {
-            self.prepare_camera(camera);
-        } else {
-            self.game.camera_position = self.chase.published_position();
-            self.game.camera_forward = self.chase.forward();
-        }
-        Ok(())
-    }
-    fn feedback_camera(&mut self) {
-        let p = self.game.vehicles.entries[self.game.player.0]
-            .as_ref()
-            .unwrap();
-        self.chase
-            .feedback(p.model.offsets[tankracer_assets::config::Part::Turret.slot()]);
-    }
-    fn prepare_camera(&mut self, camera: &Camera) {
-        let p = camera.position * 128.;
-        let f = camera.forward() * 4096.;
-        self.game.camera_position = [p.x as i32, p.y as i32, -p.z as i32];
-        self.game.camera_forward = [f.x as i32, f.y as i32, -f.z as i32];
-    }
-    pub fn step_keys(
-        &mut self,
-        keys: player_input::Keys,
-        dt: i32,
-        camera: Option<&Camera>,
-    ) -> Result<(), JsValue> {
-        self.advance_camera(dt, camera)?;
-        self.game
-            .step_keys(keys, dt, true, 0, &mut SilentDevices(&self.loaded))
-            .map_err(|e| JsValue::from_str(&format!("Player input update: {e:?}")))?;
-        self.view.advance_tracks(
-            self.game.vehicles.entries[self.game.player.0]
-                .as_ref()
-                .unwrap(),
-        );
-        self.feedback_camera();
-        Ok(())
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
     #[cfg(feature = "gpu-tests")]
-    pub fn step(
-        &mut self,
-        input: tankracer_game::drive::Input,
-        dt: i32,
-        camera: Option<&Camera>,
-    ) -> Result<(), JsValue> {
-        self.advance_camera(dt, camera)?;
-        self.game
-            .step(input, dt, true, &mut SilentDevices(&self.loaded))
-            .map_err(|e| JsValue::from_str(&format!("Vehicle update: {e:?}")))?;
-        self.view.advance_tracks(
-            self.game.vehicles.entries[self.game.player.0]
-                .as_ref()
-                .unwrap(),
-        );
-        self.feedback_camera();
-        Ok(())
+    pub fn step(&mut self, input: tankracer_game::drive::Input, dt: i32) -> Result<(), JsValue> {
+        self.runtime
+            .tick(
+                tankracer_game::session::Input {
+                    dt,
+                    controls: tankracer_game::session::Controls::Direct(input),
+                    camera: self.camera_keys,
+                },
+                &mut SilentDevices(&self.loaded),
+            )
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }

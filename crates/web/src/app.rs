@@ -31,7 +31,7 @@ impl App {
             return Ok(());
         }
         if let Some(vehicle) = &mut self.vehicle {
-            vehicle.view.scene.cockpit = self.follow_camera && vehicle.chase.mode == 2;
+            vehicle.view.scene.cockpit = self.follow_camera && vehicle.chase().mode == 2;
         }
         if let Some(world) = &mut self.world {
             return world.draw(&mut self.renderer, size, self.vehicle.as_mut());
@@ -146,11 +146,6 @@ impl App {
                     auxiliary,
                 },
                 dt,
-                if self.follow_camera {
-                    None
-                } else {
-                    Some(&world.camera)
-                },
             )?;
             if self.follow_camera {
                 world.camera = vehicle.camera();
@@ -176,11 +171,6 @@ impl App {
                     ..Default::default()
                 },
                 dt,
-                if self.follow_camera {
-                    None
-                } else {
-                    Some(&world.camera)
-                },
             )?;
             if self.follow_camera {
                 world.camera = vehicle.camera();
@@ -197,6 +187,10 @@ impl App {
             world.camera = vehicle.camera();
         }
     }
+    /// Input routing queries this only when assigning a newly pressed key.
+    pub fn inspection_active(&self) -> bool {
+        self.vehicle.is_none() || !self.follow_camera
+    }
     pub fn set_camera_keys(&mut self, cycle: bool, rear: bool) {
         if let Some(vehicle) = &mut self.vehicle {
             vehicle.camera_keys = tankracer_game::chase_camera::Keys { cycle, rear };
@@ -205,7 +199,7 @@ impl App {
     #[cfg(feature = "gpu-tests")]
     pub fn camera_state(&self) -> Vec<i32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
-            let c = &v.chase;
+            let c = v.chase();
             [c.mode as i32, i32::from(c.rear), i32::from(c.cycle_held)]
                 .into_iter()
                 .chain(c.position)
@@ -234,13 +228,13 @@ impl App {
     #[cfg(feature = "gpu-tests")]
     pub fn scenery_state(&self) -> Vec<u32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
-            let scene = &v.game.objects;
+            let scene = &v.runtime.world().objects;
             vec![
                 scene
                     .world
                     .objects
                     .iter()
-                    .filter(|p| p.class == v.game.registry.fall && p.flags & 1 != 0)
+                    .filter(|p| p.class == v.runtime.world().registry.fall && p.flags & 1 != 0)
                     .count() as u32,
                 scene
                     .components
@@ -300,7 +294,7 @@ impl App {
     #[cfg(feature = "gpu-tests")]
     pub fn vehicle_position(&self) -> Vec<i32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
-            v.game.vehicles.entries[0]
+            v.runtime.world().vehicles.entries[0]
                 .as_ref()
                 .unwrap()
                 .physics
@@ -314,15 +308,50 @@ impl App {
     #[cfg(feature = "gpu-tests")]
     pub fn vehicle_state(&self) -> Vec<i32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
-            let state = &v.game.vehicles.entries[0].as_ref().unwrap().physics;
+            let state = &v.runtime.world().vehicles.entries[0]
+                .as_ref()
+                .unwrap()
+                .physics;
             state
                 .motion
                 .poses
                 .physical_position
                 .into_iter()
                 .chain(state.motion.velocity)
-                .chain([v.game.shared.random as i32, v.game.frame as i32])
+                .chain([
+                    v.runtime.world().shared.random as i32,
+                    v.runtime.world().frame as i32,
+                ])
                 .collect()
+        })
+    }
+
+    /// Exact diagnostic text compared inside browser tests, never in production.
+    #[cfg(feature = "gpu-tests")]
+    pub fn simulation_probe(&self) -> String {
+        self.vehicle.as_ref().map_or_else(String::new, |v| {
+            let game = v.runtime.world();
+            let p = v.runtime.player();
+            format!(
+                "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
+                p.physics,
+                p.input,
+                p.brake,
+                p.prefix,
+                game.objects.world.colliders,
+                game.objects.world.objects,
+                game.objects.components.movers,
+                game.objects
+                    .components
+                    .spins
+                    .iter()
+                    .map(|s| s.as_ref().map(|s| &s.state))
+                    .collect::<Vec<_>>(),
+                v.runtime.camera(),
+                v.runtime.tracks(),
+                game.shared.random,
+                game.frame
+            )
         })
     }
 
@@ -330,7 +359,7 @@ impl App {
     pub fn vehicle_tracks(&self) -> Vec<u32> {
         self.vehicle
             .as_ref()
-            .map_or_else(Vec::new, |v| v.view.scene.tracks.travel.to_vec())
+            .map_or_else(Vec::new, |v| v.runtime.tracks().travel.to_vec())
     }
 
     #[cfg(feature = "gpu-tests")]
@@ -348,7 +377,7 @@ impl App {
     #[cfg(feature = "gpu-tests")]
     pub fn player_controls(&self) -> Vec<i32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
-            let p = v.game.vehicles.entries[0].as_ref().unwrap();
+            let p = v.runtime.world().vehicles.entries[0].as_ref().unwrap();
             vec![
                 p.input.drive.throttle,
                 p.input.drive.brake,

@@ -12,31 +12,7 @@ pub fn side(part: Part) -> Option<usize> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Tracks {
-    pub travel: [u32; 2],
-}
-impl Tracks {
-    pub fn advance(&mut self, speed: i32, yaw: i32, locked: bool) {
-        if locked {
-            return;
-        }
-        let speed = speed.clamp(-300000, 300000);
-        let product = yaw.wrapping_mul(400);
-        // 434BC0's sign/magnitude shift, including 32-bit overflow/INT_MIN.
-        let turn = if product < 0 {
-            product.wrapping_neg().wrapping_shr(10).wrapping_neg()
-        } else {
-            product >> 10
-        };
-        self.travel[0] = self.travel[0].wrapping_add(speed.wrapping_sub(turn) as u32);
-        self.travel[1] = self.travel[1].wrapping_add(speed.wrapping_add(turn) as u32);
-    }
-    pub fn phase(&self, side: usize) -> [f32; 2] {
-        let phase = self.travel[side] >> 17;
-        [(phase & 7) as f32, (phase % 5) as f32]
-    }
-}
+pub use tankracer_game::vehicle_animation::Tracks;
 
 pub(super) fn rows(table: &TrackUvs) -> Vec<UvRow> {
     table
@@ -53,6 +29,7 @@ pub(super) fn rows(table: &TrackUvs) -> Vec<UvRow> {
                     r.snapped_v
                 },
                 channel: usize::from(group >= 2),
+                period_scale: if group < 2 { 32. } else { 2. },
             })
         })
         .collect()

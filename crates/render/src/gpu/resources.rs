@@ -18,6 +18,12 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
+    pub fn vertex_count(&self) -> usize {
+        self.vertex_count
+    }
+    pub fn index_count(&self) -> usize {
+        self.count as usize
+    }
     pub(super) fn new(gl: &Gl, mesh: &MeshData) -> Result<Self, JsValue> {
         if mesh.indices.len() > i32::MAX as usize / 4
             || !mesh.indices.len().is_multiple_of(3)
@@ -122,6 +128,12 @@ impl GpuMesh {
     /// Optional authored normal/face-mask stream. Static world vertices stay 44 B.
     pub(super) fn layer_normals(&mut self, values: &[[f32; 4]]) -> Result<(), JsValue> {
         if values.is_empty() {
+            if let Some(buffer) = self.normals.take() {
+                self.gl.bind_vertex_array(self.vao.as_ref());
+                self.gl.disable_vertex_attrib_array(10);
+                self.gl.delete_buffer(Some(&buffer));
+                self.gl.bind_vertex_array(None);
+            }
             return Ok(());
         }
         if values.len() != self.vertex_count {

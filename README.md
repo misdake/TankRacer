@@ -36,6 +36,10 @@ Node.js 22+ and `wasm-pack` are required. `Cargo.lock` fixes crate versions.
 Run `npm run test:rust` for native resource tests, lint checks and actual browser
 GPU pixel tests (set `CHROME` if Chromium is not in a standard location).
 GPU probes compile only with `gpu-tests`; test builds have a separate output.
+The [structure checkpoint](docs/rust-structure.md) documents session ownership,
+inspection isolation, mesh caches and selective verification commands. C/original
+reference tests are selected explicitly with `npm run test:rust:reference -- <modules>`;
+the ordinary check reports them as not selected.
 
 The native Rust probe can load the same supported authored collision scenery
 before placing the player:
@@ -46,6 +50,8 @@ cargo run -p tankracer-game --example drive --release --locked -- assets/game 0 
 
 Add `--keys` to exercise the same Player keyboard path used by the browser;
 without it, the example supplies direct physics inputs for qualification.
+Add `--chase` to use the same authoritative session/camera/feedback sequence as
+the browser. F inspection never supplies a camera to that simulation sequence.
 
 It reports loaded/deferred classes explicitly. Both paths still omit complete
 race rules and the deferred subclasses.

@@ -1001,6 +1001,66 @@ pub fn run(renderer: &mut Renderer) -> Result<String, JsValue> {
             [51. / 255., 102. / 255., 153. / 255., 1.],
         )?;
         cases += 1;
+        // Shared GPU cache must remove optional attributes and upload changed
+        // indices even when the vertex/index counts happen to stay identical.
+        let mut cached = None;
+        renderer.sync_mesh(
+            &mut cached,
+            &data,
+            tankracer_render::geometry::MeshStreams {
+                uv_scroll: &[[0.; 4]; 4],
+                normals: &[[0., 4096., 0., 1.]; 4],
+            },
+        )?;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(
+            cached.as_ref().unwrap(),
+            &layer,
+            Some(&texture),
+            Mat4::IDENTITY,
+        );
+        let gain = layer.normal_layer.unwrap().gain;
+        expect(
+            &frame,
+            "shared mesh cache creates attribute streams",
+            [
+                (51. + 64. * gain) / 255.,
+                (102. + 32. * gain) / 255.,
+                (153. + 16. * gain) / 255.,
+                1.,
+            ],
+        )?;
+        cases += 1;
+        renderer.sync_mesh(&mut cached, &data, Default::default())?;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(
+            cached.as_ref().unwrap(),
+            &layer,
+            Some(&texture),
+            Mat4::IDENTITY,
+        );
+        expect(
+            &frame,
+            "shared mesh cache removes optional streams",
+            [51. / 255., 102. / 255., 153. / 255., 1.],
+        )?;
+        cases += 1;
+        data.indices = vec![0, 0, 0, 1, 1, 1];
+        renderer.sync_mesh(&mut cached, &data, Default::default())?;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(cached.as_ref().unwrap(), &plain, None, Mat4::IDENTITY);
+        expect(
+            &frame,
+            "same-size topology update is not mistaken for a pose edit",
+            BACKGROUND,
+        )?;
+        cases += 1;
+        data.indices.clear();
+        renderer.sync_mesh(&mut cached, &data, Default::default())?;
+        if cached.is_some() {
+            return Err("Empty cached mesh retains GPU resources".into());
+        }
+        cases += 1;
     }
     renderer.check_error()?;
     Ok(format!(

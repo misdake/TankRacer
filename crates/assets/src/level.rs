@@ -1,5 +1,10 @@
 //! FSTPC 5 authored objects. Strings/groups borrow the archive; class factories
 //! resolve names and construct game components in a separate step.
+/// Original CUP map order used by resource selection and simulation settings.
+pub const CUP_MAPS: [&str; 8] = [
+    "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
+];
+
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

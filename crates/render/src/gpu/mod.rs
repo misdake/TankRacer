@@ -241,6 +241,30 @@ impl Renderer {
     pub fn upload_mesh(&self, data: &MeshData) -> Result<GpuMesh, JsValue> {
         GpuMesh::new(&self.gl, data)
     }
+    /// Update a changed mesh prototype. Revisions belong to its owner; this
+    /// shared cache boundary handles topology, optional streams and cleanup.
+    pub fn sync_mesh(
+        &mut self,
+        slot: &mut Option<GpuMesh>,
+        data: &MeshData,
+        streams: crate::geometry::MeshStreams<'_>,
+    ) -> Result<(), JsValue> {
+        if data.indices.is_empty() {
+            *slot = None;
+            return Ok(());
+        }
+        if let Some(mesh) = slot
+            && mesh.vertex_count() == data.vertices.len()
+        {
+            self.update_vertices(mesh, &data.vertices)?;
+            self.update_indices(mesh, &data.indices)?;
+            self.update_uv_scroll(mesh, streams.uv_scroll)?;
+            self.update_layer_normals(mesh, streams.normals)?;
+        } else {
+            *slot = Some(self.upload_mesh_streams(data, streams.uv_scroll, streams.normals)?);
+        }
+        Ok(())
+    }
 
     pub fn upload_animated_mesh(
         &self,

@@ -1,10 +1,7 @@
 use glam::{Mat4, Vec3};
 use std::sync::Arc;
 use tankracer_assets::{archive::Archive, budget::MapBudget, terrain::TerrainData};
-use tankracer_render::{
-    gpu::{GpuMesh, Renderer, Texture},
-    material::{AlphaEncoding, Blend, Cull, Material, Pipeline},
-};
+use tankracer_render::gpu::{GpuMesh, Renderer, Texture};
 use tankracer_scene::{
     camera::Camera,
     transparency::{self, Order},
@@ -107,14 +104,17 @@ impl WorldView {
         mut session: Option<&mut crate::vehicle::Session>,
     ) -> Result<(), JsValue> {
         if let Some(session) = &mut session {
-            session.scenery.refresh(renderer, &session.game.objects)?;
-            session.view.scene.presentation.game_mode = session.game.settings.mode;
+            session
+                .scenery
+                .refresh(renderer, &session.runtime.world().objects)?;
+            session.view.scene.presentation.game_mode = session.runtime.world().settings().mode;
             // This runtime has one view; 54B480 remains false. The gameplay
             // `special` flag aliases 53E414, not the aerial's 54B480 gate.
             // WebGL2 supplies the legacy 8000 capability through the fused layer.
-            let player = session.game.vehicles.entries[session.game.player.0]
+            let player = session.runtime.world().vehicles.entries[session.runtime.world().player.0]
                 .as_ref()
                 .ok_or("Missing render player")?;
+            session.view.scene.tracks = session.runtime.tracks();
             session.view.refresh(renderer, player)?;
             let vehicle_base = session.scenery.geometry_count() + 1;
             self.transparent_objects.clear();
@@ -168,10 +168,17 @@ impl WorldView {
                     }
                 }
             }
-            self.route_bytes = session.game.objects.components.waypoints.resident_bytes();
+            self.route_bytes = session
+                .runtime
+                .world()
+                .objects
+                .components
+                .waypoints
+                .resident_bytes();
             self.scenery_bytes = session.scenery.resident_bytes()
                 + session
-                    .game
+                    .runtime
+                    .world()
                     .objects
                     .components
                     .surfaces
@@ -217,7 +224,7 @@ impl WorldView {
             if batch.geometry.indices.is_empty() {
                 continue;
             }
-            let material = material(batch.kind);
+            let material = tankracer_scene::material::surface(batch.kind);
             frame.draw(mesh, &material, Some(&self.atlas), vp);
         }
         // Dynamic opaque geometry must write depth before blended world faces.
@@ -226,7 +233,9 @@ impl WorldView {
             // Ground decal first: coplanar vehicle undersides must overwrite
             // it, rather than receive the road's blend/depth bias themselves.
             session.view.shadow(&mut frame, vp);
-            session.view.opaque(&mut frame, vp, session.chase.matrix);
+            session
+                .view
+                .opaque(&mut frame, vp, session.runtime.camera().matrix);
         }
         let alpha = BatchKind::Transparent.slot();
         if let Some(session) = &session {
@@ -236,7 +245,7 @@ impl WorldView {
                 if object.geometry == 0 {
                     frame.draw_range(
                         &self.meshes[alpha],
-                        &material(BatchKind::Transparent),
+                        &tankracer_scene::material::surface(BatchKind::Transparent),
                         Some(&self.atlas),
                         [vp, Mat4::IDENTITY],
                         range,
@@ -251,14 +260,14 @@ impl WorldView {
                         object.geometry - session.scenery.geometry_count() - 1,
                         vp,
                         range,
-                        session.chase.matrix,
+                        session.runtime.camera().matrix,
                     )?;
                 }
             }
         } else if !self.scene.batches[alpha].geometry.indices.is_empty() {
             frame.draw(
                 &self.meshes[alpha],
-                &material(BatchKind::Transparent),
+                &tankracer_scene::material::surface(BatchKind::Transparent),
                 Some(&self.atlas),
                 vp,
             );
@@ -324,35 +333,5 @@ impl WorldView {
             self.vehicle_bytes,
             self.vehicle_shadow_draws
         )
-    }
-}
-
-pub(crate) fn material(kind: BatchKind) -> Material {
-    let transparent = kind == BatchKind::Transparent;
-    let masked = matches!(kind, BatchKind::Masked | BatchKind::MaskedTwoSided);
-    let double_sided = matches!(
-        kind,
-        BatchKind::OpaqueTwoSided | BatchKind::MaskedTwoSided | BatchKind::Transparent
-    );
-    Material {
-        pipeline: Pipeline {
-            depth_write: !transparent,
-            blend: if transparent {
-                Some(Blend::PREMULTIPLIED_ALPHA)
-            } else {
-                None
-            },
-            cull: if double_sided { Cull::None } else { Cull::Back },
-            ..Pipeline::OPAQUE
-        },
-        alpha_cutoff: if masked { Some(0.5) } else { None },
-        texture_alpha: AlphaEncoding::Premultiplied,
-        output_alpha: if transparent {
-            AlphaEncoding::Premultiplied
-        } else {
-            AlphaEncoding::Straight
-        },
-        geometry_culling: transparent,
-        ..Material::opaque([1.; 4])
     }
 }

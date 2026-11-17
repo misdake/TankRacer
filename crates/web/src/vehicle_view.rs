@@ -10,17 +10,12 @@ use tankracer_scene::{
 };
 use wasm_bindgen::JsValue;
 
-struct Pass {
-    mesh: GpuMesh,
-    vertices: usize,
-    indices: usize,
-}
 struct Part {
     revision: u64,
-    passes: [Option<Pass>; 5],
+    passes: [Option<GpuMesh>; 5],
 }
 struct Aerial {
-    passes: [Option<Pass>; 5],
+    passes: [Option<GpuMesh>; 5],
     instances: GpuInstances,
     uploaded: Option<[[f32; 16]; 4]>,
 }
@@ -73,11 +68,7 @@ impl VehicleView {
                     .zip(&p.layer_normals)
                 {
                     if !data.indices.is_empty() {
-                        *pass = Some(Pass {
-                            mesh: renderer.upload_mesh_streams(data, scroll, normals)?,
-                            vertices: data.vertices.len(),
-                            indices: data.indices.len(),
-                        });
+                        *pass = Some(renderer.upload_mesh_streams(data, scroll, normals)?);
                     }
                 }
                 Ok(Part {
@@ -96,11 +87,7 @@ impl VehicleView {
                 let mut passes = std::array::from_fn(|_| None);
                 for (pass, data) in passes.iter_mut().zip(&a.geometry.batches) {
                     if !data.indices.is_empty() {
-                        *pass = Some(Pass {
-                            mesh: renderer.upload_mesh(data)?,
-                            vertices: data.vertices.len(),
-                            indices: data.indices.len(),
-                        });
+                        *pass = Some(renderer.upload_mesh(data)?);
                     }
                 }
                 Ok(Aerial {
@@ -159,24 +146,14 @@ impl VehicleView {
                 .zip(&part.geometry.uv_scroll)
                 .zip(&part.layer_normals)
             {
-                if data.indices.is_empty() {
-                    *pass = None;
-                } else if let Some(pass) = pass
-                    && pass.vertices == data.vertices.len()
-                    && pass.indices == data.indices.len()
-                {
-                    renderer.update_vertices(&mut pass.mesh, &data.vertices)?;
-                    renderer.update_uv_scroll(&mut pass.mesh, scroll)?;
-                    renderer.update_layer_normals(&mut pass.mesh, normals)?;
-                    // Local preparation emits contiguous triangle indices. The
-                    // blended bank is reordered by the joint sorter below.
-                } else {
-                    *pass = Some(Pass {
-                        mesh: renderer.upload_mesh_streams(data, scroll, normals)?,
-                        vertices: data.vertices.len(),
-                        indices: data.indices.len(),
-                    });
-                }
+                renderer.sync_mesh(
+                    pass,
+                    data,
+                    tankracer_render::geometry::MeshStreams {
+                        uv_scroll: scroll,
+                        normals,
+                    },
+                )?;
             }
             gpu.revision = part.revision;
         }
@@ -194,12 +171,12 @@ impl VehicleView {
             {
                 if let Some(pass) = &gpu.passes[kind.slot()] {
                     frame.draw_model(
-                        &pass.mesh,
+                        pass,
                         &Material {
                             uv_phase: part.uv_phase,
                             shaded: self.shaded(),
                             normal_layer: self.layer(part, view),
-                            ..crate::world::material(kind)
+                            ..tankracer_scene::material::surface(kind)
                         },
                         Some(&self.atlas),
                         vp,
@@ -213,10 +190,10 @@ impl VehicleView {
             for (pass, kind) in aerial.passes.iter().zip(BatchKind::ALL) {
                 if let Some(pass) = pass {
                     frame.draw_instanced(
-                        &pass.mesh,
+                        pass,
                         &Material {
                             shaded: self.shaded(),
-                            ..crate::world::material(kind)
+                            ..tankracer_scene::material::surface(kind)
                         },
                         Some(&self.atlas),
                         vp,
@@ -250,8 +227,7 @@ impl VehicleView {
     ) -> Result<(), JsValue> {
         let mesh = &mut self.parts[part].passes[BatchKind::Transparent.slot()]
             .as_mut()
-            .ok_or_else(|| error("Missing blended vehicle part"))?
-            .mesh;
+            .ok_or_else(|| error("Missing blended vehicle part"))?;
         renderer.update_indices(mesh, indices)
     }
     pub fn draw_transparent(
@@ -264,15 +240,14 @@ impl VehicleView {
     ) -> Result<(), JsValue> {
         let mesh = &self.parts[part].passes[BatchKind::Transparent.slot()]
             .as_ref()
-            .unwrap()
-            .mesh;
+            .unwrap();
         frame.draw_range(
             mesh,
             &Material {
                 uv_phase: self.scene.parts[part].uv_phase,
                 shaded: self.shaded(),
                 normal_layer: self.layer(&self.scene.parts[part], view),
-                ..crate::world::material(BatchKind::Transparent)
+                ..tankracer_scene::material::surface(BatchKind::Transparent)
             },
             Some(&self.atlas),
             [vp, self.scene.parts[part].transform],
@@ -285,7 +260,7 @@ impl VehicleView {
             .zip(&self.scene.parts)
             .filter(|(_, p)| self.scene.visible(p))
             .flat_map(|(p, _)| p.passes.iter().flatten())
-            .map(|p| p.indices / 3)
+            .map(|p| p.index_count() / 3)
             .sum::<usize>()
             + self.shadow_draws() * 2
             + self.sight_draws() * 2
@@ -296,18 +271,11 @@ impl VehicleView {
                     .passes
                     .iter()
                     .flatten()
-                    .map(|p| p.indices / 3 * 4)
+                    .map(|p| p.index_count() / 3 * 4)
                     .sum::<usize>()
             } else {
                 0
             }
-    }
-    pub fn advance_tracks(&mut self, player: &Player) {
-        self.scene.tracks.advance(
-            player.physics.powertrain.track_speed,
-            player.physics.motion.angular[1],
-            player.brake.reverse_braking,
-        );
     }
     fn shaded(&self) -> bool {
         #[cfg(feature = "gpu-tests")]
@@ -360,7 +328,7 @@ impl VehicleView {
         if self.sight_draws() != 0 {
             frame.draw_model(
                 &self.sight,
-                &crate::world::material(self.scene.sight_kind),
+                &tankracer_scene::material::surface(self.scene.sight_kind),
                 Some(&self.atlas),
                 vp,
                 self.scene.sight_transform(camera),

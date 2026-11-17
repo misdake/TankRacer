@@ -218,17 +218,21 @@ fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
         recoil: -160,
         ..Default::default()
     };
-    articulation
-        .step(
+    let indices = model.gun_vertices;
+    let original_z = model.gun_original_z;
+    gun.edit(|geometry| {
+        articulation.step(
             16,
             &body::Tuning::default(),
             Some(body::GunMesh {
-                vertices: &mut gun.owned.as_mut().unwrap().vertices,
-                indices: model.gun_vertices,
-                original_z: model.gun_original_z,
+                vertices: &mut geometry.vertices,
+                indices,
+                original_z,
             }),
         )
-        .unwrap();
+    })
+    .unwrap()
+    .unwrap();
     scene.refresh(&model, &poses).unwrap();
     assert_eq!(scene.revision, original + 1);
     assert!(
@@ -238,16 +242,16 @@ fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
             .filter(|p| p.kind != Part::Gun)
             .all(|p| p.revision == 1)
     );
-    let body = model.parts[Part::Body.slot()]
+    model.parts[Part::Body.slot()]
         .as_mut()
         .unwrap()
-        .owned
-        .as_mut()
+        .edit(|body| {
+            body.vertices[0][0] += 16;
+            for tri in &mut body.triangles {
+                tri.flags |= 64;
+            }
+        })
         .unwrap();
-    body.vertices[0][0] += 16;
-    for tri in &mut body.triangles {
-        tri.flags |= 64;
-    }
     scene.refresh(&model, &poses).unwrap();
     assert_eq!(scene.revision, original + 2);
     let hull = scene.parts.iter().find(|p| p.kind == Part::Body).unwrap();
@@ -268,16 +272,15 @@ fn normal_layer_threshold_and_hidden_faces_refresh_aligned_banks() {
     let mut model = files.model(1);
     let mut scene = files.scene(&model);
     for y in [1500, 1501] {
-        for face in &mut model.parts[Part::Body.slot()]
+        model.parts[Part::Body.slot()]
             .as_mut()
             .unwrap()
-            .owned
-            .as_mut()
-            .unwrap()
-            .triangles
-        {
-            face.normal[1] = y;
-        }
+            .edit(|body| {
+                for face in &mut body.triangles {
+                    face.normal[1] = y;
+                }
+            })
+            .unwrap();
         scene.refresh(&model, &pose::State::default()).unwrap();
         let body = scene.parts.iter().find(|p| p.kind == Part::Body).unwrap();
         let count = body.layer_normals.iter().map(Vec::len).sum::<usize>();
@@ -289,16 +292,15 @@ fn normal_layer_threshold_and_hidden_faces_refresh_aligned_banks() {
                 .all(|n| n[3] == f32::from(u8::from(y == 1501)))
         );
     }
-    for face in &mut model.parts[Part::Body.slot()]
+    model.parts[Part::Body.slot()]
         .as_mut()
         .unwrap()
-        .owned
-        .as_mut()
-        .unwrap()
-        .triangles
-    {
-        face.flags |= 64;
-    }
+        .edit(|body| {
+            for face in &mut body.triangles {
+                face.flags |= 64;
+            }
+        })
+        .unwrap();
     scene.refresh(&model, &pose::State::default()).unwrap();
     assert!(
         scene

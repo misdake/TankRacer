@@ -11,6 +11,7 @@ use tankracer_assets::{
 pub struct Prepared {
     pub model: VehicleModel,
     pub surfaces: Surfaces,
+    pub camera: tankracer_assets::object_catalog::Camera,
 }
 pub(crate) fn shapes(bytes: &[u8]) -> Result<ShapeArchive<'_>, Box<dyn Error>> {
     let archive = Archive::parse(bytes)?;
@@ -66,5 +67,9 @@ pub fn prepare(
     )
     .map_err(|e| format!("vehicle model: {e:?}"))?;
     model.moon = catalog.moon;
-    Ok(Prepared { model, surfaces })
+    Ok(Prepared {
+        model,
+        surfaces,
+        camera: catalog.camera,
+    })
 }

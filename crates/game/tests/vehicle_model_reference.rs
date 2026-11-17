@@ -153,10 +153,10 @@ fn all_fifteen_assembled_models_match_native_game_contacts_bounds_uvs_and_copies
                     "vehicle={vehicle} map={map} mode={mode}"
                 );
                 for part in [Part::Body, Part::Turret, Part::Gun] {
-                    assert!(model.parts[part.slot()].as_ref().unwrap().owned.is_some());
+                    assert!(model.parts[part.slot()].as_ref().unwrap().is_private());
                 }
                 for part in [Part::LeftTrack, Part::RightTrack] {
-                    assert!(model.parts[part.slot()].as_ref().unwrap().owned.is_none());
+                    assert!(!model.parts[part.slot()].as_ref().unwrap().is_private());
                 }
                 let gun = model.parts[Part::Gun.slot()].as_ref().unwrap();
                 assert_eq!(gun.radius, gun.source.radius.wrapping_mul(2));

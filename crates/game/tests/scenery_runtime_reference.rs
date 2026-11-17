@@ -75,7 +75,7 @@ fn snapshot(game: &SinglePlayer, n: usize) -> Vec<(String, Vec<u32>)> {
     words.push(u32::from(player.physics.blast.angular_enabled));
     words.extend([
         game.shared.random,
-        game.settings.environment_flag as u32,
+        game.settings().environment_flag as u32,
         n as u32,
     ]);
     let mut sections = vec![("player".into(), words)];

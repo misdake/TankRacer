@@ -1,20 +1,15 @@
 //! Terrain/vehicle milestone runner. No C library, dump, emulator or server.
 use std::{error::Error, fs, path::PathBuf, sync::Arc, time::Instant};
-use tankracer_assets::{
-    archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
-};
+use tankracer_assets::{archive::Archive, terrain::TerrainData};
 use tankracer_game::{
     chase_camera, drive,
     obstacle_collision::Invocation,
-    player_input, pose,
+    player_input,
     scene_objects::collision::{self, Collision, Sound},
     scenery,
-    vehicle_loading::Request,
-    vehicle_model::BuildContext,
-    vehicle_resources,
-    vehicle_runtime::{Devices, Settings, Startup},
-    vehicle_scene::spray,
-    vehicle_startup::Environment,
+    session::{self, loading},
+    vehicle_runtime::Devices,
+    vehicle_runtime::SinglePlayer,
 };
 struct Headless<'a> {
     scenery: Option<&'a scenery::Loaded>,
@@ -41,6 +36,38 @@ impl Devices for Headless<'_> {
         Ok(())
     }
 }
+enum Runner {
+    Physics(Box<SinglePlayer>),
+    Session(Box<session::Session>),
+}
+impl Runner {
+    fn world(&self) -> &SinglePlayer {
+        match self {
+            Self::Physics(w) => w,
+            Self::Session(s) => s.world(),
+        }
+    }
+    fn camera(&self) -> Option<&chase_camera::State> {
+        match self {
+            Self::Session(s) => Some(s.camera()),
+            _ => None,
+        }
+    }
+    fn tick(
+        &mut self,
+        input: session::Input,
+        devices: &mut impl Devices,
+    ) -> Result<(), session::Error> {
+        match self {
+            Self::Session(s) => s.tick(input, devices),
+            Self::Physics(w) => match input.controls {
+                session::Controls::Keys(keys) => w.step_keys(keys, input.dt, true, 0, devices),
+                session::Controls::Direct(value) => w.step(value, input.dt, true, devices),
+            }
+            .map_err(session::Error::World),
+        }
+    }
+}
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let root = args
@@ -55,9 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let with_keys = with_brake || args.iter().skip(4).any(|v| v == "--keys");
     let with_views = args.iter().skip(4).any(|v| v == "--views");
     let with_chase = with_views || args.iter().skip(4).any(|v| v == "--chase");
-    let maps = [
-        "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
-    ];
+    let maps = tankracer_assets::level::CUP_MAPS;
     if map >= maps.len() || !(1..=15).contains(&car) || ticks == 0 {
         return Err("map 0..7, car 1..15, ticks > 0".into());
     }
@@ -74,91 +99,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         .iter()
         .find(|e| e.name.ends_with(".BSM"))
         .ok_or("missing world")?;
-    let terrain = Arc::new(TerrainData::decode_bsm(
-        archive.get(bsm.name).ok_or("missing terrain")?,
-    )?);
-    let cup = if map == 7 {
-        2
-    } else if [3, 5, 6].contains(&map) {
-        1
-    } else {
-        0
-    };
-    let level = Level::decode(
-        archive
-            .get(&format!("{}{}.DAT", &maps[map][..3], ["B", "S", "G"][cup]))
-            .ok_or("missing level")?,
-    )?;
-    let spawn = level
-        .objects
-        .iter()
-        .find(|o| o.class == "Player")
-        .map(pose::Pose::from_level)
-        .unwrap_or_default();
-    let resources = vehicle_resources::prepare(
-        &data_file,
-        &files.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-        &shared,
-        car as u32,
-        BuildContext {
-            resolve: ResolveContext {
-                player: true,
-                map: map as u32,
-                ..ResolveContext::default()
-            },
-            ambient_wobble: false,
-            session_active: false,
-        },
-    )?;
-    let mut startup = Startup::new(
+    let terrain = Arc::new(TerrainData::decode_bsm(archive.get(bsm.name).unwrap())?);
+    let loaded = loading::Prepared::load(
         terrain,
-        Settings {
-            map: map as u32,
-            mode: 0,
-            special: false,
-            environment_flag: 0,
-            seed: 0,
-            spray_materials: spray::Materials {
-                filth: 1,
-                crap: 2,
-                splash: 3,
-            },
-            light_material: 4,
-            hardware: true,
+        loading::Files {
+            data: &data_file,
+            vehicles: &files.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+            shared: &shared,
+            level: &level_file,
         },
-    )
-    .map_err(|e| format!("startup: {e:?}"))?;
-    let scenery = with_scenery
-        .then(|| {
-            scenery::load(
-                &mut startup,
-                &data_file,
-                &level_file,
-                &shared,
-                maps[map],
-                cup,
-            )
-        })
-        .transpose()?;
-    if let Some(scene) = &scenery {
-        eprintln!("loaded {:?}; deferred {:?}", scene.classes, scene.deferred);
-    }
-    let mut game = startup
-        .finish(
-            resources.surfaces,
-            Request {
-                model: resources.model,
-                spawn,
-                static_allocation: true,
-                environment: Environment {
-                    ambient_wobble: false,
-                    session_active: false,
-                    ambient_phase: 0,
-                    gun_pivot: [0; 3],
-                },
-            },
-        )
-        .map_err(|e| format!("vehicle: {e:?}"))?;
+        loading::Selection::default_cup(map, car as u32)?,
+        with_scenery,
+    )?
+    .finish()?;
+    let mut game = loaded.world;
+    let scenery = loaded.scenery;
     if with_brake {
         let v = &mut game.vehicles.entries[0].as_mut().unwrap().physics;
         v.motion.velocity = [20000, 0, 500000];
@@ -191,79 +146,53 @@ fn main() -> Result<(), Box<dyn Error>> {
             game.objects.components.objects.iter().flatten().count()
         );
     }
-    let config = tankracer_assets::object_catalog::Catalog::decode(
-        Archive::parse(&data_file)?
-            .get("OBPARAMS.DAT")
-            .ok_or("missing camera parameters")?,
-    )
-    .map_err(|e| format!("camera parameters: {e:?}"))?
-    .camera;
-    let mut camera =
-        chase_camera::State::new(&config, game.vehicles.entries[0].as_ref().unwrap().into())
-            .map_err(|e| format!("camera initialization: {e:?}"))?;
+    let mut runner = if with_chase {
+        Runner::Session(Box::new(session::Session::new(game, loaded.camera)?))
+    } else {
+        Runner::Physics(Box::new(game))
+    };
     let begin = Instant::now();
     let mut grounded = 0;
     for tick in 0..ticks {
-        if with_chase {
-            let player = game.vehicles.entries[0].as_ref().unwrap();
-            camera
-                .tick(
-                    &config,
-                    player.into(),
-                    chase_camera::Frame {
-                        dt: 16,
-                        keys: chase_camera::Keys {
-                            cycle: with_views
-                                && ((3..6).contains(&tick)
-                                    || (9..12).contains(&tick)
-                                    || tick == 21),
-                            rear: with_views && (15..18).contains(&tick),
-                        },
-                        hold_displacement: player.prefix.boost.active != 0,
-                        ..Default::default()
-                    },
-                )
-                .map_err(|e| format!("camera tick {tick}: {e:?}"))?;
-            game.camera_position = camera.published_position();
-            game.camera_forward = camera.forward();
-        }
         let mut devices = Headless {
             scenery: scenery.as_ref(),
         };
-        let result = if with_keys {
-            game.step_keys(
-                player_input::Keys {
-                    throttle: true,
-                    right: (ticks / 3..ticks / 2).contains(&tick),
-                    auxiliary: with_brake && (4..8).contains(&(tick % 12)),
-                    ..Default::default()
-                },
-                16,
-                true,
-                0,
-                &mut devices,
-            )
+        let controls = if with_keys {
+            session::Controls::Keys(player_input::Keys {
+                throttle: true,
+                right: (ticks / 3..ticks / 2).contains(&tick),
+                auxiliary: with_brake && (4..8).contains(&(tick % 12)),
+                ..Default::default()
+            })
         } else {
-            game.step(
-                drive::Input {
-                    throttle: 65536,
-                    steering: if (ticks / 3..ticks / 2).contains(&tick) {
-                        12000
-                    } else {
-                        0
-                    },
-                    ..drive::Input::default()
+            session::Controls::Direct(drive::Input {
+                throttle: 65536,
+                steering: if (ticks / 3..ticks / 2).contains(&tick) {
+                    12000
+                } else {
+                    0
                 },
-                16,
-                true,
-                &mut devices,
-            )
+                ..Default::default()
+            })
         };
+        let result = runner.tick(
+            session::Input {
+                dt: 16,
+                controls,
+                camera: chase_camera::Keys {
+                    cycle: with_views
+                        && ((3..6).contains(&tick) || (9..12).contains(&tick) || tick == 21),
+                    rear: with_views && (15..18).contains(&tick),
+                },
+            },
+            &mut devices,
+        );
         result.map_err(|e| format!("tick {tick}: {e:?}"))?;
-        if with_chase {
+        let game = runner.world();
+        if with_views {
+            let camera = runner.camera().unwrap();
             let player = game.vehicles.entries[0].as_ref().unwrap();
-            camera.feedback(player.model.offsets[tankracer_assets::config::Part::Turret.slot()]);
-            if with_views {
+            {
                 let record: Vec<_> = [
                     camera.mode as i32,
                     i32::from(camera.rear),
@@ -294,6 +223,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     let micros = begin.elapsed().as_micros();
+    let game = runner.world();
     let player = game.vehicles.entries[0]
         .as_ref()
         .ok_or("missing final player")?;

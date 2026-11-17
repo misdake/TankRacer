@@ -70,12 +70,10 @@ pub fn load(
         return Err("invalid scenery selection".into());
     }
     let map = map.to_ascii_uppercase();
-    let map_index = [
-        "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
-    ]
-    .iter()
-    .position(|n| *n == map)
-    .ok_or("unknown scenery map")?;
+    let map_index = tankracer_assets::level::CUP_MAPS
+        .iter()
+        .position(|n| *n == map)
+        .ok_or("unknown scenery map")?;
     if startup.map() != map_index as u32 {
         return Err("scenery map differs from runtime selection".into());
     }

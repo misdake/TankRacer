@@ -2,6 +2,7 @@
 
 pub mod atlas;
 pub mod camera;
+pub mod material;
 pub mod model;
 pub mod transform;
 pub mod transparency;

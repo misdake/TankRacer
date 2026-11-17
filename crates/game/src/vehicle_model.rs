@@ -94,7 +94,8 @@ impl ModelBank {
 #[derive(Debug)]
 pub struct Mesh {
     pub source: Arc<Model>,
-    pub owned: Option<Geometry>,
+    pub(crate) owned: Option<Geometry>,
+    revision: u64,
     pub radius: u16,
 }
 impl Mesh {
@@ -102,11 +103,27 @@ impl Mesh {
         Self {
             radius: source.radius,
             owned: owned.then(|| source.geometry.clone()),
+            revision: 1,
             source,
         }
     }
     pub fn geometry(&self) -> &Geometry {
         self.owned.as_ref().unwrap_or(&self.source.geometry)
+    }
+    pub fn is_private(&self) -> bool {
+        self.owned.is_some()
+    }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+    /// Explicit geometry edits invalidate presentation even if the edit fails.
+    pub fn edit<R>(&mut self, edit: impl FnOnce(&mut Geometry) -> R) -> Option<R> {
+        let geometry = self.owned.as_mut()?;
+        self.revision = self.revision.wrapping_add(1);
+        Some(edit(geometry))
+    }
+    pub(crate) fn changed(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
