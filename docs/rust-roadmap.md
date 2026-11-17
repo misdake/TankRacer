@@ -30,40 +30,42 @@ Deliverables and fixed acceptance boundaries: [milestones](rust-milestones.md).
 
 Updated: **2026-11-17**. Read this together with `git status`.
 
-- **M1-M3, M4.1-M4.2 and M4.3a accepted; verified code: `0a54f31`.** The Rust/Wasm
-  driving scene draws authored body/turret/gun/tracks plus Under/End attachments,
-  the existing four-contact ground projection and whole-vehicle shade. Part
-  poses, contact hull and terrain shade count remain read-only. Track animation
-  uploads no vertices; a changed projection uploads only four (176 B).
-  See [M4 evidence](rust-m4-vehicle.md).
+- **M1-M3 and M4.1 through M4.3b accepted; verified code: `0c33c41`.** The Rust/Wasm
+  driving scene now uses the original near/far/cockpit chase calculations and
+  look-back. Mode 2 draws authored Bottom/XHAIR with next-update camera feedback;
+  normal parts and ground projection are hidden. Drawing stays read-only.
+  Physics formulas remain unchanged; external camera inputs now use the original
+  integer publication instead of the proxy. See [M4 evidence](rust-m4-vehicle.md).
   M2 remains the ENGLAND static scope; [M3 acceptance](rust-m3-acceptance.md)
   records the original moving-proxy qualification (baseline `686cb74`).
-  Arrows drive; A handbrakes; C switches follow/free camera; `/?inspect` stays static.
-- **Focused M4.3a checks passed:** nine scene tests, including 15 cars/four poses,
-  projection ordering/quantization/area and signed shade gates; original track
-  oracle still 90 cases / 11,880 GPU corners; native/Wasm lints; 176 GPU cases.
-  Actual framebuffer isolation finds 1,275 ground-shadow and 8,430 body-shade
-  pixels; a detected coplanar underbody blend error is fixed by decal/vehicle
-  order. Existing native/Wasm driving, track-cadence, handbrake, scenery and reload
-  checks pass. Game/physics source is unchanged; unrelated C suites were not
-  repeated. Production build/source preservation pass; Wasm: **726,151 B**.
-- **Next runnable increment: M4.3b.** Original chase camera modes and look-back,
-  with actual cockpit drawing/next-frame feedback. Follow with M4.3c aerial and
-  additional material layers. M4.3's full exit is unchanged and remains open;
+  Arrows drive; A handbrakes; C cycles views; V holds rear view; F toggles free
+  inspection; `/?inspect` stays static.
+- **Focused M4.3b checks passed:** 19 asset/11 scene tests; C camera oracle
+  192 updates / 6,720 fields; 24-update native/Wasm camera/vehicle/RNG sequence
+  (600 fields), actual DOM keys, six mode/rear screenshots and sight pixel
+  isolation. Existing direct/key/brake driving, track cadence, scenery, reload
+  and zero-idle-upload checks pass; 176 GPU cases, native/Wasm lints and production
+  build pass. The C reference remains intact; unrelated C suites were not
+  repeated. Production Wasm: **743,751 B**, with no test inspection exports.
+- **Next runnable increment: M4.3c.** Original four-segment aerial and additional
+  vehicle material layers: retain authored gates, normals and blend/depth rules,
+  check each camera and preserve read-only drawing. M4's full exit remains open;
   preserve the current driving scene and physics.
 - **Later owners:** M5 full world/Player startup, allocation/RNG order, race
-  lifecycle, laps, pickups/weapons/HUD/effects; M6 configurable scenery; M7
+  lifecycle, starting-camera/environment shifts, laps, pickups/weapons/HUD/effects
+  and camera impulses; M6 configurable scenery; M7
   opponents, original menus/audio/full CUP/all maps; M8 full optimization/package.
   A complete Rust race, per-frame browser/C parity and full image parity remain
   unqualified. Qualified component kernels are not integrated game features.
 - **Measured baseline:** normal vehicle 138 triangles / 11 draws, plus 2 shadow
-  triangles / 1 draw; ENGLAND scene 407 draws / 10,161 triangles / 28 pipeline
-  changes. Vehicle render caches: 43,494 B, separately counted; world vertex
-  layout remains 44 B. Extra resident
-  map data: ENGLAND **769,325 B** (785,669 B shattering peak), SWAMP **880,874 B**,
-  BIO **950,660 B**; all below 1 MB. Other maps' full live aggregates remain
-  unqualified; transparent batching/culling remain pending. Keep original
-  resources, GPU and dynamic game memory separate.
+  triangles / 1 draw; cockpit 32 mesh + 2 sight triangles / 2 draws. The 120-update
+  ENGLAND view measures 385 draws / 10,161 triangles / 28 pipeline changes;
+  changed camera ordering affects transparent runs, not a batching optimization.
+  Vehicle caches: **51,641 B**, separately counted; vertex layout remains 44 B.
+  Current extra resident map probes: ENGLAND **769,429 B** (785,773 B shattering
+  peak), SWAMP **880,978 B**, BIO **944,620 B**; all below 1 MB. These are measured
+  views, not all-camera/all-map peak qualification. Transparent batching/culling
+  remain pending. Keep resources, GPU and dynamic game memory separate.
 - Rust output: `build/rust/site`; preserve the C/browser reference. Local
   increment commits are authorized; **do not push** unless asked.
 
@@ -74,7 +76,7 @@ Updated: **2026-11-17**. Read this together with `git status`.
 | M1 done | Rust/Wasm build, browser shell, own raw WebGL renderer, explicit state and GPU tests. |
 | M2 done | ENGLAND static scene, categorized resources/materials, atlas/batches and free camera. |
 | M3 done | Independent moving proxy: precise terrain, suspension, drive, poses and collision; C module/short-sequence parity. [Acceptance](rust-m3-acceptance.md). |
-| M4 active; through M4.3a done | Exterior parts/animation and ground/body shadows accepted. Next original cameras/cockpit, aerial and extra material layers. |
+| M4 active; through M4.3b done | Exterior parts/animation, ground/body shadows and original chase/cockpit accepted. Next aerial and extra material layers. |
 | M5 | Pickups, weapons, destruction, laps, timing and HUD; playable core race. |
 | M6 | Cones, signs, birds and ENGLAND train as independent configurable plugins; runtime toggle and complete cleanup. |
 | M7 | Opponents, original menus, full CUP and all eight maps. |
