@@ -4,7 +4,7 @@ use tankracer_assets::{
     archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
 };
 use tankracer_game::{
-    drive,
+    chase_camera, drive,
     obstacle_collision::Invocation,
     player_input, pose,
     scene_objects::collision::{self, Collision, Sound},
@@ -53,6 +53,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let with_scenery = args.iter().skip(4).any(|v| v == "--scenery");
     let with_brake = args.iter().skip(4).any(|v| v == "--handbrake");
     let with_keys = with_brake || args.iter().skip(4).any(|v| v == "--keys");
+    let with_views = args.iter().skip(4).any(|v| v == "--views");
+    let with_chase = with_views || args.iter().skip(4).any(|v| v == "--chase");
     let maps = [
         "ENGLAND", "MEXICO", "SWAMP", "EAST", "THEME", "BIO", "MONACO", "CIRCUIT",
     ];
@@ -189,9 +191,42 @@ fn main() -> Result<(), Box<dyn Error>> {
             game.objects.components.objects.iter().flatten().count()
         );
     }
+    let config = tankracer_assets::object_catalog::Catalog::decode(
+        Archive::parse(&data_file)?
+            .get("OBPARAMS.DAT")
+            .ok_or("missing camera parameters")?,
+    )
+    .map_err(|e| format!("camera parameters: {e:?}"))?
+    .camera;
+    let mut camera =
+        chase_camera::State::new(&config, game.vehicles.entries[0].as_ref().unwrap().into())
+            .map_err(|e| format!("camera initialization: {e:?}"))?;
     let begin = Instant::now();
     let mut grounded = 0;
     for tick in 0..ticks {
+        if with_chase {
+            let player = game.vehicles.entries[0].as_ref().unwrap();
+            camera
+                .tick(
+                    &config,
+                    player.into(),
+                    chase_camera::Frame {
+                        dt: 16,
+                        keys: chase_camera::Keys {
+                            cycle: with_views
+                                && ((3..6).contains(&tick)
+                                    || (9..12).contains(&tick)
+                                    || tick == 21),
+                            rear: with_views && (15..18).contains(&tick),
+                        },
+                        hold_displacement: player.prefix.boost.active != 0,
+                        ..Default::default()
+                    },
+                )
+                .map_err(|e| format!("camera tick {tick}: {e:?}"))?;
+            game.camera_position = camera.published_position();
+            game.camera_forward = camera.forward();
+        }
         let mut devices = Headless {
             scenery: scenery.as_ref(),
         };
@@ -225,6 +260,26 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
         };
         result.map_err(|e| format!("tick {tick}: {e:?}"))?;
+        if with_chase {
+            let player = game.vehicles.entries[0].as_ref().unwrap();
+            camera.feedback(player.model.offsets[tankracer_assets::config::Part::Turret.slot()]);
+            if with_views {
+                let record: Vec<_> = [
+                    camera.mode as i32,
+                    i32::from(camera.rear),
+                    i32::from(camera.cycle_held),
+                ]
+                .into_iter()
+                .chain(camera.position)
+                .chain(camera.matrix.0)
+                .chain(camera.cockpit_local)
+                .chain(player.physics.motion.poses.physical_position)
+                .chain(player.physics.motion.velocity)
+                .chain([game.shared.random as i32])
+                .collect();
+                println!("frame={record:?}");
+            }
+        }
         grounded += usize::from(
             game.vehicles.entries[0]
                 .as_ref()

@@ -15,9 +15,9 @@ node tools/serve.mjs 8133 build/rust/site
 
 Open http://127.0.0.1:8133. The Rust build runs precise terrain/vehicle physics
 in Wasm, with authored body/turret/gun and animated tracks/wheels on ENGLAND.
-Arrow keys drive; A applies the
-original handbrake; C toggles a free camera (drag to look, WASD to move,
-Q/E down/up, Shift to move faster).
+Arrow keys drive; A applies the original handbrake; C cycles the original
+near/far/cockpit views; hold V to look back. F toggles free inspection (drag to
+look, WASD to move, Q/E down/up, Shift to move faster).
 Keyboard actions now use the original Player throttle/brake/steering rates and
 forward/reverse switching. The proxy still starts immediately; the input kernel
 also supports countdown/fast-start rules for the later race controller.
@@ -27,7 +27,8 @@ race integration. **M1-M3 are accepted:** the independent moving-physics proxy
 is delivered. [M3 acceptance](docs/rust-m3-acceptance.md) records exact evidence
 and limits. **M4.1-M4.2 are accepted:** [vehicle rendering and track/wheel animation](docs/rust-m4-vehicle.md),
 with physics unchanged. M4.3a also supplies ground/body shadows and normal
-Under/End attachments. Next are original cameras/cockpit, aerial and extra layers.
+Under/End attachments. M4.3b supplies the original chase/cockpit views and
+look-back. Next are the aerial and extra material layers.
 Full Player/race
 startup, pickups/weapons, optional content, AI, menus/audio and full CUP remain
 later milestones. Rust 1.95,

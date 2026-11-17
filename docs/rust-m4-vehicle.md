@@ -222,3 +222,91 @@ Build/browser logs use `build/tests/rust-m4-3a-*.log`; the usual focused command
 above reproduce the checks. M4.3 itself remains open: next are original chase
 camera modes/look-back with cockpit feedback and drawing, followed by the aerial
 and additional material layers. The current chase/free camera is unchanged.
+
+## M4.3b accepted: chase cameras and cockpit (2026-11-17)
+
+The driving scene now uses typed original 4057F0 camera calculations instead
+of the floating-point proxy follow camera. C cycles near/far/cockpit on a rising
+edge; V holds look-back; F retains free inspection. All six authored camera
+parameter groups are read from OBPARAMS, including cockpit drag and the near/far
+displacements. The Q12 basis, roll, signed angle wrapping, smoothing and /8
+published-position quantization survive the render boundary.
+
+The fixed-update order is explicit: read the pre-update Player pose, advance
+the camera, publish its position/forward to the existing world update, update
+the Player, then copy turret-local feedback for the *following* camera tick.
+Drawing never advances the camera or publishes feedback. Existing physics
+formulas are untouched; the external camera inputs deliberately change from
+the previous proxy to the original integer values. The native probe's `--chase`
+option uses the same order, and `--views` adds a short cycle/look-back sequence.
+
+Mode 2 uses the original Bottom mesh at `bottom_position` with `poses.reference`;
+ordinary body/turret/tracks/attachments and the ground projection are hidden.
+The mesh receives the same whole-car shade, while XHAIR.SUR remains neutral.
+The sight center uses the original turret pose and `5120 + 4*min(recoil,0)`
+offset. Its original descriptor (531BA8, checked in the executable) is 300x300
+with pixel UVs [0,0,63,63]. Sprite UVs therefore use source pixels in the atlas,
+not mesh-byte /256 normalization. The quad follows camera right/up, including
+roll. Explicit premultiplied blend, LEQUAL, no depth write and two-sided state
+come from the actual alpha surface class; it is drawn after world transparency.
+The cockpit mesh uses ordinary material/depth passes. Old painter sort biases
+are not converted into arbitrary physical displacements in this 3D renderer.
+
+Verification:
+
+- C camera oracle: **192 updates / 6,720 fields**, covering all modes, held and
+  repeated keys, look-back/release, starting/overhead/restore gates, angle wrap,
+  both authored and synthetic drag, oscillator start/clamp/expiry and changing
+  next-frame cockpit feedback. This calls the preserved, previously original-
+  qualified C camera kernel; no process or memory dump is needed.
+- **19 asset tests and 11 scene tests** pass. All 15 cars/four poses now include
+  Bottom (10,944 triangles across cases). Additional checks independently verify
+  cockpit selection, recoil sight position/size/pixel UVs, rolled camera axes and
+  published negative-position quantization without physical-state mutation.
+- Actual Chromium DOM tests verify C edges/auto-repeat, V hold/release and F
+  inspection. Six near/far/cockpit front/rear screenshots were generated and
+  inspected. A **24-update native/Wasm sequence compares 600 camera, vehicle and
+  RNG fields** at every update. Existing 120 direct-drive and 24 key/handbrake
+  final comparisons, ten scenery probes, reloads and track-cadence tests pass.
+- The **176 GPU cases**, eight depth comparisons and 81 blend transitions pass.
+  Actual cockpit isolation finds **238 sight pixels**, including 181 brightened
+  pixels. Actual follow-view shadow isolation finds 7,948 ground pixels and
+  44,898 shaded-body pixels, with no decal brightening. Repeated redraws have
+  zero vertex/index/instance uploads and preserve camera/physics/RNG state.
+- Native/Wasm Clippy, production build and preservation checks pass: all 97 C
+  modules, 244 unchanged source files and two audio packs remain intact. Only
+  the new camera oracle was run; unrelated C suites were not repeated. Production
+  exports contain camera input but no camera/sight/GPU inspection probes.
+
+The normal vehicle remains 138 exterior triangles / 11 opaque draws plus the
+2-triangle shadow. Cockpit drawing is 32 mesh triangles / 1 opaque draw plus
+2 sight triangles / 1 blended draw. Vehicle render caches are **51,641 B**,
+including the additional resident cockpit/sight resources (GPU storage separate).
+The 120-update default view measures **385 draws / 10,161 triangles / 28 pipeline
+changes**; changed camera depth ordering affects transparent run count, so this
+is not a batching optimization claim. Production Wasm: **743,751 B**.
+
+Measured extra resident map totals in current browser probes: ENGLAND **769,429 B**
+(785,773 B shattering peak), SWAMP **880,978 B**, BIO **944,620 B**. Camera-basis
+bookkeeping adds 104 B; BIO's lower current value comes from different sorter
+capacities under the new camera, not a precomputation optimization. These are
+measured views, not an all-camera/all-map peak qualification; other views/maps
+remain subject to the same <1 MB target and absolute 2 MB cap.
+
+Reproduce the new reference check after building the preserved native libraries:
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_chase_camera.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/chase_camera_reference.exe
+$env:TANKRACER_CHASE_CAMERA_REFERENCE=(Resolve-Path build/native/chase_camera_reference.exe).Path
+cargo test -p tankracer-game --test chase_camera_reference --locked -- --include-ignored --nocapture
+cargo build -p tankracer-game --example drive --release --locked
+node tools/build_rust.mjs --test
+node tests/rust-browser.mjs
+```
+
+The current checkpoint meets the M4.3b driving-view exit, not full race startup
+or original image parity. Full starting-camera/world allocation, environment
+shift side effects, audio listener and boost/pickup camera impulses remain with
+their M5/M7 owners. The kernel already exposes their gates/oscillator state;
+the immediate-start proxy does not activate those gameplay paths. **Next:
+M4.3c aerial and additional vehicle material layers.** M4 remains open.

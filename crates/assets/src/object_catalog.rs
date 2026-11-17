@@ -35,6 +35,36 @@ pub struct Catalog {
     pub general: General,
     pub fall: Fall,
     pub moon: Moon,
+    pub camera: Camera,
+}
+
+/// Single-player chase presets: immutable PE defaults plus OBPARAMS overrides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Camera {
+    pub near: [i32; 3],
+    pub far: [i32; 3],
+    pub pitch: [i32; 2],
+    pub overhead: [i32; 3],
+    pub overhead_pitch: i32,
+    pub cockpit: [i32; 3],
+    pub rotation_speed: [i32; 2],
+    pub yaw_scale: i32,
+    pub cockpit_drag: [u32; 2],
+}
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            near: [0, 2200, -9000],
+            far: [0, 2200, -15000],
+            pitch: [-2184, -2548],
+            overhead: [0, 6000, -20000],
+            overhead_pitch: -8190,
+            cockpit: [0, 1500, 1000],
+            rotation_speed: [0; 2],
+            yaw_scale: 0,
+            cockpit_drag: [0; 2],
+        }
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Moon {
@@ -128,6 +158,46 @@ impl Catalog {
                             }
                             ":fall_elas_shf" => {
                                 result.fall.elasticity_shift = tokens.integer()? as u32
+                            }
+                            _ => (),
+                        }
+                    } else if name.eq_ignore_ascii_case("camera") {
+                        let camera = &mut result.camera;
+                        let mut vector = || -> Result<[i32; 3], Error> {
+                            Ok([tokens.integer()?, tokens.integer()?, tokens.integer()?])
+                        };
+                        match key.to_ascii_lowercase().as_str() {
+                            ":std_disp" => camera.near = vector()?,
+                            ":std_disp_far" => camera.far = vector()?,
+                            ":overhead_disp" => camera.overhead = vector()?,
+                            ":1stper_stdisp" => camera.cockpit = vector()?,
+                            ":std_view_ang" => {
+                                camera.pitch[0] = tokens.integer()?.wrapping_mul(182)
+                            }
+                            ":std_view_ang_far" => {
+                                camera.pitch[1] = tokens.integer()?.wrapping_mul(182)
+                            }
+                            ":overhead_view_ang" => {
+                                camera.overhead_pitch = tokens.integer()?.wrapping_mul(182)
+                            }
+                            ":x_rotspeed" => {
+                                camera.rotation_speed[0] =
+                                    tokens.integer()?.wrapping_mul(182) / 1000
+                            }
+                            ":y_rotspeed" => {
+                                camera.rotation_speed[1] =
+                                    tokens.integer()?.wrapping_mul(182) / 1000
+                            }
+                            ":scale_yrotspd" => {
+                                camera.yaw_scale = tokens.integer()?.wrapping_mul(182)
+                            }
+                            ":1stpers_xdrag" | ":1stpers_zdrag" => {
+                                let values = vector()?;
+                                camera.cockpit_drag
+                                    [usize::from(key.eq_ignore_ascii_case(":1stpers_zdrag"))] =
+                                    u32::from(values[0] as u16)
+                                        | (u32::from(values[1] as u8) << 16)
+                                        | (u32::from(values[2] as u8) << 24);
                             }
                             _ => (),
                         }

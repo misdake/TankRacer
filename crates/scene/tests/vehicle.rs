@@ -122,6 +122,10 @@ fn all_fifteen_cars_bind_authored_materials_and_world_part_poses() {
                     Part::RightTrack => poses.tracks[1],
                     Part::Under => poses.attachments[0],
                     Part::End => poses.attachments[1],
+                    Part::Bottom => pose::Pose {
+                        position: poses.bottom_position,
+                        matrix: poses.reference,
+                    },
                     _ => unreachable!(),
                 };
                 let mut triangles = 0;
@@ -227,6 +231,79 @@ fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
         "stationary redraw must not rebuild"
     );
     assert_eq!(geometry(&model), snapshot);
+}
+
+#[test]
+fn cockpit_uses_only_bottom_and_pixel_uv_sight_with_recoil() {
+    use tankracer_game::{
+        dispatch::ClassId,
+        object_query::EntityId,
+        vehicle_startup::{Environment, Player},
+    };
+    let files = Files::load();
+    let model = files.model(1);
+    let mut scene = files.scene(&model);
+    let mut player = Player::construct(
+        EntityId(0),
+        ClassId(0),
+        model,
+        pose::Pose::default(),
+        Environment {
+            ambient_wobble: false,
+            session_active: false,
+            ambient_phase: 0,
+            gun_pivot: [0; 3],
+        },
+    )
+    .unwrap();
+    assert_eq!(scene.visible_parts(), 7);
+    assert!(
+        scene
+            .parts
+            .iter()
+            .filter(|p| scene.visible(p))
+            .all(|p| p.kind != Part::Bottom)
+    );
+    scene.cockpit = true;
+    assert_eq!(scene.visible_parts(), 1);
+    assert_eq!(
+        scene.parts.iter().find(|p| scene.visible(p)).unwrap().kind,
+        Part::Bottom
+    );
+    let matrix = Matrix::from_angles([713, 3901, 179]);
+    player.physics.motion.poses.turret = pose::Pose {
+        position: [12345, 5678, 23456],
+        matrix,
+    };
+    for recoil in [0, -128, 100] {
+        player.physics.motion.articulation.recoil = recoil;
+        let before = player.physics.motion.clone();
+        scene.refresh_player(&player).unwrap();
+        let z = 5120 + 4 * recoil.min(0);
+        let expected = std::array::from_fn(|i| {
+            before.poses.turret.position[i] + ((matrix.0[6 + i] * z) >> 12)
+        });
+        assert_eq!(
+            scene.sight_position,
+            tankracer_scene::transform::physics_position(expected)
+        );
+        assert_eq!(player.physics.motion, before);
+    }
+    let camera = tankracer_scene::camera::Camera::looking_at(Vec3::ZERO, Vec3::NEG_Z);
+    let sight = scene.sight_transform(&camera);
+    assert!((sight.x_axis.truncate().length() * 2. - 300. / 1024.).abs() < 1e-6);
+    assert_eq!(sight.w_axis.truncate(), scene.sight_position);
+    let uv: Vec<_> = scene.sight.vertices.iter().map(|v| v.uv).collect();
+    assert!(((uv[1][0] - uv[0][0]) * scene.materials.atlas.width as f32 - 63.).abs() < 1e-5);
+    assert!(((uv[0][1] - uv[3][1]) * scene.materials.atlas.height as f32 - 63.).abs() < 1e-5);
+    assert_eq!(scene.sight_kind, BatchKind::Transparent);
+    assert!(
+        scene
+            .sight
+            .vertices
+            .iter()
+            .all(|v| v.color == [1.; 4] && v.double_sided == 1.)
+    );
 }
 
 #[test]

@@ -1,5 +1,4 @@
 //! Terrain/vehicle session. Rendering reads canonical state without changing it.
-use glam::Vec3;
 use std::sync::Arc;
 use tankracer_assets::{
     archive::Archive, config::ResolveContext, level::Level, terrain::TerrainData,
@@ -17,10 +16,7 @@ use tankracer_game::{
     vehicle_startup::Environment,
 };
 use tankracer_render::gpu::Renderer;
-use tankracer_scene::{
-    camera::Camera,
-    transform::{physics_pose, physics_position},
-};
+use tankracer_scene::camera::Camera;
 use wasm_bindgen::JsValue;
 
 struct SilentDevices<'a>(&'a scenery::Loaded);
@@ -51,6 +47,9 @@ pub struct Session {
     pub view: crate::vehicle_view::VehicleView,
     pub scenery: crate::scenery::View,
     loaded: scenery::Loaded,
+    pub chase: tankracer_game::chase_camera::State,
+    camera_config: tankracer_assets::object_catalog::Camera,
+    pub camera_keys: tankracer_game::chase_camera::Keys,
 }
 pub struct Files<'a> {
     pub data: &'a [u8],
@@ -112,6 +111,14 @@ impl Session {
             },
         )
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let data_archive = Archive::parse(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let camera_config = tankracer_assets::object_catalog::Catalog::decode(
+            data_archive
+                .get("OBPARAMS.DAT")
+                .ok_or("Missing camera parameters")?,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Camera parameters: {e:?}")))?
+        .camera;
         let mut startup = Startup::new(
             terrain,
             Settings {
@@ -231,28 +238,51 @@ impl Session {
         }
         let scenery = crate::scenery::View::load(renderer, &loaded, level, shared)?;
         let view = crate::vehicle_view::VehicleView::load(renderer, player, bronze, shared)?;
+        let chase = tankracer_game::chase_camera::State::new(&camera_config, (&*player).into())
+            .map_err(|e| JsValue::from_str(&format!("Camera initialization: {e:?}")))?;
         Ok(Self {
             game,
             view,
             scenery,
             loaded,
+            chase,
+            camera_config,
+            camera_keys: Default::default(),
         })
     }
     pub fn camera(&self) -> Camera {
-        let body = self.game.vehicles.entries[0]
+        Camera::from_chase(&self.chase)
+    }
+    pub fn advance_camera(&mut self, dt: i32, free: Option<&Camera>) -> Result<(), JsValue> {
+        let player = self.game.vehicles.entries[self.game.player.0]
             .as_ref()
-            .unwrap()
-            .physics
-            .motion
-            .poses
-            .body;
-        let transform = physics_pose(body.position, body.matrix.0);
-        let position = physics_position(body.position);
-        let forward = -transform.z_axis.truncate().normalize_or_zero();
-        Camera::looking_at(
-            position - forward * 22. + Vec3::Y * 10.,
-            position + Vec3::Y * 2.,
-        )
+            .unwrap();
+        self.chase
+            .tick(
+                &self.camera_config,
+                player.into(),
+                tankracer_game::chase_camera::Frame {
+                    dt,
+                    keys: self.camera_keys,
+                    hold_displacement: player.prefix.boost.active != 0,
+                    ..Default::default()
+                },
+            )
+            .map_err(|e| JsValue::from_str(&format!("Camera update: {e:?}")))?;
+        if let Some(camera) = free {
+            self.prepare_camera(camera);
+        } else {
+            self.game.camera_position = self.chase.published_position();
+            self.game.camera_forward = self.chase.forward();
+        }
+        Ok(())
+    }
+    fn feedback_camera(&mut self) {
+        let p = self.game.vehicles.entries[self.game.player.0]
+            .as_ref()
+            .unwrap();
+        self.chase
+            .feedback(p.model.offsets[tankracer_assets::config::Part::Turret.slot()]);
     }
     fn prepare_camera(&mut self, camera: &Camera) {
         let p = camera.position * 128.;
@@ -264,9 +294,9 @@ impl Session {
         &mut self,
         keys: player_input::Keys,
         dt: i32,
-        camera: &Camera,
+        camera: Option<&Camera>,
     ) -> Result<(), JsValue> {
-        self.prepare_camera(camera);
+        self.advance_camera(dt, camera)?;
         self.game
             .step_keys(keys, dt, true, 0, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Player input update: {e:?}")))?;
@@ -275,6 +305,7 @@ impl Session {
                 .as_ref()
                 .unwrap(),
         );
+        self.feedback_camera();
         Ok(())
     }
     #[cfg(feature = "gpu-tests")]
@@ -282,9 +313,9 @@ impl Session {
         &mut self,
         input: tankracer_game::drive::Input,
         dt: i32,
-        camera: &Camera,
+        camera: Option<&Camera>,
     ) -> Result<(), JsValue> {
-        self.prepare_camera(camera);
+        self.advance_camera(dt, camera)?;
         self.game
             .step(input, dt, true, &mut SilentDevices(&self.loaded))
             .map_err(|e| JsValue::from_str(&format!("Vehicle update: {e:?}")))?;
@@ -293,6 +324,7 @@ impl Session {
                 .as_ref()
                 .unwrap(),
         );
+        self.feedback_camera();
         Ok(())
     }
 }

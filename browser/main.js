@@ -7,9 +7,9 @@ const held = new Set();
 const canvas = document.getElementById('game');
 const inspecting = new URLSearchParams(location.search).has('inspect');
 canvas.title = inspecting ? 'Drag to look · WASD to move · Q/E down/up · Shift to move faster'
- : 'Arrow keys to drive · A to handbrake · C to toggle free camera · Drag/WASD/Q/E in free camera';
-const movementKeys = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyC','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','ShiftLeft','ShiftRight']);
-window.addEventListener('keydown',event=>{if(event.ctrlKey||event.metaKey||event.altKey)return;if(movementKeys.has(event.code)){held.add(event.code);if(event.code==='KeyC'&&!event.repeat&&app)app.toggle_camera();event.preventDefault();}});
+ : 'Arrow keys to drive · A to handbrake · C to change view · V for rear view · F for free camera';
+const movementKeys = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyC','KeyV','KeyF','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','ShiftLeft','ShiftRight']);
+window.addEventListener('keydown',event=>{if(event.ctrlKey||event.metaKey||event.altKey)return;if(movementKeys.has(event.code)){held.add(event.code);if(event.code==='KeyF'&&!event.repeat&&app)app.toggle_camera();event.preventDefault();}});
 window.addEventListener('keyup',event=>held.delete(event.code));
 window.addEventListener('blur',()=>held.clear());
 document.addEventListener('visibilitychange',()=>held.clear());
@@ -49,6 +49,7 @@ try {
       if(!inspecting){
         accumulator+=seconds*1000;
         while(accumulator>=16){
+          app.set_camera_keys(held.has('KeyC'),held.has('KeyV'));
           app.step_keys(16,held.has('ArrowLeft'),held.has('ArrowRight'),held.has('ArrowUp'),held.has('ArrowDown'),held.has('KeyA'));
           accumulator-=16;
         }

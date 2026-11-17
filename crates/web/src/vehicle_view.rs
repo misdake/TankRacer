@@ -25,10 +25,13 @@ pub struct VehicleView {
     parts: Vec<Part>,
     shadow: GpuMesh,
     shadow_revision: u64,
+    sight: GpuMesh,
     #[cfg(feature = "gpu-tests")]
     pub shadow_enabled: bool,
     #[cfg(feature = "gpu-tests")]
     pub shade_override: Option<bool>,
+    #[cfg(feature = "gpu-tests")]
+    pub sight_enabled: bool,
 }
 fn error(e: impl std::fmt::Display) -> JsValue {
     JsValue::from_str(&e.to_string())
@@ -74,16 +77,20 @@ impl VehicleView {
             .collect::<Result<Vec<_>, JsValue>>()?;
         let shadow = renderer.upload_mesh(&scene.shadow.geometry)?;
         let shadow_revision = scene.shadow.revision;
+        let sight = renderer.upload_mesh(&scene.sight)?;
         Ok(Self {
             scene,
             atlas,
             parts,
             shadow,
             shadow_revision,
+            sight,
             #[cfg(feature = "gpu-tests")]
             shadow_enabled: true,
             #[cfg(feature = "gpu-tests")]
             shade_override: None,
+            #[cfg(feature = "gpu-tests")]
+            sight_enabled: true,
         })
     }
 
@@ -128,6 +135,9 @@ impl VehicleView {
 
     pub fn opaque(&self, frame: &mut Frame<'_>, vp: Mat4) {
         for (gpu, part) in self.parts.iter().zip(&self.scene.parts) {
+            if !self.scene.visible(part) {
+                continue;
+            }
             for kind in BatchKind::ALL
                 .into_iter()
                 .filter(|k| *k != BatchKind::Transparent)
@@ -153,7 +163,7 @@ impl VehicleView {
     // faces participate in the same depth order as the world and other actors.
     pub fn transparent_objects(&self, base: usize, output: &mut Vec<transparency::Object>) {
         for (i, part) in self.scene.parts.iter().enumerate() {
-            if !part.geometry.transparent.is_empty() {
+            if self.scene.visible(part) && !part.geometry.transparent.is_empty() {
                 output.push(transparency::Object {
                     geometry: base + i,
                     model: part.transform,
@@ -202,10 +212,13 @@ impl VehicleView {
     pub fn triangles(&self) -> usize {
         self.parts
             .iter()
-            .flat_map(|p| p.passes.iter().flatten())
+            .zip(&self.scene.parts)
+            .filter(|(_, p)| self.scene.visible(p))
+            .flat_map(|(p, _)| p.passes.iter().flatten())
             .map(|p| p.indices / 3)
             .sum::<usize>()
             + self.shadow_draws() * 2
+            + self.sight_draws() * 2
     }
     pub fn advance_tracks(&mut self, player: &Player) {
         self.scene.tracks.advance(
@@ -226,7 +239,25 @@ impl VehicleView {
         if !self.shadow_enabled {
             return 0;
         }
-        usize::from(self.scene.shadow.visible)
+        usize::from(self.scene.shadow.visible && !self.scene.cockpit)
+    }
+    pub fn sight_draws(&self) -> usize {
+        #[cfg(feature = "gpu-tests")]
+        if !self.sight_enabled {
+            return 0;
+        }
+        usize::from(self.scene.cockpit)
+    }
+    pub fn sight(&self, frame: &mut Frame<'_>, vp: Mat4, camera: &tankracer_scene::camera::Camera) {
+        if self.sight_draws() != 0 {
+            frame.draw_model(
+                &self.sight,
+                &crate::world::material(self.scene.sight_kind),
+                Some(&self.atlas),
+                vp,
+                self.scene.sight_transform(camera),
+            );
+        }
     }
     pub fn shadow(&self, frame: &mut Frame<'_>, vp: Mat4) {
         if self.shadow_draws() == 0 {
@@ -253,7 +284,9 @@ impl VehicleView {
     pub fn opaque_draws(&self) -> usize {
         self.parts
             .iter()
-            .map(|p| {
+            .zip(&self.scene.parts)
+            .filter(|(_, p)| self.scene.visible(p))
+            .map(|(p, _)| {
                 p.passes[..BatchKind::Transparent.slot()]
                     .iter()
                     .flatten()

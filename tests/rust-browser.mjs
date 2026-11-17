@@ -115,6 +115,31 @@ try{
  await wait(()=>evaluate(`import('/main.js').then(m=>m.app.player_controls()[7]===0)`),'A handbrake release');
  report.keyboardHandbrake=true;
  await send('Input.dispatchKeyEvent',{type:'keyUp',code:'ArrowUp',key:'ArrowUp',windowsVirtualKeyCode:38});
+ // Real DOM bindings: C is a rising-edge cycle, V is held rear view, F
+ // releases the inspection camera without cycling the original camera mode.
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyC',key:'c',windowsVirtualKeyCode:67});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.camera_state()[0]===1)`),'C far chase mode');
+ const heldAt=await evaluate(`import('/main.js').then(m=>m.app.vehicle_state()[7])`);
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyC',key:'c',windowsVirtualKeyCode:67,autoRepeat:true});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.vehicle_state()[7]>${heldAt+3})`),'held C updates');
+ assert.equal(await evaluate(`import('/main.js').then(m=>m.app.camera_state()[0])`),1);
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyC',key:'c',windowsVirtualKeyCode:67});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.camera_state()[2]===0)`),'C release');
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyC',key:'c',windowsVirtualKeyCode:67});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.camera_state()[0]===2)`),'C cockpit mode');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyC',key:'c',windowsVirtualKeyCode:67});
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyV',key:'v',windowsVirtualKeyCode:86});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.camera_state()[1]===1)`),'V rear view');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyV',key:'v',windowsVirtualKeyCode:86});
+ await wait(()=>evaluate(`import('/main.js').then(m=>m.app.camera_state()[1]===0)`),'V release');
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyF',key:'f',windowsVirtualKeyCode:70});
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyF',key:'f',windowsVirtualKeyCode:70});
+ const freePosition=await evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()))`);
+ await send('Input.dispatchKeyEvent',{type:'keyDown',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+ await wait(()=>evaluate(`import('/main.js').then(m=>Array.from(m.app.camera_position()).some((v,i)=>Math.abs(v-${JSON.stringify(freePosition)}[i])>.05))`),'F free inspection binding');
+ await send('Input.dispatchKeyEvent',{type:'keyUp',code:'KeyW',key:'w',windowsVirtualKeyCode:87});
+ assert.equal(await evaluate(`import('/main.js').then(m=>m.app.camera_state()[0])`),2);
+ report.cameraBindings=true;
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const driven=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
@@ -128,7 +153,7 @@ try{
  report.vehicle=driven;
  const native=path.join(root,'target/release/examples/drive'+(process.platform==='win32'?'.exe':''));
  assert.ok(existsSync(native),'Build the native Rust drive example for Wasm comparison');
- const nativeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','120','--scenery'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const nativeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','120','--scenery','--chase'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
  const nativeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(nativeOutput);
  assert.ok(nativeState,nativeOutput);
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
@@ -234,7 +259,7 @@ try{
    m.app.render();m.app.check_graphics();
    return Array.from(m.app.vehicle_state());
  })`);
- const keysOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--keys'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const keysOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--keys','--chase'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
  const keysState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(keysOutput);
  assert.ok(keysState,keysOutput);
  assert.deepEqual(keysDriven,[...JSON.parse(keysState[1]),...JSON.parse(keysState[2]),Number(keysState[3])|0,24]);
@@ -250,7 +275,7 @@ try{
    m.app.render();m.app.check_graphics();
    return {state:Array.from(m.app.vehicle_state()),controls,tracks};
  })`);
- const brakeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--handbrake'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const brakeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--handbrake','--chase'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
  const brakeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(brakeOutput);
  const brakeControls=/controls=(\[[^\]]+\])/.exec(brakeOutput);
  assert.ok(brakeState&&brakeControls,brakeOutput);
@@ -260,6 +285,60 @@ try{
  assert.ok(handbrake.controls.some(c=>c[1]===40000&&c[0]===0&&c[7]===1),'held handbrake changes real drive inputs');
  handbrake.controls.forEach((c,i)=>{if(c[7]===1)assert.deepEqual(handbrake.tracks[i+1],handbrake.tracks[i],'handbrake freezes visual tracks');});
  report.handbrake=handbrake;
+ // Camera/physics ordering is compared at each of 24 native/Wasm updates,
+ // crossing all modes and look-back, with feedback consumed next update.
+ const viewSequence=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_player(...files);const states=[];
+   for(let tick=0;tick<24;tick++){
+     m.app.set_camera_keys(tick>=3&&tick<6||tick>=9&&tick<12||tick===21,tick>=15&&tick<18);
+     m.app.step_keys(16,false,tick>=8&&tick<12,true,false,false);
+     states.push([...m.app.camera_state(),...m.app.vehicle_state().slice(0,7)]);
+   }
+   return states;
+ })`);
+ const viewsOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','24','--scenery','--keys','--views'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const nativeViews=[...viewsOutput.matchAll(/^frame=(\[[^\n]+\])/gm)].map(m=>JSON.parse(m[1]));
+ assert.equal(nativeViews.length,24);assert.deepEqual(viewSequence,nativeViews);
+ report.cameraNativeWasm={ticks:24,fields:viewSequence.flat().length};
+ report.chaseViews=[];
+ for(let mode=0;mode<3;mode++)for(const rear of [false,true]){
+  const view=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   m.app.load_player(...files);
+   for(let i=0;i<${mode};i++){
+     m.app.set_camera_keys(true,false);m.app.step_vehicle(16,0,0,0);
+     m.app.set_camera_keys(false,false);m.app.step_vehicle(16,0,0,0);
+   }
+   m.app.set_camera_keys(false,${rear});
+   for(let tick=0;tick<12;tick++)m.app.step_vehicle(16,0,0,0);
+   m.app.render();const state=Array.from(m.app.vehicle_state()),camera=Array.from(m.app.camera_state());
+   const scene=JSON.parse(m.app.scene_stats()),frame=JSON.parse(m.app.frame_stats());
+   m.app.render();m.app.check_graphics();
+   return {mode:${mode},rear:${rear},camera,state,scene,frame,redraw:JSON.parse(m.app.frame_stats()),unchanged:Array.from(m.app.camera_state())};
+  })`);
+  assert.equal(view.camera[0],mode);assert.equal(view.camera[1],Number(rear));
+  assert.equal(view.scene.vehicle_parts,mode===2?1:7);
+  assert.equal(view.scene.vehicle_shadow_draws,mode===2?0:1);
+  assert.deepEqual(view.camera,view.unchanged,'drawing never advances the camera/feedback');
+  for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(view.redraw[key],0);
+  assert.equal(view.frame.draws,4+view.scene.scenery_opaque_draws+view.scene.vehicle_opaque_draws+view.scene.vehicle_shadow_draws+view.scene.transparent_runs+(mode===2?1:0));
+  assert.equal(view.frame.triangles,view.scene.rendered_triangles+view.scene.scenery_triangles+view.scene.vehicle_triangles);
+  report.chaseViews.push(view);
+  await writeFile(path.join(output,'camera-'+mode+(rear?'-rear':'')+'.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ }
+ // Isolate real premultiplied XHAIR pixels from the cockpit view.
+ const sight=await evaluate(`import('/main.js').then(m=>{
+   m.app.set_camera_keys(false,false);m.app.step_vehicle(16,0,0,0);
+   const canvas=document.getElementById('game'),gl=canvas.getContext('webgl2');
+   const draw=enabled=>{m.app.set_vehicle_sight_probe(enabled);m.app.render();const p=new Uint8Array(canvas.width*canvas.height*4);gl.readPixels(0,0,canvas.width,canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,p);return p;};
+   const without=draw(false),withSight=draw(true);let pixels=0,brightened=0;
+   for(let i=0;i<without.length;i+=4)if(without[i]!==withSight[i]||without[i+1]!==withSight[i+1]||without[i+2]!==withSight[i+2]){
+     pixels++;if(withSight[i]+withSight[i+1]+withSight[i+2]>without[i]+without[i+1]+without[i+2])brightened++;
+   }
+   m.app.check_graphics();return {pixels,brightened};
+ })`);
+ assert.ok(sight.pixels>5&&sight.brightened>5,'original sight survives depth/cockpit drawing');report.cockpitSight=sight;
  // Reload at identical poses: new GPU buffers still require sorted index banks.
  const reloads=await evaluate(`import('/main.js').then(async m=>{
    const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));

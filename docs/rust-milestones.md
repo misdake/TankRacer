@@ -18,7 +18,7 @@ the full project. Moving unfinished work to its owning stage does not remove it.
 | M1 build/renderer | Complete | Independent Rust/Wasm/browser build, raw WebGL renderer and explicit GPU state tests. |
 | M2 static world | Complete for its ENGLAND scope | Typed world/material resources, atlas/batches, free camera and runnable static inspection. Full all-map rendering is M7. |
 | M3 moving physics | Complete; [accepted](rust-m3-acceptance.md) | Resource-built native/Wasm proxy drives on real terrain, input/contact/suspension/drive/pose/collision runs through shared owners, related C short-sequence tests and browser regression pass. |
-| M4 vehicles/view | In progress; through M4.3a accepted | Real vehicle geometry, articulation, tracks/wheels, original cameras, shadows and material layers work in the existing driving scene. |
+| M4 vehicles/view | In progress; through M4.3b accepted | Real vehicle geometry, articulation, tracks/wheels, original cameras, shadows and material layers work in the existing driving scene. |
 | M5 single-player race | Pending; several kernels and route bootstrap ready | An opponent-free race starts, accepts inputs, supports pickups/weapons/destruction/HUD, counts laps, finishes and can restart/exit through real owners. |
 | M6 optional scenery | Pending; some actor foundations ready | Configurable cones/signs/birds/train and other minor content can enable/disable at fixed ticks with complete ownership cleanup and documented RNG/order effects. |
 | M7 complete CUP | Pending | Multi-car runtime, AI, original CUP menus, audio, selection and all CUP transitions/maps run end to end. |
@@ -58,7 +58,7 @@ race. These remain explicit M5-M7 work. No new subsystem is added to M3 closure.
 | M4.2 tracks/wheels — accepted | Authored track poses and wheel/tread UV animation work at `f7b9dc8`; original x86 UV/travel, browser/GPU and draw-cadence checks pass with unchanged physics and zero animation vertex uploads. [Evidence](rust-m4-vehicle.md). |
 | M4.3 camera/shadows/layers | Port original camera modes and inputs, ground/body shading and additional vehicle layers; test each mode and relevant blend/depth transitions. |
 | M4.3a shadows/attachments — accepted | Ground projection, whole-vehicle shade and normal Under/End parts at `0a54f31`; geometry/GPU/framebuffer isolation and unchanged-physics checks pass. [Evidence](rust-m4-vehicle.md). |
-| M4.3b original cameras | Port actual three chase modes, C/V edges/look-back, cockpit model and cross-frame view feedback. Preserve read-only redraws and qualify short sequences before replacing the proxy camera. |
+| M4.3b original cameras — accepted | Actual near/far/cockpit chase modes, C/V input, Bottom/XHAIR and next-update feedback now run in the browser. C short sequences, native/Wasm ordering, GPU tests and read-only redraws pass; [evidence](rust-m4-vehicle.md). |
 | M4.3c remaining presentation | Attach the four-segment aerial and additional material layers using original gates, normals and blend rules. These slices together meet the unchanged M4.3 exit. |
 | M5.1 race ownership | Finish required world/Player startup, route/checkpoint/lap progression, countdown, timing, finish, restart and exit. Audit startup allocation/shared RNG and short complete updates against C. |
 | M5.2 race interactions | Integrate pickup activation/backup/restore, weapon/projectile variants, damage and retirement; draw actual effects and HUD. Exercise pickup -> use -> hit -> cleanup through actual owners. |
@@ -71,9 +71,9 @@ race. These remain explicit M5-M7 work. No new subsystem is added to M3 closure.
 ## Existing work that must not be counted twice
 
 - Exterior parts/animated tracks/wheels and ground/body shadows render from
-  canonical state (through M4.3a accepted). Original cameras/cockpit, aerial and
-  additional layers remain M4.3b/c. The current chase/free camera remains a proxy
-  view. Original turret-key/
+  canonical state (through M4.3b accepted), including original near/far/cockpit
+  modes and look-back. Aerial and additional layers remain M4.3c. Full countdown/
+  boost/world startup side effects belong to M5. Original turret-key/
   fire gameplay integration is not supplied by displaying articulated poses.
 - Explosion/smoke/debris, lights/marks and other after-pose updates have qualified
   components; their full geometry/material presentation is not delivered.

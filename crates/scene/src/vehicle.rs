@@ -2,7 +2,7 @@
 //! authored offsets, suspension, turret yaw and recoil must not be applied twice.
 use crate::{
     model::{Materials, Prepared, UvRow},
-    transform::physics_pose,
+    transform::{physics_pose, physics_position},
 };
 use glam::Mat4;
 use std::error::Error;
@@ -11,7 +11,7 @@ use tankracer_game::{pose, vehicle_model::VehicleModel};
 
 pub mod shadow;
 pub mod tracks;
-pub const PARTS: [Part; 7] = [
+pub const PARTS: [Part; 8] = [
     Part::Body,
     Part::Turret,
     Part::Gun,
@@ -19,6 +19,7 @@ pub const PARTS: [Part; 7] = [
     Part::RightTrack,
     Part::Under,
     Part::End,
+    Part::Bottom,
 ];
 
 pub struct PartView {
@@ -38,6 +39,10 @@ pub struct VehicleScene {
     pub tracks: tracks::Tracks,
     pub shadow: shadow::Shadow,
     pub shaded: bool,
+    pub cockpit: bool,
+    pub sight: tankracer_render::geometry::MeshData,
+    pub sight_kind: crate::world::BatchKind,
+    pub sight_position: glam::Vec3,
 }
 
 impl VehicleScene {
@@ -50,7 +55,9 @@ impl VehicleScene {
             .into_iter()
             .filter_map(|p| model.parts[p.slot()].as_ref());
         let materials = Materials::load(
-            meshes.flat_map(|m| m.source.materials.iter().map(|m| m.name.as_str())),
+            meshes
+                .flat_map(|m| m.source.materials.iter().map(|m| m.name.as_str()))
+                .chain(std::iter::once("XHAIR")),
             vehicle,
             shared,
         )?;
@@ -74,6 +81,7 @@ impl VehicleScene {
                 });
             }
         }
+        let (sight, sight_kind) = materials.sprite("XHAIR", [0, 0, 63, 63])?;
         Ok(Self {
             materials,
             parts,
@@ -81,6 +89,10 @@ impl VehicleScene {
             tracks: tracks::Tracks::default(),
             shadow: shadow::Shadow::load(&model.shadow)?,
             shaded: false,
+            cockpit: false,
+            sight,
+            sight_kind,
+            sight_position: glam::Vec3::ZERO,
         })
     }
 
@@ -113,6 +125,10 @@ impl VehicleScene {
                 Part::RightTrack => poses.tracks[1],
                 Part::Under => poses.attachments[0],
                 Part::End => poses.attachments[1],
+                Part::Bottom => pose::Pose {
+                    position: poses.bottom_position,
+                    matrix: poses.reference,
+                },
                 _ => unreachable!(),
             };
             part.transform = physics_pose(pose.position, pose.matrix.0);
@@ -129,7 +145,38 @@ impl VehicleScene {
         self.shadow
             .refresh(&player.physics.motion.hull, player.physics.motion.ready);
         self.shaded = player.physics.contact.sampling.primary.special_count as i8 > 1;
+        let motion = &player.physics.motion;
+        let z = motion
+            .articulation
+            .recoil
+            .min(0)
+            .wrapping_mul(4)
+            .wrapping_add(5120);
+        let offset = motion.poses.turret.matrix.local_to_world([0, 0, z]);
+        self.sight_position = physics_position(std::array::from_fn(|i| {
+            motion.poses.turret.position[i].wrapping_add(offset[i])
+        }));
         Ok(())
+    }
+
+    pub fn visible(&self, part: &PartView) -> bool {
+        (part.kind == Part::Bottom) == self.cockpit
+    }
+
+    pub fn visible_parts(&self) -> usize {
+        self.parts.iter().filter(|p| self.visible(p)).count()
+    }
+
+    /// Original 300 x 300 descriptor, in raw physics units. Screen aligned,
+    /// including camera roll; no extra turret rotation is applied here.
+    pub fn sight_transform(&self, camera: &crate::camera::Camera) -> Mat4 {
+        let half = 300. / 2048.;
+        Mat4::from_cols(
+            (camera.right() * half).extend(0.),
+            (camera.up() * half).extend(0.),
+            (-camera.forward()).extend(0.),
+            self.sight_position.extend(1.),
+        )
     }
 
     /// Vehicle-specific render caches, separate from extra per-map data.
@@ -140,6 +187,9 @@ impl VehicleScene {
             + self.shadow.resident_bytes()
             + self.materials.resident_bytes()
             + self.parts.capacity() * std::mem::size_of::<PartView>()
+            + self.sight.vertices.capacity()
+                * std::mem::size_of::<tankracer_render::geometry::Vertex>()
+            + self.sight.indices.capacity() * 4
             + self
                 .parts
                 .iter()

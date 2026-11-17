@@ -67,6 +67,28 @@ impl Materials {
     pub fn release_pixels(&mut self) {
         self.atlas.premultiplied_rgba = Vec::new();
     }
+    /// Sprites use pixel UVs, unlike model faces' byte-normalized UVs.
+    pub fn sprite(&self, name: &str, uv: [u8; 4]) -> Result<(MeshData, BatchKind), Box<dyn Error>> {
+        let index = self
+            .names
+            .binary_search(&name.to_ascii_uppercase())
+            .map_err(|_| format!("Unbound sprite material: {name}"))?;
+        let rect = self.atlas.regions[index];
+        let mut mesh = MeshData::quad(0.);
+        for (v, pixel) in mesh.vertices.iter_mut().zip([
+            [uv[0], uv[3]],
+            [uv[2], uv[3]],
+            [uv[2], uv[1]],
+            [uv[0], uv[1]],
+        ]) {
+            v.uv = [
+                (rect.x + u32::from(pixel[0])) as f32 / self.atlas.width as f32,
+                (rect.y + u32::from(pixel[1])) as f32 / self.atlas.height as f32,
+            ];
+            v.double_sided = 1.;
+        }
+        Ok((mesh, BatchKind::for_surface(self.classes[index], true)?))
+    }
     pub fn resident_bytes(&self) -> usize {
         std::mem::size_of::<Self>()
             + self.names.capacity() * std::mem::size_of::<String>()

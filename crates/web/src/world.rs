@@ -182,7 +182,7 @@ impl WorldView {
             self.scenery_objects = session.scenery.objects;
             self.scenery_triangles = session.scenery.triangles;
             self.scenery_opaque_draws = session.scenery.opaque_draws;
-            self.vehicle_parts = session.view.scene.parts.len();
+            self.vehicle_parts = session.view.scene.visible_parts();
             self.vehicle_triangles = session.view.triangles();
             self.vehicle_opaque_draws = session.view.opaque_draws();
             self.vehicle_bytes = session.view.resident_bytes();
@@ -257,6 +257,9 @@ impl WorldView {
                 Some(&self.atlas),
                 vp,
             );
+        }
+        if let Some(session) = &session {
+            session.view.sight(&mut frame, vp, &self.camera);
         }
         Ok(())
     }

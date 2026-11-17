@@ -30,6 +30,9 @@ impl App {
         if size.contains(&0) {
             return Ok(());
         }
+        if let Some(vehicle) = &mut self.vehicle {
+            vehicle.view.scene.cockpit = self.follow_camera && vehicle.chase.mode == 2;
+        }
         if let Some(world) = &mut self.world {
             return world.draw(&mut self.renderer, size, self.vehicle.as_mut());
         }
@@ -143,7 +146,11 @@ impl App {
                     auxiliary,
                 },
                 dt,
-                &world.camera,
+                if self.follow_camera {
+                    None
+                } else {
+                    Some(&world.camera)
+                },
             )?;
             if self.follow_camera {
                 world.camera = vehicle.camera();
@@ -169,7 +176,11 @@ impl App {
                     ..Default::default()
                 },
                 dt,
-                &world.camera,
+                if self.follow_camera {
+                    None
+                } else {
+                    Some(&world.camera)
+                },
             )?;
             if self.follow_camera {
                 world.camera = vehicle.camera();
@@ -184,6 +195,30 @@ impl App {
             && let (Some(vehicle), Some(world)) = (&self.vehicle, &mut self.world)
         {
             world.camera = vehicle.camera();
+        }
+    }
+    pub fn set_camera_keys(&mut self, cycle: bool, rear: bool) {
+        if let Some(vehicle) = &mut self.vehicle {
+            vehicle.camera_keys = tankracer_game::chase_camera::Keys { cycle, rear };
+        }
+    }
+    #[cfg(feature = "gpu-tests")]
+    pub fn camera_state(&self) -> Vec<i32> {
+        self.vehicle.as_ref().map_or_else(Vec::new, |v| {
+            let c = &v.chase;
+            [c.mode as i32, i32::from(c.rear), i32::from(c.cycle_held)]
+                .into_iter()
+                .chain(c.position)
+                .chain(c.matrix.0)
+                .chain(c.cockpit_local)
+                .collect()
+        })
+    }
+
+    #[cfg(feature = "gpu-tests")]
+    pub fn set_vehicle_sight_probe(&mut self, enabled: bool) {
+        if let Some(v) = &mut self.vehicle {
+            v.view.sight_enabled = enabled;
         }
     }
 

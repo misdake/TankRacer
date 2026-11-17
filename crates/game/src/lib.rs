@@ -5,6 +5,7 @@ pub mod blast;
 pub mod body;
 pub mod bounce;
 pub mod breakable;
+pub mod chase_camera;
 pub mod closer;
 pub mod collision;
 pub mod collision_effects;
