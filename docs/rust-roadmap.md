@@ -31,7 +31,8 @@ Deliverables and fixed acceptance boundaries: [milestones](rust-milestones.md).
 Updated: **2026-11-17**. Read this together with `git status`.
 
 - **M1-M4 accepted within their fixed scopes; pre-M5 structure cleanup accepted.**
-  Verified code: `a150546`. Rust/Wasm still delivers the existing driving scene,
+  Verified code: `7c93bbc` (review fixes: `a150546`). Rust/Wasm still delivers
+  the existing driving scene,
   not a complete race. Authored vehicle parts/tracks, shadows, original cameras,
   instanced aerial and fused BLOB layer remain accepted; see
   [M4 evidence](rust-m4-vehicle.md). M2 remains ENGLAND static scope;
@@ -39,8 +40,8 @@ Updated: **2026-11-17**. Read this together with `git status`.
 - **Ownership is now shared:** native/browser use one existing session update
   order and resource preparation; inspection cannot publish simulation cameras.
   Configuration/terrain/surfaces are read-only; mesh caches retain instance
-  identity as well as revisions. Generic mesh
-  preparation has no vehicle rules, materials/GPU cache reuse have shared owners.
+  identity as well as revisions. Generic mesh preparation has no vehicle rules;
+  materials/GPU cache reuse have shared owners.
   [Structure contracts/evidence](rust-structure.md) records the boundaries.
   No countdown, pause, plugin lifecycle or later-stage feature was added.
   Arrows drive; A handbrakes; C cycles views; V holds rear view; F toggles free
@@ -50,19 +51,26 @@ Updated: **2026-11-17**. Read this together with `git status`.
   an active BIO Mover. C references cover 2,880 vehicle / 348 scenery updates,
   60 vehicle initializations, 192 camera updates and 2,772 layer/aerial fields;
   original x86 tracks cover 90 cases / 11,880 GPU corners. Workspace tests:
-  **108 passed**, 65 external references explicitly ignored by the ordinary entry;
+  **109 passed**, 66 external references explicitly ignored by the ordinary entry;
   selected references above were run separately. Input ownership, native/Wasm
   browser sequences, six views, **191 GPU cases**, both production/test-feature
   lints, production build and C source preservation pass. Production Wasm:
-  **759,915 B**, with no test-only probes. Use the selective runner for references.
-- **Current increment: M5.1a Player route startup.** Bind the real resource-built
-  Player to its initial checkpoint after scene route linkage, using the original
-  nearest-route query; compare startup fields with the complete C startup. Audit
-  remaining allocation/shared-RNG differences explicitly. This is a startup slice,
-  not complete world bootstrap. Then finish required world/Player startup and
-  allocation/shared-RNG order before countdown, checkpoint/lap/timer and
-  finish/restart/exit. [M5 plan/evidence](rust-m5-race.md). Preserve the accepted driving scene and physics; do not
-  count existing kernels as integrated race behavior.
+  **761,096 B**, with no test-only probes. Use the selective runner for references.
+- **M5.1a Player route startup accepted.** Shared native/browser loading binds
+  the real Player after route linkage. Complete C startup agrees on all eight
+  default selections / 72 semantic fields; browser/native route state agrees.
+  The added query leaves physics, scheduler, RNG and all four saved native
+  checkpoints unchanged. No checkpoint advancement or countdown was added.
+  [M5 plan/evidence](rust-m5-race.md) fixes the next slices and records limits.
+- **Next: M5.1b ordered startup.** Trace and reconcile authored Player/fallback,
+  camera/finish-owner creation, allocation and shared-RNG order. Full startup
+  seeds currently differ on seven maps (MEXICO matches); omitted Flock/Train,
+  random lap-visibility and starting-camera construction are real consumption
+  sites, not permission to skip random draws. Inspect per-constructor boundaries
+  before assigning later-stage dependencies; do not prebuild optional behavior.
+  Then connect countdown, checkpoint/lap/timer and finish/restart/exit through
+  real owners, with short C/native/Wasm comparisons. Preserve the accepted
+  driving scene. Initial route binding does not complete M5 or full world startup.
 - **Later owners:** M5.2 pickups/weapons/damage/effects/HUD, forced effect material
   styles, starting-camera/environment shifts and camera impulses; M6 configurable
   scenery; M7
