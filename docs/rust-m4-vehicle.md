@@ -310,3 +310,100 @@ shift side effects, audio listener and boost/pickup camera impulses remain with
 their M5/M7 owners. The kernel already exposes their gates/oscillator state;
 the immediate-start proxy does not activate those gameplay paths. **Next:
 M4.3c aerial and additional vehicle material layers.** M4 remains open.
+
+## M4.3c accepted: aerial and normal layer (2026-11-17)
+
+This completes M4's fixed **existing driving-scene** exit. Game/physics, input,
+camera and RNG source are unchanged. It does not complete a race or qualify
+all original presentation, lighting and clipping paths.
+
+The aerial is the authored Aerial model, not a generated line. Original 433D10
+case7 starts at the turret socket, takes the hull's render matrix, applies X/Z
+lean, submits four segments and decays both angles by 900/1024 with truncation
+toward zero. Each next position uses the current segment's Y axis and authored
+height. The source Player/view-mode/cockpit gates are retained. CPU extraction
+reads the existing springs; it does not simulate another spring. Four copies
+share resident geometry and one instanced draw per material pass; at most four
+matrices (256 B) upload when poses change, with no upload while hidden or idle.
+All 15 authored aerials use supported depth-writing passes; blended aerial
+resources are explicitly rejected rather than silently sorted incorrectly.
+The aerial's 54B480 gate is independent of gameplay `Settings.special` (53E414).
+The current single-view runtime keeps 54B480 false; its suppression branch is
+qualified separately. The modern renderer supplies the legacy 8000 capability.
+
+BLOB.SUR is loaded from INGAME into the vehicle atlas. Original 4F7530 selection
+is preserved: player/capability/game-mode gates; Body/Turret shield and DE4 gates;
+End's deliberate exception; no layer on other parts or the cockpit. DAF/DE4 are
+read from the existing prefix spin speed/disabled fields. The starting flag
+selects model/view composition, distinct from the three chase camera modes.
+Starting mode is qualified through a render-only probe; the live countdown
+owner still belongs to M5.
+
+The layer reads authored signed16 per-vertex normals. Face normal Y must be
+strictly >1500. Model/view composition wraps signed32 products and divides
+toward zero; projection wraps dot products, arithmetic-shifts by nine and adds
+32768. An optional 16-byte normal/face-mask GPU stream is allocated only for
+eligible vehicle parts. GPU unsigned arithmetic preserves the 32-bit wrapping;
+UVs are projected there, so changing a pose uploads no normal/UV vertices.
+Private damage/hidden geometry rebuilds only the affected part and aligned
+normal stream. Ordinary world vertices remain **44 B**.
+
+The original base-then-SRCALPHA/ONE RGB contribution is **fused into the base
+fragment**, with gains 128/255 normally and 32/255 in shade. This is not the
+base material's ordinary half-bright shade. The atlas already stores RGB times
+alpha, so `base.rgb + blob.premultiplied_rgb * gain` implements the original
+additive equation without another draw. All 15 cars' selected faces have opaque
+or keyed depth-writing bases; preparation rejects a selected blended base.
+The same fragment keeps the base's real depth, culling and alpha-cutout coverage,
+preventing a separate layer from leaking through terrain or filling holes.
+Atlas padding/clamp and GPU clipping replace old painter submission/edge
+quantization; no full original-image equivalence is claimed.
+
+Verification:
+
+- **13 regular scene tests** pass, including all 15 cars/four articulated poses,
+  winding-aligned normal streams, Y=1500/1501, damaged/hidden geometry, source
+  spring/prefix bindings and cockpit/special-mode isolation.
+- Preserved C helpers match **1,440 selection cases, 36 normal projection/matrix
+  cases and 72 aerial branches**, **2,772 fields** total. Negative/overflowing
+  integer arithmetic and the four returned segment poses are included. The
+  original x86 track oracle still matches 90 cases / 11,880 GPU corners after
+  the atlas changes. Unrelated C suites were not repeated.
+- **187 actual GPU cases** pass: 11 new cases cover integer normal projection
+  (including overflow), both gains, additive brightness, face masks, foreground
+  depth, alpha cutouts, uniform reset and cross-VAO normal-stream isolation.
+  The existing eight depth comparisons and 81 blend transitions still pass.
+- Six near/far/cockpit front/rear views pass with actual framebuffer isolation:
+  BLOB changes **21,702–29,739 pixels** in exterior views, never darkening a
+  channel; the aerial changes **102–174 pixels**. Model/view mode changes the
+  real layer; both additions change zero cockpit pixels. Probes preserve
+  camera, vehicle and RNG state. Six screenshots were inspected.
+- Existing native/Wasm direct/key/handbrake comparisons, the 24-update camera
+  sequence, track cadence, ten scenery probes and reloads pass. Idle renders
+  upload zero vertices/indices/instances. Native/Wasm Clippy, production build
+  and C/source/audio preservation pass. Production exports exclude all probes.
+
+The default car adds **8 aerial triangles / 1 draw**, while the BLOB layer adds
+**zero draws** and zero per-pose vertex uploads. The 120-update ENGLAND frame is
+**386 draws / 10,169 triangles / 29 pipeline changes**. Its only per-frame vertex
+upload remains the 176 B ground projection; aerial instances add at most 256 B.
+Vehicle render caches: **58,273 B**, GPU storage separate. Current extra map
+probes: ENGLAND **771,333 B** (789,517 B shattering peak), SWAMP **882,242 B**,
+BIO **945,844 B**. Growth is optional-GPU-handle bookkeeping; all measured views
+stay below 1 MB, without claiming an all-camera/all-map peak bound. Production
+Wasm: **760,475 B**. Results: `build/rust/tests/browser.json`, screenshots and
+`m4-3c-browser.log`.
+
+Additional C reproduction after building the preserved native libraries:
+
+```powershell
+& C:/Develop/mingw/bin/gcc.exe -std=c11 -O2 -Wall -Wextra -Werror -Isrc -Ihost tests/reference_vehicle_layers.c build/native/libtankracer_host.a build/native/libtankracer_core.a -lm -o build/native/vehicle_layers_reference.exe
+$env:TANKRACER_VEHICLE_LAYERS_REFERENCE=(Resolve-Path build/native/vehicle_layers_reference.exe).Path
+cargo test -p tankracer-scene --test vehicle_layers --locked -- --include-ignored --nocapture
+```
+
+**Next is M5.1 race ownership:** complete required world/Player startup and its
+allocation/RNG order, then countdown, checkpoint/lap/timer and finish/restart/
+exit. Pickup/weapon forced material styles, damage decals and actual effects/HUD
+remain M5 interaction/presentation work; opponents, original menus/audio/full
+CUP remain M7. Qualified gates and visual kernels do not activate those features.

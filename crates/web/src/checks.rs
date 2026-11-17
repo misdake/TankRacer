@@ -843,6 +843,165 @@ pub fn run(renderer: &mut Renderer) -> Result<String, JsValue> {
         expect(&frame, "body shade is reset on ordinary draws", [1.; 4])?;
         cases += 1;
     }
+    // Authored normal layer: integer GPU projection, fused SRCALPHA/ONE RGB,
+    // shade gain, face mask, cutout, foreground depth and state restoration.
+    {
+        use tankracer_render::material::NormalLayer;
+        let pixels: Vec<_> = (0..64)
+            .flat_map(|y| (0..64).flat_map(move |x| [x * 4, y * 4, 50, 255]))
+            .collect();
+        let texture = renderer.upload_rgba(64, 64, &pixels)?;
+        for (normal, matrix) in [
+            ([0, 4096, 0], tankracer_game::math::Matrix::IDENTITY),
+            (
+                [-1537, 3073, 1025],
+                tankracer_game::math::Matrix::from_angles([713, 3901, 917]),
+            ),
+            (
+                [-32768, 32767, -16383],
+                tankracer_game::math::Matrix([
+                    i32::MIN,
+                    i32::MAX,
+                    -8191,
+                    17,
+                    -31,
+                    4097,
+                    -65535,
+                    8193,
+                    -32768,
+                ]),
+            ),
+            (
+                [317, -901, 1341],
+                tankracer_game::math::Matrix::from_angles([31731, 13391, 719]),
+            ),
+        ] {
+            let data = MeshData::quad(0.);
+            let stream = vec![
+                [
+                    f32::from(normal[0]),
+                    f32::from(normal[1]),
+                    f32::from(normal[2]),
+                    1.
+                ];
+                4
+            ];
+            let mesh = renderer.upload_mesh_streams(&data, &[], &stream)?;
+            let uv = tankracer_scene::vehicle::layer::uv(normal, matrix)
+                .map(|v| (v as f32 / 65536.).clamp(0., 1.));
+            let m = matrix.0;
+            let material = Material {
+                normal_layer: Some(NormalLayer {
+                    rows: [[m[0], m[1], m[2]], [m[6], m[7], m[8]]],
+                    atlas: [0., 0., 1., 1.],
+                    gain: 1.,
+                }),
+                ..Material::opaque([0., 0., 0., 1.])
+            };
+            let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+            frame.draw(&mesh, &material, Some(&texture), Mat4::IDENTITY);
+            expect(
+                &frame,
+                "Q12 authored normal GPU projection",
+                [
+                    (uv[0] * 64. - 0.5).clamp(0., 63.) * 4. / 255.,
+                    (uv[1] * 64. - 0.5).clamp(0., 63.) * 4. / 255.,
+                    50. / 255.,
+                    1.,
+                ],
+            )?;
+            cases += 1;
+        }
+        let texture =
+            renderer.upload_rgba(3, 1, &[51, 102, 153, 255, 64, 32, 16, 128, 0, 0, 0, 0])?;
+        let mut data = MeshData::quad(0.);
+        for v in &mut data.vertices {
+            v.uv = [1. / 6., 0.5];
+        }
+        let mesh = renderer.upload_mesh_streams(&data, &[], &[[0., 4096., 0., 1.]; 4])?;
+        let mut layer = Material {
+            texture_alpha: AlphaEncoding::Premultiplied,
+            normal_layer: Some(NormalLayer {
+                rows: [[4096, 0, 0], [0, 0, 4096]],
+                atlas: [1. / 3., 0., 1. / 3., 1.],
+                gain: 128. / 255.,
+            }),
+            ..Material::opaque([1.; 4])
+        };
+        for gain in [128. / 255., 32. / 255.] {
+            layer.normal_layer.as_mut().unwrap().gain = gain;
+            let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+            frame.draw(&mesh, &layer, Some(&texture), Mat4::IDENTITY);
+            expect(
+                &frame,
+                "base plus original additive layer gain",
+                [
+                    (51. + 64. * gain) / 255.,
+                    (102. + 32. * gain) / 255.,
+                    (153. + 16. * gain) / 255.,
+                    1.,
+                ],
+            )?;
+            cases += 1;
+        }
+        let plain = Material::opaque([0., 1., 0., 1.]);
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(
+            &mesh,
+            &plain,
+            None,
+            Mat4::from_translation(glam::Vec3::new(0., 0., -0.5)),
+        );
+        frame.draw(&mesh, &layer, Some(&texture), Mat4::IDENTITY);
+        expect(
+            &frame,
+            "foreground occludes both base and normal layer",
+            plain.color,
+        )?;
+        cases += 1;
+        let hidden = renderer.upload_mesh_streams(&data, &[], &[[0., 4096., 0., 0.]; 4])?;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&hidden, &layer, Some(&texture), Mat4::IDENTITY);
+        expect(
+            &frame,
+            "face Y threshold disables only the layer",
+            [51. / 255., 102. / 255., 153. / 255., 1.],
+        )?;
+        cases += 1;
+        for v in &mut data.vertices {
+            v.uv = [5. / 6., 0.5];
+        }
+        let hole = renderer.upload_mesh_streams(&data, &[], &[[0., 4096., 0., 1.]; 4])?;
+        layer.alpha_cutoff = Some(0.5);
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&hole, &layer, Some(&texture), Mat4::IDENTITY);
+        expect(
+            &frame,
+            "normal layer cannot fill base alpha cutouts",
+            BACKGROUND,
+        )?;
+        cases += 1;
+        frame.draw(&mesh, &plain, None, Mat4::IDENTITY);
+        expect(
+            &frame,
+            "ordinary draw resets normal layer and normal VAO",
+            plain.color,
+        )?;
+        cases += 1;
+        for v in &mut data.vertices {
+            v.uv = [1. / 6., 0.5];
+        }
+        let no_stream = renderer.upload_mesh(&data)?;
+        layer.alpha_cutoff = None;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&no_stream, &layer, Some(&texture), Mat4::IDENTITY);
+        expect(
+            &frame,
+            "normal stream does not leak into a different VAO",
+            [51. / 255., 102. / 255., 153. / 255., 1.],
+        )?;
+        cases += 1;
+    }
     renderer.check_error()?;
     Ok(format!(
         "{{\"passed\":true,\"pixel_cases\":{cases},\"depth_comparisons\":8,\"blend_transitions\":81}}"

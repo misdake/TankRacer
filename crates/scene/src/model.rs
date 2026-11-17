@@ -67,6 +67,19 @@ impl Materials {
     pub fn release_pixels(&mut self) {
         self.atlas.premultiplied_rgba = Vec::new();
     }
+    pub fn normalized_rect(&self, name: &str) -> Result<[f32; 4], Box<dyn Error>> {
+        let i = self
+            .names
+            .binary_search(&name.to_ascii_uppercase())
+            .map_err(|_| format!("Unbound material: {name}"))?;
+        let r = self.atlas.regions[i];
+        Ok([
+            r.x as f32 / self.atlas.width as f32,
+            r.y as f32 / self.atlas.height as f32,
+            r.width as f32 / self.atlas.width as f32,
+            r.height as f32 / self.atlas.height as f32,
+        ])
+    }
     /// Sprites use pixel UVs, unlike model faces' byte-normalized UVs.
     pub fn sprite(&self, name: &str, uv: [u8; 4]) -> Result<(MeshData, BatchKind), Box<dyn Error>> {
         let index = self
@@ -111,6 +124,17 @@ impl Materials {
         materials: &[SourceMaterial],
         rows: &[UvRow],
     ) -> Result<Prepared, Box<dyn Error>> {
+        self.prepare_vehicle(geometry, materials, rows, None)
+            .map(|(prepared, _)| prepared)
+    }
+
+    pub(crate) fn prepare_vehicle(
+        &self,
+        geometry: &Geometry,
+        materials: &[SourceMaterial],
+        rows: &[UvRow],
+        normals: Option<&[[i16; 3]]>,
+    ) -> Result<(Prepared, crate::vehicle::layer::NormalBanks), Box<dyn Error>> {
         let bindings = materials
             .iter()
             .map(|m| {
@@ -125,6 +149,7 @@ impl Materials {
             transparent: Vec::new(),
             uv_scroll: std::array::from_fn(|_| Vec::new()),
         };
+        let mut normal_banks = std::array::from_fn(|_| Vec::new());
         for (index, triangle) in geometry.triangles.iter().enumerate() {
             if triangle.flags & 64 != 0 {
                 continue;
@@ -150,6 +175,9 @@ impl Materials {
                 })
                 .transpose()?;
             let class = binding.map_or(0, |i| self.classes[i]);
+            if normals.is_some() && class == 2 && triangle.normal[1] > 1500 {
+                return Err("Normal layer requires an opaque or keyed base material".into());
+            }
             let double_sided = triangle.flags & 1 != 0 || triangle.billboard.is_some();
             let kind = BatchKind::for_surface(class, double_sided)?;
             let region = binding.map_or(self.atlas.white, |i| self.atlas.regions[i]);
@@ -188,6 +216,24 @@ impl Materials {
                 corners.swap(1, 2);
                 scroll.swap(1, 2);
             }
+            if let Some(normals) = normals {
+                let mut stream = [[0.; 4]; 3];
+                for (out, index) in stream.iter_mut().zip(triangle.indices) {
+                    let n = normals
+                        .get(index as usize)
+                        .ok_or("Missing authored vertex normal")?;
+                    *out = [
+                        f32::from(n[0]),
+                        f32::from(n[1]),
+                        f32::from(n[2]),
+                        f32::from(u8::from(triangle.normal[1] > 1500)),
+                    ];
+                }
+                if winding == Some(true) {
+                    stream.swap(1, 2);
+                }
+                normal_banks[kind.slot()].extend(stream);
+            }
             let batch = &mut prepared.batches[kind.slot()];
             let first = batch.vertices.len() as u32;
             let indices = [first, first + 1, first + 2];
@@ -207,7 +253,7 @@ impl Materials {
                 prepared.uv_scroll[kind.slot()].extend(scroll);
             }
         }
-        Ok(prepared)
+        Ok((prepared, normal_banks))
     }
 }
 

@@ -108,6 +108,10 @@ impl WorldView {
     ) -> Result<(), JsValue> {
         if let Some(session) = &mut session {
             session.scenery.refresh(renderer, &session.game.objects)?;
+            session.view.scene.presentation.game_mode = session.game.settings.mode;
+            // This runtime has one view; 54B480 remains false. The gameplay
+            // `special` flag aliases 53E414, not the aerial's 54B480 gate.
+            // WebGL2 supplies the legacy 8000 capability through the fused layer.
             let player = session.game.vehicles.entries[session.game.player.0]
                 .as_ref()
                 .ok_or("Missing render player")?;
@@ -182,7 +186,7 @@ impl WorldView {
             self.scenery_objects = session.scenery.objects;
             self.scenery_triangles = session.scenery.triangles;
             self.scenery_opaque_draws = session.scenery.opaque_draws;
-            self.vehicle_parts = session.view.scene.visible_parts();
+            self.vehicle_parts = session.view.visible_parts();
             self.vehicle_triangles = session.view.triangles();
             self.vehicle_opaque_draws = session.view.opaque_draws();
             self.vehicle_bytes = session.view.resident_bytes();
@@ -222,7 +226,7 @@ impl WorldView {
             // Ground decal first: coplanar vehicle undersides must overwrite
             // it, rather than receive the road's blend/depth bias themselves.
             session.view.shadow(&mut frame, vp);
-            session.view.opaque(&mut frame, vp);
+            session.view.opaque(&mut frame, vp, session.chase.matrix);
         }
         let alpha = BatchKind::Transparent.slot();
         if let Some(session) = &session {
@@ -247,6 +251,7 @@ impl WorldView {
                         object.geometry - session.scenery.geometry_count() - 1,
                         vp,
                         range,
+                        session.chase.matrix,
                     )?;
                 }
             }

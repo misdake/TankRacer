@@ -11,6 +11,7 @@ pub struct GpuMesh {
     vertices: Option<WebGlBuffer>,
     indices: Option<WebGlBuffer>,
     uv_scroll: Option<WebGlBuffer>,
+    normals: Option<WebGlBuffer>,
     pub(super) count: i32,
     vertex_count: usize,
     index_capacity: usize,
@@ -33,6 +34,7 @@ impl GpuMesh {
             vertices: None,
             indices: None,
             uv_scroll: None,
+            normals: None,
             count: mesh.indices.len() as i32,
             vertex_count: mesh.vertices.len(),
             index_capacity: mesh.indices.len(),
@@ -114,6 +116,35 @@ impl GpuMesh {
             0,
             bytemuck::cast_slice(vertices),
         );
+        Ok(())
+    }
+
+    /// Optional authored normal/face-mask stream. Static world vertices stay 44 B.
+    pub(super) fn layer_normals(&mut self, values: &[[f32; 4]]) -> Result<(), JsValue> {
+        if values.is_empty() {
+            return Ok(());
+        }
+        if values.len() != self.vertex_count {
+            return Err("Normal stream changes mesh topology".into());
+        }
+        if self.normals.is_none() {
+            self.normals = Some(
+                self.gl
+                    .create_buffer()
+                    .ok_or("Cannot allocate normal stream")?,
+            );
+        }
+        self.gl.bind_vertex_array(self.vao.as_ref());
+        self.gl.bind_buffer(Gl::ARRAY_BUFFER, self.normals.as_ref());
+        self.gl.buffer_data_with_u8_array(
+            Gl::ARRAY_BUFFER,
+            bytemuck::cast_slice(values),
+            Gl::STATIC_DRAW,
+        );
+        self.gl.enable_vertex_attrib_array(10);
+        self.gl
+            .vertex_attrib_pointer_with_i32(10, 4, Gl::FLOAT, false, 16, 0);
+        self.gl.bind_vertex_array(None);
         Ok(())
     }
 
@@ -203,6 +234,7 @@ impl Drop for GpuMesh {
         self.gl.delete_buffer(self.vertices.as_ref());
         self.gl.delete_buffer(self.indices.as_ref());
         self.gl.delete_buffer(self.uv_scroll.as_ref());
+        self.gl.delete_buffer(self.normals.as_ref());
     }
 }
 

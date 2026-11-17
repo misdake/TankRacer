@@ -109,6 +109,14 @@ pub enum AlphaEncoding {
     Premultiplied,
 }
 
+/// Q12 normal projection and the clamped BLOB region in a shared atlas.
+#[derive(Debug, Clone, Copy)]
+pub struct NormalLayer {
+    pub rows: [[i32; 3]; 2],
+    pub atlas: [f32; 4],
+    pub gain: f32,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Material {
     pub pipeline: Pipeline,
@@ -120,6 +128,8 @@ pub struct Material {
     /// Optional per-vertex V scrolling channels; zero for ordinary geometry.
     pub uv_phase: [f32; 2],
     pub shaded: bool,
+    /// Fused additive RGB on an opaque/keyed base, preserving its depth/coverage.
+    pub normal_layer: Option<NormalLayer>,
 }
 
 impl Material {
@@ -133,6 +143,7 @@ impl Material {
             geometry_culling: false,
             uv_phase: [0.; 2],
             shaded: false,
+            normal_layer: None,
         }
     }
 }

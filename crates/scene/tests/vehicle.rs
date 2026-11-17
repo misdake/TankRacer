@@ -114,6 +114,35 @@ fn all_fifteen_cars_bind_authored_materials_and_world_part_poses() {
             for part in &scene.parts {
                 assert_eq!(part.revision, 1, "pose changes must not rebuild geometry");
                 let source = model.parts[part.kind.slot()].as_ref().unwrap();
+                for (batch, normals) in part.geometry.batches.iter().zip(&part.layer_normals) {
+                    if tankracer_scene::vehicle::layer::eligible(part.kind) {
+                        assert_eq!(batch.vertices.len(), normals.len());
+                        for (v, n) in batch.vertices.iter().zip(normals) {
+                            assert!(
+                                source.geometry().vertices.iter().enumerate().any(|(i, p)| {
+                                    let point = [
+                                        f32::from(p[0]) / 128.,
+                                        f32::from(p[1]) / 128.,
+                                        -f32::from(p[2]) / 128.,
+                                    ];
+                                    let source_n =
+                                        source.source.vertex_normals.as_ref().unwrap()[i];
+                                    point == v.position
+                                        && source_n.map(f32::from) == [n[0], n[1], n[2]]
+                                }),
+                                "normal stream stays aligned after winding/batching"
+                            );
+                        }
+                    } else {
+                        assert!(normals.is_empty());
+                    }
+                }
+                assert!(
+                    part.layer_normals[BatchKind::Transparent.slot()]
+                        .iter()
+                        .all(|n| n[3] == 0.),
+                    "authored BLOB faces have depth-writing base materials"
+                );
                 let pose = match part.kind {
                     Part::Body => poses.body,
                     Part::Turret => poses.turret,
@@ -234,6 +263,56 @@ fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
 }
 
 #[test]
+fn normal_layer_threshold_and_hidden_faces_refresh_aligned_banks() {
+    let files = Files::load();
+    let mut model = files.model(1);
+    let mut scene = files.scene(&model);
+    for y in [1500, 1501] {
+        for face in &mut model.parts[Part::Body.slot()]
+            .as_mut()
+            .unwrap()
+            .owned
+            .as_mut()
+            .unwrap()
+            .triangles
+        {
+            face.normal[1] = y;
+        }
+        scene.refresh(&model, &pose::State::default()).unwrap();
+        let body = scene.parts.iter().find(|p| p.kind == Part::Body).unwrap();
+        let count = body.layer_normals.iter().map(Vec::len).sum::<usize>();
+        assert!(count > 0);
+        assert!(
+            body.layer_normals
+                .iter()
+                .flatten()
+                .all(|n| n[3] == f32::from(u8::from(y == 1501)))
+        );
+    }
+    for face in &mut model.parts[Part::Body.slot()]
+        .as_mut()
+        .unwrap()
+        .owned
+        .as_mut()
+        .unwrap()
+        .triangles
+    {
+        face.flags |= 64;
+    }
+    scene.refresh(&model, &pose::State::default()).unwrap();
+    assert!(
+        scene
+            .parts
+            .iter()
+            .find(|p| p.kind == Part::Body)
+            .unwrap()
+            .layer_normals
+            .iter()
+            .all(Vec::is_empty)
+    );
+}
+
+#[test]
 fn cockpit_uses_only_bottom_and_pixel_uv_sight_with_recoil() {
     use tankracer_game::{
         dispatch::ClassId,
@@ -256,7 +335,7 @@ fn cockpit_uses_only_bottom_and_pixel_uv_sight_with_recoil() {
         },
     )
     .unwrap();
-    assert_eq!(scene.visible_parts(), 7);
+    assert_eq!(scene.visible_parts(), 11);
     assert!(
         scene
             .parts
@@ -330,6 +409,30 @@ fn projected_shadow_and_shading_read_the_canonical_contacts_without_mutation() {
     )
     .unwrap();
     scene.refresh_player(&player).unwrap();
+    assert!(scene.aerial.is_some());
+    player.physics.motion.lean.longitudinal.position = -731;
+    player.physics.motion.lean.lateral.position = 917;
+    let motion_before = player.physics.motion.clone();
+    scene.refresh_player(&player).unwrap();
+    assert_eq!(player.physics.motion, motion_before);
+    let first = scene.aerial.as_ref().unwrap().poses[0];
+    let mut basis = motion_before.poses.body.matrix;
+    basis.rotate(Axis::X, (-731_i32) as u32);
+    basis.rotate(Axis::Z, 917);
+    assert_eq!(
+        first.matrix, basis,
+        "aerial bends from the hull matrix, not the turret matrix"
+    );
+    player.prefix.spin.speed = 100;
+    player.prefix.spin.disabled = 1;
+    scene.refresh_player(&player).unwrap();
+    assert_eq!(scene.presentation.shield_timer, 100);
+    assert!(scene.presentation.invincible);
+    assert_eq!(scene.presentation.mode(Part::Body), 0);
+    assert_eq!(scene.presentation.mode(Part::End), 1);
+    scene.presentation.hide_aerial = true;
+    assert!(!scene.aerial_visible());
+    scene.presentation.hide_aerial = false;
     assert!(
         !scene.shadow.visible,
         "no uninitialized origin shadow before the first contact update"

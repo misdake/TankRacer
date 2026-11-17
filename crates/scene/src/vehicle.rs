@@ -9,6 +9,8 @@ use std::error::Error;
 use tankracer_assets::{config::Part, mesh::Geometry};
 use tankracer_game::{pose, vehicle_model::VehicleModel};
 
+pub mod aerial;
+pub mod layer;
 pub mod shadow;
 pub mod tracks;
 pub const PARTS: [Part; 8] = [
@@ -28,6 +30,8 @@ pub struct PartView {
     pub geometry: Prepared,
     pub revision: u64,
     pub uv_phase: [f32; 2],
+    pub basis: tankracer_game::math::Matrix,
+    pub layer_normals: layer::NormalBanks,
     source: Geometry,
     uv_rows: Vec<UvRow>,
 }
@@ -43,6 +47,9 @@ pub struct VehicleScene {
     pub sight: tankracer_render::geometry::MeshData,
     pub sight_kind: crate::world::BatchKind,
     pub sight_position: glam::Vec3,
+    pub layer_atlas: [f32; 4],
+    pub aerial: Option<aerial::Aerial>,
+    pub presentation: layer::Context,
 }
 
 impl VehicleScene {
@@ -53,11 +60,12 @@ impl VehicleScene {
     ) -> Result<Self, Box<dyn Error>> {
         let meshes = PARTS
             .into_iter()
+            .chain([Part::Aerial])
             .filter_map(|p| model.parts[p.slot()].as_ref());
         let materials = Materials::load(
             meshes
                 .flat_map(|m| m.source.materials.iter().map(|m| m.name.as_str()))
-                .chain(std::iter::once("XHAIR")),
+                .chain(["XHAIR", "BLOB"]),
             vehicle,
             shared,
         )?;
@@ -66,14 +74,29 @@ impl VehicleScene {
             if let Some(mesh) = &model.parts[kind.slot()] {
                 let uv_rows =
                     tracks::side(kind).map_or_else(Vec::new, |s| tracks::rows(&model.tracks[s]));
+                let normals = if layer::eligible(kind) {
+                    mesh.source.vertex_normals.as_deref()
+                } else {
+                    None
+                };
+                if layer::eligible(kind)
+                    && normals.is_none()
+                    && mesh.geometry().triangles.iter().any(|t| t.normal[1] > 1500)
+                {
+                    return Err("Vehicle layer is missing authored vertex normals".into());
+                }
+                let (geometry, layer_normals) = materials.prepare_vehicle(
+                    mesh.geometry(),
+                    &mesh.source.materials,
+                    &uv_rows,
+                    normals,
+                )?;
                 parts.push(PartView {
                     kind,
                     transform: Mat4::IDENTITY,
-                    geometry: materials.prepare_animated(
-                        mesh.geometry(),
-                        &mesh.source.materials,
-                        &uv_rows,
-                    )?,
+                    geometry,
+                    basis: tankracer_game::math::Matrix::IDENTITY,
+                    layer_normals,
                     revision: 1,
                     uv_phase: [0.; 2],
                     source: mesh.geometry().clone(),
@@ -82,6 +105,20 @@ impl VehicleScene {
             }
         }
         let (sight, sight_kind) = materials.sprite("XHAIR", [0, 0, 63, 63])?;
+        let layer_atlas = materials.normalized_rect("BLOB")?;
+        let aerial = model.parts[Part::Aerial.slot()]
+            .as_ref()
+            .map(|mesh| -> Result<_, Box<dyn Error>> {
+                let geometry = materials.prepare(mesh.geometry(), &mesh.source.materials)?;
+                if !geometry.transparent.is_empty() {
+                    return Err("Unsupported blended aerial prototype".into());
+                }
+                Ok(aerial::Aerial {
+                    geometry,
+                    poses: [pose::Pose::default(); 4],
+                })
+            })
+            .transpose()?;
         Ok(Self {
             materials,
             parts,
@@ -93,6 +130,9 @@ impl VehicleScene {
             sight,
             sight_kind,
             sight_position: glam::Vec3::ZERO,
+            layer_atlas,
+            aerial,
+            presentation: layer::Context::default(),
         })
     }
 
@@ -108,10 +148,15 @@ impl VehicleScene {
             if mesh.geometry() != &part.source {
                 // Private collision damage and gun recoil modify authoritative
                 // local geometry. Only that part needs new GPU vertex data.
-                part.geometry = self.materials.prepare_animated(
+                (part.geometry, part.layer_normals) = self.materials.prepare_vehicle(
                     mesh.geometry(),
                     &mesh.source.materials,
                     &part.uv_rows,
+                    if layer::eligible(part.kind) {
+                        mesh.source.vertex_normals.as_deref()
+                    } else {
+                        None
+                    },
                 )?;
                 part.source.clone_from(mesh.geometry());
                 part.revision = part.revision.wrapping_add(1);
@@ -132,6 +177,7 @@ impl VehicleScene {
                 _ => unreachable!(),
             };
             part.transform = physics_pose(pose.position, pose.matrix.0);
+            part.basis = pose.matrix;
             part.uv_phase = tracks::side(part.kind).map_or([0.; 2], |s| self.tracks.phase(s));
         }
         Ok(())
@@ -145,6 +191,12 @@ impl VehicleScene {
         self.shadow
             .refresh(&player.physics.motion.hull, player.physics.motion.ready);
         self.shaded = player.physics.contact.sampling.primary.special_count as i8 > 1;
+        self.presentation.player = player.physics.player;
+        self.presentation.shield_timer = player.prefix.spin.speed;
+        self.presentation.invincible = player.prefix.spin.disabled != 0;
+        if let Some(aerial) = &mut self.aerial {
+            aerial.poses = aerial::poses(player);
+        }
         let motion = &player.physics.motion;
         let z = motion
             .articulation
@@ -165,6 +217,31 @@ impl VehicleScene {
 
     pub fn visible_parts(&self) -> usize {
         self.parts.iter().filter(|p| self.visible(p)).count()
+            + usize::from(self.aerial_visible()) * 4
+    }
+    pub fn aerial_visible(&self) -> bool {
+        self.aerial.is_some()
+            && self.presentation.player
+            && !self.cockpit
+            && !self.presentation.hide_aerial
+    }
+    pub fn layer(
+        &self,
+        part: &PartView,
+        view: tankracer_game::math::Matrix,
+        shaded: bool,
+    ) -> Option<tankracer_render::material::NormalLayer> {
+        let context = layer::Context {
+            cockpit: self.cockpit,
+            ..self.presentation
+        };
+        layer::material(
+            part.basis,
+            view,
+            context.mode(part.kind),
+            self.layer_atlas,
+            shaded,
+        )
     }
 
     /// Original 300 x 300 descriptor, in raw physics units. Screen aligned,
@@ -186,6 +263,9 @@ impl VehicleScene {
             - std::mem::size_of::<shadow::Shadow>()
             + self.shadow.resident_bytes()
             + self.materials.resident_bytes()
+            + self.aerial.as_ref().map_or(0, |a| {
+                a.resident_bytes() - std::mem::size_of::<aerial::Aerial>()
+            })
             + self.parts.capacity() * std::mem::size_of::<PartView>()
             + self.sight.vertices.capacity()
                 * std::mem::size_of::<tankracer_render::geometry::Vertex>()
@@ -195,6 +275,10 @@ impl VehicleScene {
                 .iter()
                 .map(|p| {
                     p.source.vertices.capacity() * std::mem::size_of::<[i16; 3]>()
+                        + p.layer_normals
+                            .iter()
+                            .map(|v| v.capacity() * 16)
+                            .sum::<usize>()
                         + p.uv_rows.capacity() * std::mem::size_of::<UvRow>()
                         + p.geometry
                             .uv_scroll

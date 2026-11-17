@@ -39,6 +39,10 @@ pub struct Renderer {
     billboard_right: WebGlUniformLocation,
     uv_phase: WebGlUniformLocation,
     shaded: WebGlUniformLocation,
+    normal_layer: WebGlUniformLocation,
+    layer_rows: WebGlUniformLocation,
+    layer_atlas: WebGlUniformLocation,
+    layer_gain: WebGlUniformLocation,
     fallback: Texture,
     pipeline: Option<Pipeline>,
     mesh: Option<web_sys::WebGlVertexArrayObject>,
@@ -178,6 +182,7 @@ impl Renderer {
         gl.pixel_storei(Gl::UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
         gl.pixel_storei(Gl::UNPACK_COLORSPACE_CONVERSION_WEBGL, Gl::NONE as i32);
         gl.vertex_attrib4f(9, 0., 0., 0., 0.);
+        gl.vertex_attrib4f(10, 0., 0., 0., 0.);
         let program = Program::new(&gl, include_str!("world.vert"), include_str!("world.frag"))?;
         let uniform = |name| {
             gl.get_uniform_location(&program.raw, name)
@@ -195,6 +200,10 @@ impl Renderer {
         let billboard_right = uniform("uBillboardRight")?;
         let uv_phase = uniform("uUvPhase")?;
         let shaded = uniform("uShaded")?;
+        let normal_layer = uniform("uNormalLayer")?;
+        let layer_rows = uniform("uLayerRows[0]")?;
+        let layer_atlas = uniform("uLayerAtlas")?;
+        let layer_gain = uniform("uLayerGain")?;
         let fallback = Texture::rgba(&gl, 1, 1, &[255; 4])?;
         gl.use_program(Some(&program.raw));
         gl.uniform1i(Some(&uniform("uTexture")?), 0);
@@ -213,6 +222,10 @@ impl Renderer {
             billboard_right,
             uv_phase,
             shaded,
+            normal_layer,
+            layer_rows,
+            layer_atlas,
+            layer_gain,
             fallback,
             pipeline: None,
             mesh: None,
@@ -239,6 +252,17 @@ impl Renderer {
         Ok(mesh)
     }
 
+    pub fn upload_mesh_streams(
+        &self,
+        data: &MeshData,
+        scroll: &[[f32; 4]],
+        normals: &[[f32; 4]],
+    ) -> Result<GpuMesh, JsValue> {
+        let mut mesh = self.upload_animated_mesh(data, scroll)?;
+        mesh.layer_normals(normals)?;
+        Ok(mesh)
+    }
+
     pub fn update_uv_scroll(
         &mut self,
         mesh: &mut GpuMesh,
@@ -248,6 +272,19 @@ impl Renderer {
         self.pending_vertex_bytes = self
             .pending_vertex_bytes
             .saturating_add(std::mem::size_of_val(scroll) as u32);
+        self.mesh = None;
+        Ok(())
+    }
+
+    pub fn update_layer_normals(
+        &mut self,
+        mesh: &mut GpuMesh,
+        normals: &[[f32; 4]],
+    ) -> Result<(), JsValue> {
+        mesh.layer_normals(normals)?;
+        self.pending_vertex_bytes = self
+            .pending_vertex_bytes
+            .saturating_add(std::mem::size_of_val(normals) as u32);
         self.mesh = None;
         Ok(())
     }
@@ -386,6 +423,19 @@ impl Renderer {
         gl.uniform4fv_with_f32_array(Some(&self.color), &material.color);
         gl.uniform2fv_with_f32_array(Some(&self.uv_phase), &material.uv_phase);
         gl.uniform1i(Some(&self.shaded), i32::from(material.shaded));
+        gl.uniform1i(
+            Some(&self.normal_layer),
+            i32::from(material.normal_layer.is_some()),
+        );
+        if let Some(layer) = material.normal_layer {
+            let [a, b] = layer.rows;
+            gl.uniform3iv_with_i32_array(
+                Some(&self.layer_rows),
+                &[a[0], a[1], a[2], b[0], b[1], b[2]],
+            );
+            gl.uniform4fv_with_f32_array(Some(&self.layer_atlas), &layer.atlas);
+            gl.uniform1f(Some(&self.layer_gain), layer.gain);
+        }
         gl.uniform1f(Some(&self.cutoff), material.alpha_cutoff.unwrap_or(-1.));
         gl.uniform1i(Some(&self.textured), i32::from(texture.is_some()));
         gl.uniform1i(

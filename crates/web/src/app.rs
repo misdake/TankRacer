@@ -223,6 +223,15 @@ impl App {
     }
 
     #[cfg(feature = "gpu-tests")]
+    pub fn set_vehicle_attachment_probe(&mut self, aerial: bool, layer: bool, starting: bool) {
+        if let Some(v) = &mut self.vehicle {
+            v.view.aerial_enabled = aerial;
+            v.view.layer_enabled = layer;
+            v.view.scene.presentation.starting = starting;
+        }
+    }
+
+    #[cfg(feature = "gpu-tests")]
     pub fn scenery_state(&self) -> Vec<u32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
             let scene = &v.game.objects;

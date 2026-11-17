@@ -25,10 +25,10 @@ Use `/?inspect` for static-world inspection. Authored Obstacle/Crush/Fall/Bounce
 actors run from live state; WayPoint graphs/grid/weather are loaded for later
 race integration. **M1-M3 are accepted:** the independent moving-physics proxy
 is delivered. [M3 acceptance](docs/rust-m3-acceptance.md) records exact evidence
-and limits. **M4.1-M4.2 are accepted:** [vehicle rendering and track/wheel animation](docs/rust-m4-vehicle.md),
-with physics unchanged. M4.3a also supplies ground/body shadows and normal
-Under/End attachments. M4.3b supplies the original chase/cockpit views and
-look-back. Next are the aerial and extra material layers.
+and limits. **M4 is accepted for the driving scene:** [vehicle rendering](docs/rust-m4-vehicle.md)
+includes animated tracks/wheels, ground/body shadows, original chase/cockpit
+views, a four-segment aerial and the authored additive normal layer. Physics
+updates are unchanged. Next is M5 race ownership and lifecycle.
 Full Player/race
 startup, pickups/weapons, optional content, AI, menus/audio and full CUP remain
 later milestones. Rust 1.95,

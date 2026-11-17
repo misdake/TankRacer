@@ -79,7 +79,7 @@ try{
  assert.notDeepEqual(turned,initialForward);
  await evaluate(`import('/main.js').then(m=>m.stop())`);
  const gpu=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.run_gpu_checks()))`);
- assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=144);assert.equal(gpu.blend_transitions,81);
+ assert.equal(gpu.passed,true);assert.ok(gpu.pixel_cases>=187);assert.equal(gpu.blend_transitions,81);
  const frame=await evaluate(`import('/main.js').then(m=>{m.app.render();return JSON.parse(m.app.frame_stats());})`);
  const scene=await evaluate(`import('/main.js').then(m=>JSON.parse(m.app.scene_stats()))`);
  assert.equal(scene.source_meshes,612);assert.equal(scene.source_triangles,8881);
@@ -159,7 +159,7 @@ try{
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
  assert.equal(driven.scene.scenery_objects,118);
  assert.ok(driven.scene.scenery_opaque_draws<driven.scene.scenery_objects);
- assert.equal(driven.scene.vehicle_parts,7);
+ assert.equal(driven.scene.vehicle_parts,11);
  assert.equal(driven.scene.vehicle_shadow_draws,1);
  assert.ok(driven.scene.vehicle_triangles>12,'authored geometry replaces the cube');
  assert.ok(driven.scene.vehicle_opaque_draws>=5&&driven.scene.vehicle_opaque_draws<=20);
@@ -318,13 +318,37 @@ try{
    return {mode:${mode},rear:${rear},camera,state,scene,frame,redraw:JSON.parse(m.app.frame_stats()),unchanged:Array.from(m.app.camera_state())};
   })`);
   assert.equal(view.camera[0],mode);assert.equal(view.camera[1],Number(rear));
-  assert.equal(view.scene.vehicle_parts,mode===2?1:7);
+  assert.equal(view.scene.vehicle_parts,mode===2?1:11);
   assert.equal(view.scene.vehicle_shadow_draws,mode===2?0:1);
   assert.deepEqual(view.camera,view.unchanged,'drawing never advances the camera/feedback');
   for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(view.redraw[key],0);
   assert.equal(view.frame.draws,4+view.scene.scenery_opaque_draws+view.scene.vehicle_opaque_draws+view.scene.vehicle_shadow_draws+view.scene.transparent_runs+(mode===2?1:0));
   assert.equal(view.frame.triangles,view.scene.rendered_triangles+view.scene.scenery_triangles+view.scene.vehicle_triangles);
   report.chaseViews.push(view);
+  const attachment=await evaluate(`import('/main.js').then(m=>{
+    const canvas=document.getElementById('game'),gl=canvas.getContext('webgl2');
+    const draw=(aerial,layer,starting=false)=>{
+      m.app.set_vehicle_attachment_probe(aerial,layer,starting);m.app.render();
+      const pixels=new Uint8Array(canvas.width*canvas.height*4);
+      gl.readPixels(0,0,canvas.width,canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);return pixels;
+    };
+    const base=draw(false,false),blob=draw(false,true),aerial=draw(true,false),start=draw(false,true,true);
+    let blobPixels=0,aerialPixels=0,darker=0,startPixels=0;
+    for(let i=0;i<base.length;i+=4){
+      if(base[i]!==blob[i]||base[i+1]!==blob[i+1]||base[i+2]!==blob[i+2]){
+        blobPixels++;if(blob[i]<base[i]||blob[i+1]<base[i+1]||blob[i+2]<base[i+2])darker++;
+      }
+      if(base[i]!==aerial[i]||base[i+1]!==aerial[i+1]||base[i+2]!==aerial[i+2])aerialPixels++;
+      if(start[i]!==blob[i]||start[i+1]!==blob[i+1]||start[i+2]!==blob[i+2])startPixels++;
+    }
+    draw(true,true);m.app.check_graphics();
+    return {blobPixels,aerialPixels,darker,startPixels,camera:Array.from(m.app.camera_state()),state:Array.from(m.app.vehicle_state())};
+  })`);
+  assert.deepEqual(attachment.camera,view.camera);assert.deepEqual(attachment.state,view.state);
+  assert.equal(attachment.darker,0,'BLOB adds light instead of applying ordinary alpha darkening');
+  if(mode===2){assert.equal(attachment.blobPixels,0);assert.equal(attachment.aerialPixels,0);}
+  else {assert.ok(attachment.blobPixels>10,'original exterior BLOB is visible');assert.ok(attachment.aerialPixels>0,'four-segment aerial is visible');if(!rear)assert.ok(attachment.startPixels>10,'published-view normal mode changes the actual layer');}
+  view.attachments=attachment;
   await writeFile(path.join(output,'camera-'+mode+(rear?'-rear':'')+'.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  }
  // Isolate real premultiplied XHAIR pixels from the cockpit view.
