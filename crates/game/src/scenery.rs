@@ -112,19 +112,20 @@ pub fn load(
         }
     }
     let low_gravity = startup.low_gravity();
+    let terrain = Arc::clone(startup.terrain());
     startup.objects.components.explosion_resources.map_fog = [2, 5, 7].contains(&map_index);
     startup
         .objects
         .components
         .waypoints
-        .initialize_grid(&startup.terrain, 100000)
+        .initialize_grid(&terrain, 100000)
         .map_err(|e| format!("waypoint grid: {e}"))?;
     let mut loader = Loader::new(
         &mut startup.objects,
         scene_loading::Resources {
             source: &source,
             models: &mut loaded.models,
-            terrain: &startup.terrain,
+            terrain: &terrain,
             random: &mut startup.shared.random,
             catalog: &catalog,
             materials: &mut materials,

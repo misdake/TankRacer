@@ -91,11 +91,23 @@ impl ModelBank {
         Ok(Some(model))
     }
 }
+/// Identity of one mesh instance, independent of its shared authored resource.
+/// Retaining a token also prevents allocation-address reuse in render caches.
+#[derive(Debug, Clone)]
+pub struct MeshIdentity(Arc<()>);
+impl PartialEq for MeshIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for MeshIdentity {}
+
 #[derive(Debug)]
 pub struct Mesh {
     pub source: Arc<Model>,
     pub(crate) owned: Option<Geometry>,
     revision: u64,
+    identity: MeshIdentity,
     pub radius: u16,
 }
 impl Mesh {
@@ -104,6 +116,7 @@ impl Mesh {
             radius: source.radius,
             owned: owned.then(|| source.geometry.clone()),
             revision: 1,
+            identity: MeshIdentity(Arc::new(())),
             source,
         }
     }
@@ -115,6 +128,9 @@ impl Mesh {
     }
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+    pub fn identity(&self) -> &MeshIdentity {
+        &self.identity
     }
     /// Explicit geometry edits invalidate presentation even if the edit fails.
     pub fn edit<R>(&mut self, edit: impl FnOnce(&mut Geometry) -> R) -> Option<R> {

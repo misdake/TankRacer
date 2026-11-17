@@ -2,6 +2,9 @@
 use super::*;
 
 impl Startup {
+    pub fn terrain(&self) -> &Arc<TerrainData> {
+        &self.terrain
+    }
     pub fn low_gravity(&self) -> bool {
         self.settings.environment_flag != 0
     }
@@ -64,6 +67,12 @@ impl Startup {
     }
 }
 impl SinglePlayer {
+    pub fn terrain(&self) -> &Arc<TerrainData> {
+        &self.terrain
+    }
+    pub fn surfaces(&self) -> &Surfaces {
+        &self.surfaces
+    }
     /// Session configuration and its derived Profile are immutable together.
     /// Select another map/car/configuration by constructing a fresh world.
     pub fn settings(&self) -> Settings {

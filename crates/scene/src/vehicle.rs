@@ -34,6 +34,7 @@ pub struct PartView {
     pub layer_normals: AttributeBanks,
     source: Arc<tankracer_assets::model::Model>,
     source_revision: u64,
+    source_identity: tankracer_game::vehicle_model::MeshIdentity,
     uv_rows: Vec<UvRow>,
 }
 
@@ -86,6 +87,7 @@ impl VehicleScene {
                     uv_phase: [0.; 2],
                     source: Arc::clone(&mesh.source),
                     source_revision: mesh.revision(),
+                    source_identity: mesh.identity().clone(),
                     uv_rows,
                 });
             }
@@ -131,13 +133,17 @@ impl VehicleScene {
             let mesh = model.parts[part.kind.slot()]
                 .as_ref()
                 .ok_or("Vehicle render part disappeared")?;
-            if mesh.revision() != part.source_revision || !Arc::ptr_eq(&mesh.source, &part.source) {
+            if mesh.identity() != &part.source_identity
+                || mesh.revision() != part.source_revision
+                || !Arc::ptr_eq(&mesh.source, &part.source)
+            {
                 // Private collision damage and gun recoil modify authoritative
                 // local geometry. Only that part needs new GPU vertex data.
                 (part.geometry, part.layer_normals) =
                     prepare_part(&self.materials, mesh, part.kind, &part.uv_rows)?;
                 part.source = Arc::clone(&mesh.source);
                 part.source_revision = mesh.revision();
+                part.source_identity = mesh.identity().clone();
                 part.revision = part.revision.wrapping_add(1);
                 self.revision = self.revision.wrapping_add(1);
             }

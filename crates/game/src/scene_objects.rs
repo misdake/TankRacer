@@ -143,7 +143,7 @@ pub struct Components {
     pub gravity: i32,
     pub umbrella_mesh: Option<MeshId>,
     pub fall_tuning: fall::Tuning,
-    pub terrain: Option<Arc<TerrainData>>,
+    pub(crate) terrain: Option<Arc<TerrainData>>,
     pub(crate) pending_crush: Vec<(ObstacleId, crush::Initial)>,
     pub parents: Parents,
     pub interfaces: Interfaces,

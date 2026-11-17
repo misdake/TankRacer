@@ -67,13 +67,25 @@ pub struct Shared {
     pub boost: boost::Shared,
     pub debris_sound: Option<u32>,
 }
+/// Terrain and surface configuration cannot be replaced after derived state
+/// and scene bindings have been constructed.
+/// ```compile_fail
+/// fn replace(world: &mut tankracer_game::vehicle_runtime::SinglePlayer) {
+///     world.terrain = std::sync::Arc::clone(world.terrain());
+/// }
+/// ```
+/// ```compile_fail
+/// fn replace(world: &mut tankracer_game::vehicle_runtime::SinglePlayer) {
+///     world.surfaces = *world.surfaces();
+/// }
+/// ```
 pub struct SinglePlayer {
     pub identity: factory::State<Handle>,
     pub registry: Registry,
     pub vehicles: Store,
     pub objects: scene_objects::Scene,
-    pub terrain: Arc<TerrainData>,
-    pub surfaces: Surfaces,
+    terrain: Arc<TerrainData>,
+    surfaces: Surfaces,
     pub shared: Shared,
     pub player: TankId,
     pub frame: u32,
@@ -108,7 +120,7 @@ pub struct Startup {
     pub identity: factory::State<Handle>,
     pub registry: Registry,
     pub objects: scene_objects::Scene,
-    pub terrain: Arc<TerrainData>,
+    terrain: Arc<TerrainData>,
     pub shared: Shared,
     settings: Settings,
 }

@@ -33,7 +33,10 @@ Physical A belongs to either inspection movement or the handbrake at keydown
 and keeps that ownership until release/blur; F and auto-repeat cannot reassign
 a held key. Arrow/C/V race actions retain their existing meanings.
 
-`SinglePlayer.settings` is private and returns a copy for inspection. Its derived
+`SinglePlayer.settings` is private and returns a copy for inspection. Terrain
+and surfaces also expose only immutable references; the scene terrain binding
+is crate-private and startup terrain cannot be replaced through its public API.
+Compile-fail checks enforce the two configuration write restrictions. Its derived
 Profile cannot silently disagree with a caller's newly assigned configuration.
 Changing map/car/session configuration constructs a fresh world. The lower-level
 `SinglePlayer` still supports construction and numerical test fixtures; the
@@ -52,7 +55,11 @@ Vehicle meshes publish revisions at their mutation boundary. Public private-mesh
 edits use `Mesh::edit`; the existing physics bridge detects the one-shot body
 dent and four gun-Z writes, including partially failed writes. The underlying
 kernels receive the same geometry and run in the same order. Scene caches compare
-revision/resource identity, not an entire cloned geometry on every draw.
+instance/revision/resource identity, not an entire cloned geometry on every draw.
+Each mesh has an opaque retained identity token, so separate private instances
+sharing one source and revision still invalidate correctly. The token stays alive
+with caches, preventing address reuse; its allocation belongs to game metadata,
+not per-map preprocessing. The replacement regression also checks idle reuse.
 New geometry-mutating behavior must use these ownership boundaries when it is
 actually implemented; there is no speculative mutation/event framework.
 
@@ -74,7 +81,7 @@ Only changed prototypes use this path; poses and ordinary redraws do not.
   respectively. Vehicle assembly covers 60 initializations; camera 192 updates;
   layer/aerial 2,772 fields; original x86 track UVs 90 cases / 11,880 GPU corners.
   These are the affected established suites, not a new long-race test.
-- Workspace tests (105 passed; 65 external-reference tests explicitly ignored by
+- Workspace tests (108 passed; 65 external-reference tests explicitly ignored by
   the ordinary entry), input ownership checks, native/Wasm lint, browser regression
   and 191 GPU cases pass. Four added GPU cases exercise shared-cache topology,
   optional streams and cleanup. Production and test-feature builds are linted
@@ -106,10 +113,15 @@ compiles selected fixtures and records hashes/results in
 fails; it never silently skips. The `tracks` reference additionally requires
 `TANKRACER_ORIGINAL_EXE` and Python `pefile`/`unicorn`.
 
+Follow-up checks also use `structure-followup-*`: the replacement regression,
+two compile-fail checks, workspace tests, native/Wasm lints, browser/GPU checks,
+production build and all four saved native checkpoints pass. No physics kernel
+or update ordering changed; unrelated external C suites were not repeated.
+
 Logs/results for this increment use `build/rust/tests/structure-*`,
 `references-structure-c.json` and the usual browser report. C source preservation
 still passes (97 modules / 244 unchanged files / 2 audio packs). Production
-Wasm is 759,135 B and excludes test-only probes. No publication/push is part of
+Wasm is 759,915 B and excludes test-only probes. No publication/push is part of
 this increment.
 
 ## Next integration point

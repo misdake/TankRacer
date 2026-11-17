@@ -206,6 +206,63 @@ fn all_fifteen_cars_bind_authored_materials_and_world_part_poses() {
 }
 
 #[test]
+fn replacement_mesh_with_shared_source_and_equal_revision_rebuilds_geometry() {
+    let files = Files::load();
+    let mut first = files.model(1);
+    let mut second = files.model(1);
+    let body = Part::Body.slot();
+    second.parts[body].as_mut().unwrap().source =
+        std::sync::Arc::clone(&first.parts[body].as_ref().unwrap().source);
+    first.parts[body]
+        .as_mut()
+        .unwrap()
+        .edit(|g| g.vertices[0][0] += 16)
+        .unwrap();
+    second.parts[body]
+        .as_mut()
+        .unwrap()
+        .edit(|g| g.vertices[0][0] += 32)
+        .unwrap();
+    assert_eq!(
+        first.parts[body].as_ref().unwrap().revision(),
+        second.parts[body].as_ref().unwrap().revision()
+    );
+    let mut cached = files.scene(&first);
+    let expected = files.scene(&second);
+    cached.refresh(&second, &pose::State::default()).unwrap();
+    let vertices = |scene: &VehicleScene| {
+        scene
+            .parts
+            .iter()
+            .find(|p| p.kind == Part::Body)
+            .unwrap()
+            .geometry
+            .batches
+            .iter()
+            .flat_map(|b| b.vertices.iter().map(|v| v.position))
+            .collect::<Vec<_>>()
+    };
+    let revision = cached
+        .parts
+        .iter()
+        .find(|p| p.kind == Part::Body)
+        .unwrap()
+        .revision;
+    assert_eq!(revision, 2);
+    assert_eq!(vertices(&cached), vertices(&expected));
+    cached.refresh(&second, &pose::State::default()).unwrap();
+    assert_eq!(
+        cached
+            .parts
+            .iter()
+            .find(|p| p.kind == Part::Body)
+            .unwrap()
+            .revision,
+        revision
+    );
+}
+
+#[test]
 fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
     let files = Files::load();
     let mut model = files.model(1);
