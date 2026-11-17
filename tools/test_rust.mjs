@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const out=path.join(root,'build/rust/tests');
 const references={
+  'race-clock':['reference_vehicle_runtime.c','tankracer-game','race_clock_reference','TANKRACER_RACE_CLOCK_REFERENCE'],
   'world-startup':['reference_world_startup.c','tankracer-game','world_startup_reference','TANKRACER_WORLD_STARTUP_REFERENCE',['-Wl,--wrap=frame_native_dispatch']],
   'race-startup':['reference_race_startup.c','tankracer-game','race_startup_reference','TANKRACER_RACE_STARTUP_REFERENCE'],
   camera:['reference_chase_camera.c','tankracer-game','chase_camera_reference','TANKRACER_CHASE_CAMERA_REFERENCE'],

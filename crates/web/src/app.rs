@@ -154,6 +154,45 @@ impl App {
         Ok(())
     }
 
+    pub fn begin_race(&mut self) -> Result<(), JsValue> {
+        self.vehicle
+            .as_mut()
+            .ok_or("Load a player first")?
+            .runtime
+            .begin_race()
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    #[cfg(feature = "gpu-tests")]
+    pub fn race_state(&self) -> Vec<i32> {
+        self.vehicle.as_ref().map_or_else(Vec::new, |v| {
+            let Some(c) = v.runtime.clock() else {
+                return vec![];
+            };
+            let p = v.runtime.player();
+            [
+                c.countdown,
+                c.release,
+                c.display,
+                p.race.elapsed,
+                i32::from(p.race.laps),
+                i32::from(p.race.driving),
+                i32::from(p.input.start_held),
+                i32::from(p.input.fast_start),
+                p.prefix.countdown_throttle,
+                p.prefix.countdown_rpm,
+            ]
+            .into_iter()
+            .chain(p.physics.motion.poses.physical_position)
+            .chain(p.physics.motion.velocity)
+            .chain([
+                v.runtime.world().shared.random as i32,
+                v.runtime.world().frame as i32,
+            ])
+            .collect()
+        })
+    }
+
     #[cfg(feature = "gpu-tests")]
     pub fn step_vehicle(
         &mut self,

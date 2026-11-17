@@ -79,9 +79,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ticks: usize = args.get(3).map(|v| v.parse()).transpose()?.unwrap_or(240);
     let with_scenery = args.iter().skip(4).any(|v| v == "--scenery");
     let with_brake = args.iter().skip(4).any(|v| v == "--handbrake");
+    let with_race = args.iter().skip(4).any(|v| v == "--race");
     let with_keys = with_brake || args.iter().skip(4).any(|v| v == "--keys");
     let with_views = args.iter().skip(4).any(|v| v == "--views");
-    let with_chase = with_views || args.iter().skip(4).any(|v| v == "--chase");
+    let with_chase = with_race || with_views || args.iter().skip(4).any(|v| v == "--chase");
     let maps = tankracer_assets::level::CUP_MAPS;
     if map >= maps.len() || !(1..=15).contains(&car) || ticks == 0 {
         return Err("map 0..7, car 1..15, ticks > 0".into());
@@ -147,7 +148,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     let mut runner = if with_chase {
-        Runner::Session(Box::new(session::Session::new(game, loaded.camera)?))
+        let mut session = session::Session::new(game, loaded.camera)?;
+        if with_race {
+            session.begin_race()?;
+        }
+        Runner::Session(Box::new(session))
     } else {
         Runner::Physics(Box::new(game))
     };
@@ -157,7 +162,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut devices = Headless {
             scenery: scenery.as_ref(),
         };
-        let controls = if with_keys {
+        let controls = if with_race {
+            session::Controls::Keys(player_input::Keys {
+                throttle: tick >= 1,
+                brake: tick == 8,
+                right: (7..=9).contains(&tick),
+                auxiliary: tick == 8,
+                ..Default::default()
+            })
+        } else if with_keys {
             session::Controls::Keys(player_input::Keys {
                 throttle: true,
                 right: (ticks / 3..ticks / 2).contains(&tick),
@@ -177,7 +190,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         let result = runner.tick(
             session::Input {
-                dt: 16,
+                dt: if with_race {
+                    [1000, 500, 490, 10, 990, 10, 16, 1000, 17, 20, 1000, 16][tick % 12]
+                } else {
+                    16
+                },
                 controls,
                 camera: chase_camera::Keys {
                     cycle: with_views
@@ -189,6 +206,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
         result.map_err(|e| format!("tick {tick}: {e:?}"))?;
         let game = runner.world();
+        if with_race && let Runner::Session(s) = &runner {
+            let c = s.clock().ok_or("Missing race clock")?;
+            let p = s.player();
+            let record: Vec<i32> = [
+                c.countdown,
+                c.release,
+                c.display,
+                p.race.elapsed,
+                i32::from(p.race.laps),
+                i32::from(p.race.driving),
+                i32::from(p.input.start_held),
+                i32::from(p.input.fast_start),
+                p.prefix.countdown_throttle,
+                p.prefix.countdown_rpm,
+            ]
+            .into_iter()
+            .chain(p.physics.motion.poses.physical_position)
+            .chain(p.physics.motion.velocity)
+            .chain([game.shared.random as i32, game.frame as i32])
+            .collect();
+            println!("race={record:?}");
+        }
         if with_views {
             let camera = runner.camera().unwrap();
             let player = game.vehicles.entries[0].as_ref().unwrap();

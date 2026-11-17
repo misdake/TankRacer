@@ -16,6 +16,8 @@
 #include "frame_player_input.h"
 #include "frame_player_state.h"
 #include "frame_player_collision.h"
+#include "frame_race.h"
+#include "frame_time.h"
 static unsigned char *ram,fresh[0x1128];
 static uint32_t object,entity,poses,actors[1],count=1,after_calls;
 static int controls;
@@ -62,6 +64,7 @@ static void snapshot(void)
     emit(0x55ae20,1);emit(0x55ae1c,1);emit(0x54f490,800);emit(0x54f448,16);emit(0x54f488,2);emit(0x550110,8);
     scene_state();
     if(controls){emit(object+0x94,3);raw(object+0x1106,1);raw(object+0x1107,1);emit(0x544fb8,1);}
+    if(controls>=3){emit(0x53e4f0,2);emit(0x5904e0,1);emit(object+0xcba,1);raw(object+0xdda,2);raw(object+0xdea,1);}
 }
 int main(int argc,char **argv)
 {
@@ -98,16 +101,31 @@ int main(int argc,char **argv)
     obstacle=(physics_obstacle_services){&collision,physics_known_entity_method,feedback,&entities};
     services=(physics_vehicle_services){&obstacle,scene,0};
     entities=(physics_entity_environment){read_data,write_data,0,frame_math_trig(),&obstacle,scene,0};
+    if(controls>=3){status=frame_race_initialize(write_data,0);if(status)return 8;status=frame_race_reset_laps(read_data,write_data,0);if(status)return 8;}
     oracle_binary();fwrite("VR01",1,4,stdout);snapshot();
     for(i=0;i<steps;i++){
-        dt=(uint32_t[]){16,17,20,12}[i%4u];active=controls==2||i>=3u;
-        set(0x5904fc,dt,4);set(0x590564,i+1u,4);set(object+0xdea,active,1);
+        if(controls>=3){
+            uint32_t continuation;
+            dt=controls==6 ? (uint32_t[]){1000,1000,990,17,16,1000,16,17,20,1000,16,17}[i%12u]
+                          : (uint32_t[]){1000,500,490,10,990,10,16,1000,17,20,1000,16}[i%12u];
+            set(0x590550,dt,4);status=frame_time_physics_dt(read_data,write_data,0,&continuation);if(status)return 8;
+            status=frame_race_tick(read_data,write_data,0);if(status)return 8;
+            dt=word(0x5904fc);
+        }else{
+            dt=(uint32_t[]){16,17,20,12}[i%4u];active=controls==2||i>=3u;
+            set(0x5904fc,dt,4);set(object+0xdea,active,1);
+        }
+        set(0x590564,i+1u,4);
         if(controls){
             frame_player_input_rates rates={(uint16_t)word(0x530c60),(uint16_t)word(0x530c64)};frame_player_input_result result;
-            set(0x5904e0,i==0?1u:2u,4);
+            if(controls<3)set(0x5904e0,i==0?1u:2u,4);
             set(0x74b605,i%12u<8u&&i!=1u,1);set(0x74b606,i%12u==9u,1);
             set(0x74b601,i%12u==10u,1);set(0x74b602,(i%12u>=4u&&i%12u<8u)||i%12u==10u,1);
             set(0x74b60f,controls==2&&i%12u>=4u&&i%12u<8u,1);
+            if(controls>=3){
+                set(0x74b605,controls==3 ? i>=1u : controls==4 ? 1u : i>=3u,1);
+                set(0x74b606,i==8u,1);set(0x74b601,0,1);set(0x74b602,i>=7u&&i<=9u,1);set(0x74b60f,i==8u,1);
+            }
             status=frame_player_input_step(read_data,write_data,0,object,&rates,&result);if(status)return 8;
             set(0x53e3fc,controls!=2||i%12u!=7u,4);
             if(result.driving){

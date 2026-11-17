@@ -1,8 +1,8 @@
 # M5 single-player race
 
-Updated 2026-11-17. M5.1a route binding and M5.1b ordered construction are
-qualified within the boundaries below. The browser still runs the accepted
-driving scene; the complete race clock and full-game frame parity remain open.
+Updated 2026-11-17. M5.1a route binding, M5.1b ordered construction and M5.1c
+countdown/clock are qualified within the boundaries below. The browser now runs
+the clock on the accepted driving scene; full-game frame parity remains open.
 
 ## Delivery order
 
@@ -99,12 +99,60 @@ it is intentionally not switched to a complete world with unsupported ticks.
 The full constructor is also exercised in Wasm by a test-feature-only probe.
 Production has no construction/debug probe export.
 
-Next, M5.1c must introduce the actual race/session owner and countdown gates.
-Audit `frame_game_tick_menu_limit`: race timing precedes entity ticks; camera
-post-update dispatch follows them, then queue drain and session actions. Do not
-move the accepted physics tick or use the driving subset's seed as full-startup
-state. M5.1d owns progression/finish/restart/exit; M5.2/M6 must supply real runtime
-owners before complete-world updates can claim parity.
+M5.1d owns progression/finish/restart/exit; M5.2/M6 must supply real runtime owners
+before complete-world updates can claim parity. Do not use the driving subset's
+seed as full-startup state.
+
+## Countdown and race clock (M5.1c)
+
+`race_clock::Clock` owns countdown/release/display; each actual Player owns its
+`Racer` lap count, elapsed time and driving gate. `Session::begin_race` requires a
+fresh world, initializes the original 3000 ms countdown and disables driving.
+The normal page calls it after loading; the independent `drive --race` example
+exercises twelve coarse boundary updates. Immediate-driving fixtures still use
+the same Session without a clock, preserving the accepted qualification API.
+
+On each race update, raw elapsed time reaches the clock **before** Player input,
+the Tank prefix and physics. The rest of the accepted camera/world/animation/
+feedback sequence is unchanged. Original camera starting-view convergence is
+independent of the countdown; no countdown-derived camera gate was invented.
+
+- Input stages switch at 1500/1000 ms, separately from the visual 3/2/1 digits.
+- Crossing zero enables driving and starts a fresh 1000 ms GO interval. It does
+  not add this update to elapsed lap time or carry countdown overshoot forward.
+- Later updates decrement GO and add raw elapsed time to each present racer.
+  The original wrapping arithmetic is retained.
+- Physics independently clamps elapsed time to 10..100 ms. A 1000 ms delayed
+  update advances race time by 1000 ms and physics once by 100 ms; it is not ten
+  physics steps. The browser's fixed updates remain 16 ms.
+- Existing Player input implements early-hold/timed-throttle launch eligibility;
+  its existing countdown RPM prefix still runs while driving is disabled.
+- `begin_race` rejects an already-started world. Restart/exit must construct or
+  restore the actual owners under M5.1d, not reset only the visible clock.
+
+This connects the clock and gates to a runnable scene; it does not execute the
+complete cold actor set or add lap crossing, pause, HUD, weapons or finish logic.
+The user also authorized M5.2 in this run. Next integrate actual interactions in
+small runnable slices, retaining M5.1d as owner of progression/lifecycle.
+
+M5.1c verification: **12 C/native short sequences / 144 updates / 941,304 fields**
+cover timely, early and late throttle, exact release, overshoot, and large raw
+elapsed values. The oracle calls actual `frame_race_*`, `frame_time_physics_dt`,
+Player input and the native prefix/physics/after-pose path; it isolates that
+chain from unimplemented surrounding race behavior. Twelve native/Wasm scene
+updates agree including clock, controls, RPM, pose, velocity and RNG. Existing
+2,880 vehicle updates / 18,041,268 fields and four saved native checkpoints
+still agree. Workspace **113 passed / 68 external ignored**, 191 GPU cases,
+native/Wasm lints and production build pass. Production Wasm **819,845 B**, with
+no race/debug probe export. Original production C/host sources are unchanged.
+
+```sh
+cargo run -p tankracer-game --example drive --release -- assets/game 0 1 12 --scenery --race
+node tools/test_rust.mjs reference race-clock vehicle-runtime
+```
+
+Evidence: `build/rust/tests/m5c-*` and the browser report. The test snapshot codec
+now serializes effect records through a private copy, keeping inspection read-only.
 
 ## Verification
 

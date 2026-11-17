@@ -54,6 +54,7 @@ try {
     status.textContent = 'Loading vehicle…';
     const files = await Promise.all(['DATA','BRONZE','INGAME'].map(download));
     app.load_player(...files,world);
+    app.begin_race();
   }
   held.clear();
   canvas.focus();

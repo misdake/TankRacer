@@ -248,6 +248,21 @@ try{
   report.vehicleViews.push({name,...view});
   await writeFile(path.join(output,'vehicle-'+name+'.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  }
+ const raceSequence=await evaluate(`import('/main.js').then(async m=>{
+  const files=await Promise.all(['DATA','BRONZE','INGAME','ENGLAND'].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+  m.app.load_world(files[3]);m.app.load_player(...files);m.app.begin_race();const sequence=[];
+  for(const [i,elapsed] of [1000,500,490,10,990,10,16,1000,17,20,1000,16].entries()){
+   m.app.step_keys(elapsed,false,i>=7&&i<=9,i>=1,i===8,i===8);
+   sequence.push(Array.from(m.app.race_state()));
+  }return sequence;
+ })`);
+ const raceOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','12','--scenery','--race'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
+ const nativeRace=[...raceOutput.matchAll(/^race=(\[[^\n]+\])/gm)].map(m=>JSON.parse(m[1]));
+ assert.equal(nativeRace.length,12);assert.deepEqual(raceSequence,nativeRace);
+ assert.deepEqual(raceSequence[5].slice(0,6),[0,1000,4,0,0,1]);
+ assert.equal(raceSequence[5][7],1,'correctly timed throttle enables original fast start');
+ assert.equal(raceSequence[7][3],1016,'race time uses raw elapsed, physics uses bounded dt');
+ report.raceClockUpdates=raceSequence.length;
  // Visual travel samples every simulation update, including updates with no
  // draw. Drawing each tick or only the last tick must produce identical phases.
  const animation=await evaluate(`import('/main.js').then(async m=>{
