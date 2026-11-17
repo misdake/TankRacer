@@ -134,11 +134,12 @@ try{
  assert.deepEqual(driven.state,[...JSON.parse(nativeState[1]),...JSON.parse(nativeState[2]),Number(nativeState[3])|0,120]);
  assert.equal(driven.scene.scenery_objects,118);
  assert.ok(driven.scene.scenery_opaque_draws<driven.scene.scenery_objects);
- assert.equal(driven.scene.vehicle_parts,5);
+ assert.equal(driven.scene.vehicle_parts,7);
+ assert.equal(driven.scene.vehicle_shadow_draws,1);
  assert.ok(driven.scene.vehicle_triangles>12,'authored geometry replaces the cube');
  assert.ok(driven.scene.vehicle_opaque_draws>=5&&driven.scene.vehicle_opaque_draws<=20);
  assert.ok(driven.scene.vehicle_render_bytes>0);
- assert.equal(driven.frame.draws,4+driven.scene.scenery_opaque_draws+driven.scene.vehicle_opaque_draws+driven.scene.transparent_runs);
+ assert.equal(driven.frame.draws,4+driven.scene.scenery_opaque_draws+driven.scene.vehicle_opaque_draws+driven.scene.vehicle_shadow_draws+driven.scene.transparent_runs);
  assert.equal(driven.frame.triangles,driven.scene.rendered_triangles+driven.scene.scenery_triangles+driven.scene.vehicle_triangles);
  assert.ok(driven.scene.acceleration_bytes<1_000_000);
  assert.ok(driven.scene.route_acceleration_bytes>0);
@@ -147,6 +148,33 @@ try{
  for(const key of ['index_upload_bytes','vertex_upload_bytes','instance_upload_bytes'])assert.equal(still.frame[key],0,key);
  assert.deepEqual(still.state,driven.state,'rendering preserves physics and shared RNG');
  await writeFile(path.join(output,'drive.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ const shadows=await evaluate(`import('/main.js').then(m=>{
+   const canvas=document.getElementById('game'),gl=canvas.getContext('webgl2');
+   const draw=(shadow,shade)=>{
+     m.app.set_vehicle_render_probe(shadow,shade);m.app.render();
+     const pixels=new Uint8Array(canvas.width*canvas.height*4);
+     gl.readPixels(0,0,canvas.width,canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+     return pixels;
+   };
+   const base=draw(false,0),ground=draw(true,0),body=draw(false,1);
+   let groundPixels=0,bodyPixels=0,brighterGround=0;const brighterSamples=[];
+   for(let i=0;i<base.length;i+=4){
+     if(base[i]!==ground[i]||base[i+1]!==ground[i+1]||base[i+2]!==ground[i+2]){
+       groundPixels++;if(ground[i]+ground[i+1]+ground[i+2]>base[i]+base[i+1]+base[i+2]){
+         brighterGround++;if(brighterSamples.length<8)brighterSamples.push({pixel:[(i/4)%canvas.width,Math.floor(i/4/canvas.width)],before:Array.from(base.slice(i,i+3)),after:Array.from(ground.slice(i,i+3))});
+       }
+     }
+     if(base[i]!==body[i]||base[i+1]!==body[i+1]||base[i+2]!==body[i+2])bodyPixels++;
+   }
+   m.app.set_vehicle_render_probe(true,-1);m.app.render();m.app.check_graphics();
+   return {groundPixels,bodyPixels,brighterGround,brighterSamples,state:Array.from(m.app.vehicle_state())};
+ })`);
+ report.vehicleShadows=shadows;
+ assert.ok(shadows.groundPixels>10,'ground shadow changes visible framebuffer pixels');
+ assert.equal(shadows.brighterGround,0,'ground shadow darkens rather than brightens the road');
+ assert.ok(shadows.bodyPixels>100,'whole-vehicle shade affects actual meshes');
+ assert.deepEqual(shadows.state,driven.state,'shadow/shade rendering preserves physics/RNG');
+ report.vehicleShadows=shadows;
  // Inspect authored body/turret/gun from several sides through the real camera
  // adapter. These are render-only moves; the physics/RNG checkpoint must hold.
  report.vehicleViews=[];
@@ -196,7 +224,7 @@ try{
  assert.deepEqual(animation[0].state,animation[1].state,'draw cadence preserves physics/RNG');
  assert.notDeepEqual(animation[0].tracks,[0,0]);
  assert.notEqual(animation[0].tracks[0],animation[0].tracks[1],'turning gives left/right differential travel');
- for(const run of animation){assert.deepEqual(run.tracks,run.redraw);assert.equal(run.vertices,0);assert.equal(run.frame.vertex_upload_bytes,0);}
+ for(const run of animation){assert.deepEqual(run.tracks,run.redraw);assert.ok(run.vertices<=24*4*44,'only four projected shadow vertices may upload per update');assert.equal(run.frame.vertex_upload_bytes,0);}
  report.trackAnimation=animation;
  // Real keyboard action -> Player ramps -> same native/Wasm physics owner.
  const keysDriven=await evaluate(`import('/main.js').then(async m=>{

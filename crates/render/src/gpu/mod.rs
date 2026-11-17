@@ -38,6 +38,7 @@ pub struct Renderer {
     geometry_culling: WebGlUniformLocation,
     billboard_right: WebGlUniformLocation,
     uv_phase: WebGlUniformLocation,
+    shaded: WebGlUniformLocation,
     fallback: Texture,
     pipeline: Option<Pipeline>,
     mesh: Option<web_sys::WebGlVertexArrayObject>,
@@ -193,6 +194,7 @@ impl Renderer {
         let geometry_culling = uniform("uGeometryCulling")?;
         let billboard_right = uniform("uBillboardRight")?;
         let uv_phase = uniform("uUvPhase")?;
+        let shaded = uniform("uShaded")?;
         let fallback = Texture::rgba(&gl, 1, 1, &[255; 4])?;
         gl.use_program(Some(&program.raw));
         gl.uniform1i(Some(&uniform("uTexture")?), 0);
@@ -210,6 +212,7 @@ impl Renderer {
             geometry_culling,
             billboard_right,
             uv_phase,
+            shaded,
             fallback,
             pipeline: None,
             mesh: None,
@@ -382,6 +385,7 @@ impl Renderer {
         gl.uniform1i(Some(&self.instanced), i32::from(instanced));
         gl.uniform4fv_with_f32_array(Some(&self.color), &material.color);
         gl.uniform2fv_with_f32_array(Some(&self.uv_phase), &material.uv_phase);
+        gl.uniform1i(Some(&self.shaded), i32::from(material.shaded));
         gl.uniform1f(Some(&self.cutoff), material.alpha_cutoff.unwrap_or(-1.));
         gl.uniform1i(Some(&self.textured), i32::from(texture.is_some()));
         gl.uniform1i(

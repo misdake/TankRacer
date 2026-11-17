@@ -77,6 +77,8 @@ pub struct Pipeline {
     pub blend: Option<Blend>,
     pub cull: Cull,
     pub color_write: [bool; 4],
+    /// Polygon offset [slope factor, depth units], explicit for coplanar decals.
+    pub depth_bias: Option<[i8; 2]>,
 }
 
 impl Pipeline {
@@ -86,6 +88,7 @@ impl Pipeline {
         blend: None,
         cull: Cull::Back,
         color_write: [true; 4],
+        depth_bias: None,
     };
     pub const TRANSPARENT: Self = Self {
         depth_write: false,
@@ -116,6 +119,7 @@ pub struct Material {
     pub geometry_culling: bool,
     /// Optional per-vertex V scrolling channels; zero for ordinary geometry.
     pub uv_phase: [f32; 2],
+    pub shaded: bool,
 }
 
 impl Material {
@@ -128,6 +132,7 @@ impl Material {
             output_alpha: AlphaEncoding::Straight,
             geometry_culling: false,
             uv_phase: [0.; 2],
+            shaded: false,
         }
     }
 }

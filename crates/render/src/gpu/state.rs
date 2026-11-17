@@ -47,6 +47,12 @@ impl Renderer {
             let [r, g, b, a] = next.color_write;
             gl.color_mask(r, g, b, a);
         }
+        if previous.is_none_or(|p| p.depth_bias != next.depth_bias) {
+            capability(gl, Gl::POLYGON_OFFSET_FILL, next.depth_bias.is_some());
+            if let Some([slope, units]) = next.depth_bias {
+                gl.polygon_offset(f32::from(slope), f32::from(units));
+            }
+        }
         self.pipeline = Some(next);
         self.stats.pipeline_changes += 1;
     }

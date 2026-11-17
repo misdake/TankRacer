@@ -9,13 +9,16 @@ use std::error::Error;
 use tankracer_assets::{config::Part, mesh::Geometry};
 use tankracer_game::{pose, vehicle_model::VehicleModel};
 
+pub mod shadow;
 pub mod tracks;
-pub const PARTS: [Part; 5] = [
+pub const PARTS: [Part; 7] = [
     Part::Body,
     Part::Turret,
     Part::Gun,
     Part::LeftTrack,
     Part::RightTrack,
+    Part::Under,
+    Part::End,
 ];
 
 pub struct PartView {
@@ -33,6 +36,8 @@ pub struct VehicleScene {
     pub parts: Vec<PartView>,
     pub revision: u64,
     pub tracks: tracks::Tracks,
+    pub shadow: shadow::Shadow,
+    pub shaded: bool,
 }
 
 impl VehicleScene {
@@ -74,6 +79,8 @@ impl VehicleScene {
             parts,
             revision: 1,
             tracks: tracks::Tracks::default(),
+            shadow: shadow::Shadow::load(&model.shadow)?,
+            shaded: false,
         })
     }
 
@@ -104,6 +111,8 @@ impl VehicleScene {
                 Part::Gun => poses.gun,
                 Part::LeftTrack => poses.tracks[0],
                 Part::RightTrack => poses.tracks[1],
+                Part::Under => poses.attachments[0],
+                Part::End => poses.attachments[1],
                 _ => unreachable!(),
             };
             part.transform = physics_pose(pose.position, pose.matrix.0);
@@ -112,9 +121,23 @@ impl VehicleScene {
         Ok(())
     }
 
+    pub fn refresh_player(
+        &mut self,
+        player: &tankracer_game::vehicle_startup::Player,
+    ) -> Result<(), Box<dyn Error>> {
+        self.refresh(&player.model, &player.physics.motion.poses)?;
+        self.shadow
+            .refresh(&player.physics.motion.hull, player.physics.motion.ready);
+        self.shaded = player.physics.contact.sampling.primary.special_count as i8 > 1;
+        Ok(())
+    }
+
     /// Vehicle-specific render caches, separate from extra per-map data.
     pub fn resident_bytes(&self) -> usize {
-        std::mem::size_of::<Self>() - std::mem::size_of::<Materials>()
+        std::mem::size_of::<Self>()
+            - std::mem::size_of::<Materials>()
+            - std::mem::size_of::<shadow::Shadow>()
+            + self.shadow.resident_bytes()
             + self.materials.resident_bytes()
             + self.parts.capacity() * std::mem::size_of::<PartView>()
             + self

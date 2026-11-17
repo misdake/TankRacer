@@ -290,6 +290,18 @@ impl App {
     }
 
     #[cfg(feature = "gpu-tests")]
+    pub fn set_vehicle_render_probe(&mut self, shadow: bool, shade: i32) -> Result<(), JsValue> {
+        if !(-1..=1).contains(&shade) {
+            return Err("Invalid shade probe".into());
+        }
+        if let Some(vehicle) = &mut self.vehicle {
+            vehicle.view.shadow_enabled = shadow;
+            vehicle.view.shade_override = if shade < 0 { None } else { Some(shade != 0) };
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "gpu-tests")]
     pub fn player_controls(&self) -> Vec<i32> {
         self.vehicle.as_ref().map_or_else(Vec::new, |v| {
             let p = v.game.vehicles.entries[0].as_ref().unwrap();

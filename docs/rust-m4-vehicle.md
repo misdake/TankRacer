@@ -160,3 +160,65 @@ totals remain below 1,000,000 B; other maps' full live aggregates stay unqualifi
 Next is M4.3: original camera modes, shadows and additional vehicle layers and
 attachments. The current chase/free camera is unchanged. Complete turret/fire
 input, race rules and effects remain their later gameplay integration work.
+
+## M4.3a accepted: shadows and normal attachments (2026-11-17)
+
+The normal Under/End parts now use their authored meshes/materials and existing
+attachment poses. The Bottom mesh is deliberately not added to the exterior:
+it belongs to the original third camera's dedicated cockpit presentation.
+
+Ground projection reads `motion.hull`, which already holds the qualified
+42DFE0 output: four contacts ordered 1/3/2/0, quantized local vertices and an
+identity-basis world position. The renderer preserves the original shadow mesh
+indices and RGB32/alpha128 straight-alpha appearance. It hides the uninitialized
+projection until the first completed contact update, rather than drawing it at
+the world origin. A changed projection uploads only four vertices (176 B);
+camera-only redraws upload nothing. No ground query or gameplay calculation is
+duplicated for drawing.
+
+The modern renderer uses explicit LEQUAL depth testing, no depth writes and
+polygon offset [-1,-1] for this coplanar ground decal. Base scenery renders first,
+then the ground projection, then the vehicle, then depth-sorted transparent
+geometry. The actual pixel test caught 50 coplanar vehicle-underbody pixels
+receiving the decal when it was submitted after the vehicle. Moving the vehicle
+after the decal fixes that contamination; no physics or projection vertices were
+changed to conceal the error.
+
+Whole-vehicle shade comes directly from the existing primary-contact
+`special_count`, using the original signed-byte >1 gate. The fragment shader
+halves expanded diffuse RGB bytes with truncation before texture modulation
+(neutral white 255 -> 127), preserving alpha. Every body/track/attachment draw
+sets this state explicitly; scenery and the ground shadow do not inherit it.
+
+Focused verification passes:
+
+- Nine native scene tests, including all 15 cars/four articulated poses with
+  Under/End (9,024 triangles across those cases), contact projection order and
+  quantization, nonzero projected area, initial visibility, stationary revisions,
+  and shade counts 0/1/2/4/255 without mutating physical state.
+- 176 browser GPU cases: the previous 170 plus coplanar blend, bias restoration,
+  original-ground depth equality, foreground occlusion, 255 -> 127 shade and
+  ordinary-draw reset checks (six added cases). Eight depth comparisons and 81 blend
+  transitions remain passing.
+- Actual driving framebuffer isolation: **1,275 visible ground pixels** change
+  under the projection, **8,430 vehicle pixels** change under forced body shade,
+  and no ground-decal brightening of the vehicle remains. Probe toggles preserve
+  physics/RNG; they compile only into test builds.
+- Existing direct/key/handbrake native/Wasm comparisons, draw-cadence/track-lock
+  checks, ten scenery probes, reload and idle-upload checks pass. The 90-case
+  original track oracle still matches 11,880 GPU UV corners after the atlas union
+  expands. Front/side/rear-quarter screenshots were inspected.
+- Native/Wasm lints, production build and source preservation pass. Game/physics
+  source is unchanged; unrelated C suites were not repeated. Production exports
+  exclude inspection/override probes.
+
+Default vehicle: **7 normal parts / 138 triangles / 11 opaque draws**, plus the
+two-triangle ground projection in one draw. Default scene: **407 draws / 10,161
+triangles / 28 pipeline changes**. Vehicle render caches: **43,494 B**, GPU storage
+excluded. Extra map totals remain ENGLAND **769,325 B** (785,669 B shattering peak),
+SWAMP **880,874 B**, BIO **950,660 B**. Production Wasm: **726,151 B**.
+
+Build/browser logs use `build/tests/rust-m4-3a-*.log`; the usual focused commands
+above reproduce the checks. M4.3 itself remains open: next are original chase
+camera modes/look-back with cockpit feedback and drawing, followed by the aerial
+and additional material layers. The current chase/free camera is unchanged.

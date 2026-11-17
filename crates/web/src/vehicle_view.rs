@@ -2,7 +2,7 @@
 use glam::Mat4;
 use tankracer_game::vehicle_startup::Player;
 use tankracer_render::gpu::{Frame, GpuMesh, Renderer, Texture};
-use tankracer_render::material::Material;
+use tankracer_render::material::{Blend, Cull, Material, Pipeline};
 use tankracer_scene::{
     transparency,
     vehicle::VehicleScene,
@@ -23,6 +23,12 @@ pub struct VehicleView {
     pub scene: VehicleScene,
     atlas: Texture,
     parts: Vec<Part>,
+    shadow: GpuMesh,
+    shadow_revision: u64,
+    #[cfg(feature = "gpu-tests")]
+    pub shadow_enabled: bool,
+    #[cfg(feature = "gpu-tests")]
+    pub shade_override: Option<bool>,
 }
 fn error(e: impl std::fmt::Display) -> JsValue {
     JsValue::from_str(&e.to_string())
@@ -66,17 +72,27 @@ impl VehicleView {
                 })
             })
             .collect::<Result<Vec<_>, JsValue>>()?;
+        let shadow = renderer.upload_mesh(&scene.shadow.geometry)?;
+        let shadow_revision = scene.shadow.revision;
         Ok(Self {
             scene,
             atlas,
             parts,
+            shadow,
+            shadow_revision,
+            #[cfg(feature = "gpu-tests")]
+            shadow_enabled: true,
+            #[cfg(feature = "gpu-tests")]
+            shade_override: None,
         })
     }
 
     pub fn refresh(&mut self, renderer: &mut Renderer, player: &Player) -> Result<(), JsValue> {
-        self.scene
-            .refresh(&player.model, &player.physics.motion.poses)
-            .map_err(error)?;
+        self.scene.refresh_player(player).map_err(error)?;
+        if self.shadow_revision != self.scene.shadow.revision {
+            renderer.update_vertices(&mut self.shadow, &self.scene.shadow.geometry.vertices)?;
+            self.shadow_revision = self.scene.shadow.revision;
+        }
         for (gpu, part) in self.parts.iter_mut().zip(&self.scene.parts) {
             if gpu.revision == part.revision {
                 continue;
@@ -121,6 +137,7 @@ impl VehicleView {
                         &pass.mesh,
                         &Material {
                             uv_phase: part.uv_phase,
+                            shaded: self.shaded(),
                             ..crate::world::material(kind)
                         },
                         Some(&self.atlas),
@@ -174,6 +191,7 @@ impl VehicleView {
             mesh,
             &Material {
                 uv_phase: self.scene.parts[part].uv_phase,
+                shaded: self.shaded(),
                 ..crate::world::material(BatchKind::Transparent)
             },
             Some(&self.atlas),
@@ -186,13 +204,50 @@ impl VehicleView {
             .iter()
             .flat_map(|p| p.passes.iter().flatten())
             .map(|p| p.indices / 3)
-            .sum()
+            .sum::<usize>()
+            + self.shadow_draws() * 2
     }
     pub fn advance_tracks(&mut self, player: &Player) {
         self.scene.tracks.advance(
             player.physics.powertrain.track_speed,
             player.physics.motion.angular[1],
             player.brake.reverse_braking,
+        );
+    }
+    fn shaded(&self) -> bool {
+        #[cfg(feature = "gpu-tests")]
+        if let Some(value) = self.shade_override {
+            return value;
+        }
+        self.scene.shaded
+    }
+    pub fn shadow_draws(&self) -> usize {
+        #[cfg(feature = "gpu-tests")]
+        if !self.shadow_enabled {
+            return 0;
+        }
+        usize::from(self.scene.shadow.visible)
+    }
+    pub fn shadow(&self, frame: &mut Frame<'_>, vp: Mat4) {
+        if self.shadow_draws() == 0 {
+            return;
+        }
+        let material = Material {
+            pipeline: Pipeline {
+                depth_write: false,
+                blend: Some(Blend::STRAIGHT_ALPHA),
+                cull: Cull::None,
+                depth_bias: Some([-1, -1]),
+                ..Pipeline::OPAQUE
+            },
+            ..Material::opaque([1., 1., 1., 128. / 255.])
+        };
+        frame.draw_model(
+            &self.shadow,
+            &material,
+            None,
+            vp,
+            self.scene.shadow.transform,
         );
     }
     pub fn opaque_draws(&self) -> usize {

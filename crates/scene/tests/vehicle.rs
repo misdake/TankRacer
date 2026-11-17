@@ -120,6 +120,8 @@ fn all_fifteen_cars_bind_authored_materials_and_world_part_poses() {
                     Part::Gun => poses.gun,
                     Part::LeftTrack => poses.tracks[0],
                     Part::RightTrack => poses.tracks[1],
+                    Part::Under => poses.attachments[0],
+                    Part::End => poses.attachments[1],
                     _ => unreachable!(),
                 };
                 let mut triangles = 0;
@@ -225,6 +227,111 @@ fn recoil_damage_and_hidden_faces_refresh_only_the_changed_part() {
         "stationary redraw must not rebuild"
     );
     assert_eq!(geometry(&model), snapshot);
+}
+
+#[test]
+fn projected_shadow_and_shading_read_the_canonical_contacts_without_mutation() {
+    use tankracer_game::{
+        dispatch::ClassId,
+        object_query::EntityId,
+        vehicle_startup::{Environment, Player},
+    };
+    let files = Files::load();
+    let model = files.model(1);
+    let mut scene = files.scene(&model);
+    let mut player = Player::construct(
+        EntityId(0),
+        ClassId(0),
+        model,
+        pose::Pose::default(),
+        Environment {
+            ambient_wobble: false,
+            session_active: false,
+            ambient_phase: 0,
+            gun_pivot: [0; 3],
+        },
+    )
+    .unwrap();
+    scene.refresh_player(&player).unwrap();
+    assert!(
+        !scene.shadow.visible,
+        "no uninitialized origin shadow before the first contact update"
+    );
+    let current = [5000, 6000, 7000];
+    let previous = [4900, 5900, 6800];
+    let contacts = [
+        body::Contact {
+            world: [4000, 5000, 6000],
+            gap: 80,
+        },
+        body::Contact {
+            world: [6000, 5100, 6000],
+            gap: 160,
+        },
+        body::Contact {
+            world: [4000, 5300, 8000],
+            gap: 240,
+        },
+        body::Contact {
+            world: [6000, 5400, 8000],
+            gap: 320,
+        },
+    ];
+    player
+        .physics
+        .motion
+        .hull
+        .refresh(current, previous, contacts);
+    player.physics.motion.ready = true;
+    for count in [0, 1, 2, 4, 255] {
+        player.physics.contact.sampling.primary.special_count = count;
+        let before = player.physics.motion.clone();
+        scene.refresh_player(&player).unwrap();
+        assert_eq!(scene.shaded, matches!(count, 2 | 4));
+        assert_eq!(player.physics.motion, before);
+    }
+    assert!(scene.shadow.visible);
+    assert_eq!(scene.shadow.geometry.indices.len(), 6);
+    for (vertex, contact) in scene.shadow.geometry.vertices.iter().zip([
+        contacts[1],
+        contacts[3],
+        contacts[2],
+        contacts[0],
+    ]) {
+        let expected: [f32; 3] = std::array::from_fn(|i| {
+            let local = contact.world[i] - previous[i] - if i == 1 { contact.gap } else { 0 };
+            let local = local / 8; // Independent signed division truncates toward zero.
+            let world = (current[i] + local * 8) as f32 / 1024.;
+            if i == 2 { -world } else { world }
+        });
+        assert_eq!(
+            scene
+                .shadow
+                .transform
+                .transform_point3(Vec3::from_array(vertex.position))
+                .to_array(),
+            expected
+        );
+    }
+    let positions: Vec<_> = scene
+        .shadow
+        .geometry
+        .vertices
+        .iter()
+        .map(|v| Vec3::from_array(v.position))
+        .collect();
+    assert!(
+        (positions[1] - positions[0])
+            .cross(positions[2] - positions[0])
+            .length()
+            > 1.
+    );
+    let revision = scene.shadow.revision;
+    scene.refresh_player(&player).unwrap();
+    assert_eq!(
+        scene.shadow.revision, revision,
+        "redraw keeps projection resident"
+    );
 }
 
 #[test]

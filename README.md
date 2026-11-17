@@ -26,7 +26,9 @@ actors run from live state; WayPoint graphs/grid/weather are loaded for later
 race integration. **M1-M3 are accepted:** the independent moving-physics proxy
 is delivered. [M3 acceptance](docs/rust-m3-acceptance.md) records exact evidence
 and limits. **M4.1-M4.2 are accepted:** [vehicle rendering and track/wheel animation](docs/rust-m4-vehicle.md),
-with physics unchanged. Next is M4.3, original cameras/shadows/layers. Full Player/race
+with physics unchanged. M4.3a also supplies ground/body shadows and normal
+Under/End attachments. Next are original cameras/cockpit, aerial and extra layers.
+Full Player/race
 startup, pickups/weapons, optional content, AI, menus/audio and full CUP remain
 later milestones. Rust 1.95,
 Node.js 22+ and `wasm-pack` are required. `Cargo.lock` fixes crate versions.

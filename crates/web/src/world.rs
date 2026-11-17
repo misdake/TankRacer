@@ -30,6 +30,7 @@ pub struct WorldView {
     vehicle_triangles: usize,
     vehicle_opaque_draws: usize,
     vehicle_bytes: usize,
+    vehicle_shadow_draws: usize,
 }
 
 impl WorldView {
@@ -95,6 +96,7 @@ impl WorldView {
             vehicle_triangles: 0,
             vehicle_opaque_draws: 0,
             vehicle_bytes: 0,
+            vehicle_shadow_draws: 0,
         })
     }
 
@@ -184,6 +186,7 @@ impl WorldView {
             self.vehicle_triangles = session.view.triangles();
             self.vehicle_opaque_draws = session.view.opaque_draws();
             self.vehicle_bytes = session.view.resident_bytes();
+            self.vehicle_shadow_draws = session.view.shadow_draws();
         } else {
             if self
                 .scene
@@ -216,6 +219,9 @@ impl WorldView {
         // Dynamic opaque geometry must write depth before blended world faces.
         if let Some(session) = &session {
             session.scenery.opaque(&mut frame, vp);
+            // Ground decal first: coplanar vehicle undersides must overwrite
+            // it, rather than receive the road's blend/depth bias themselves.
+            session.view.shadow(&mut frame, vp);
             session.view.opaque(&mut frame, vp);
         }
         let alpha = BatchKind::Transparent.slot();
@@ -276,12 +282,13 @@ impl WorldView {
         self.vehicle_triangles = 0;
         self.vehicle_opaque_draws = 0;
         self.vehicle_bytes = 0;
+        self.vehicle_shadow_draws = 0;
     }
 
     pub fn stats(&self) -> String {
         let s = &self.scene.stats;
         format!(
-            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"route_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{},\"vehicle_parts\":{},\"vehicle_triangles\":{},\"vehicle_opaque_draws\":{},\"vehicle_render_bytes\":{}}}",
+            "{{\"source_meshes\":{},\"source_triangles\":{},\"rendered_triangles\":{},\"billboard_triangles\":{},\"materials\":{},\"unique_vertices\":{},\"vertex_bytes\":{},\"index_bytes\":{},\"acceleration_bytes\":{},\"atlas_width\":{},\"atlas_height\":{},\"render_acceleration_bytes\":{},\"collision_acceleration_bytes\":{},\"route_acceleration_bytes\":{},\"scenery_objects\":{},\"scenery_triangles\":{},\"scenery_acceleration_bytes\":{},\"scenery_opaque_draws\":{},\"transparent_runs\":{},\"vehicle_parts\":{},\"vehicle_triangles\":{},\"vehicle_opaque_draws\":{},\"vehicle_render_bytes\":{},\"vehicle_shadow_draws\":{}}}",
             s.source_meshes,
             s.source_triangles,
             s.rendered_triangles,
@@ -306,7 +313,8 @@ impl WorldView {
             self.vehicle_parts,
             self.vehicle_triangles,
             self.vehicle_opaque_draws,
-            self.vehicle_bytes
+            self.vehicle_bytes,
+            self.vehicle_shadow_draws
         )
     }
 }

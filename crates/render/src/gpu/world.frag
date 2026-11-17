@@ -7,13 +7,16 @@ uniform float uCutoff;
 uniform bool uTexturePremultiplied;
 uniform bool uOutputPremultiplied;
 uniform bool uGeometryCulling;
+uniform bool uShaded;
 in vec4 vColor;
 in vec2 vUv;
 flat in float vDoubleSided;
 out vec4 outColor;
 void main() {
     if (uGeometryCulling && vDoubleSided < 0.5 && !gl_FrontFacing) discard;
-    vec4 color = vColor * uColor;
+    vec4 diffuse = vColor;
+    if (uShaded) diffuse.rgb = floor(floor(diffuse.rgb * 255.0 + 0.5) * 0.5) / 255.0;
+    vec4 color = diffuse * uColor;
     if (uTextured) {
         vec4 texel = texture(uTexture, vUv);
         if (uTexturePremultiplied) {

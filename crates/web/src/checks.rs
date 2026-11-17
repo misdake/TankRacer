@@ -756,6 +756,93 @@ pub fn run(renderer: &mut Renderer) -> Result<String, JsValue> {
             }
         }
     }
+    {
+        let mesh = renderer.upload_mesh(&MeshData::quad(0.))?;
+        let shadow = Material {
+            pipeline: Pipeline {
+                cull: Cull::None,
+                depth_write: false,
+                depth_bias: Some([-1, -1]),
+                blend: Some(Blend::STRAIGHT_ALPHA),
+                ..Pipeline::OPAQUE
+            },
+            ..Material::opaque([32. / 255., 32. / 255., 32. / 255., 128. / 255.])
+        };
+        let green = Material::opaque([0., 1., 0., 1.]);
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&mesh, &green, None, Mat4::IDENTITY);
+        frame.draw(&mesh, &shadow, None, Mat4::IDENTITY);
+        let alpha = 128. / 255.;
+        let expected = [
+            32. / 255. * alpha,
+            1. - alpha + 32. / 255. * alpha,
+            32. / 255. * alpha,
+            1.,
+        ];
+        expect(&frame, "coplanar ground shadow blend", expected)?;
+        frame.draw(
+            &mesh,
+            &Material {
+                pipeline: Pipeline {
+                    depth_compare: Some(Compare::Less),
+                    ..Pipeline::OPAQUE
+                },
+                ..Material::opaque([0., 0., 1., 1.])
+            },
+            None,
+            Mat4::IDENTITY,
+        );
+        expect(
+            &frame,
+            "shadow restores bias and does not write depth",
+            expected,
+        )?;
+        cases += 2;
+        frame.draw(
+            &mesh,
+            &Material {
+                pipeline: Pipeline {
+                    depth_compare: Some(Compare::Equal),
+                    ..Pipeline::OPAQUE
+                },
+                ..Material::opaque([0., 0., 1., 1.])
+            },
+            None,
+            Mat4::IDENTITY,
+        );
+        expect(
+            &frame,
+            "shadow preserves the original ground depth",
+            [0., 0., 1., 1.],
+        )?;
+        cases += 1;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(
+            &mesh,
+            &green,
+            None,
+            Mat4::from_translation(glam::Vec3::new(0., 0., -0.5)),
+        );
+        frame.draw(&mesh, &shadow, None, Mat4::IDENTITY);
+        expect(&frame, "foreground occludes ground shadow", green.color)?;
+        cases += 1;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        let shaded = Material {
+            shaded: true,
+            ..Material::opaque([1.; 4])
+        };
+        frame.draw(&mesh, &shaded, None, Mat4::IDENTITY);
+        expect(
+            &frame,
+            "neutral body shade truncates 255 to 127",
+            [127. / 255., 127. / 255., 127. / 255., 1.],
+        )?;
+        cases += 1;
+        let mut frame = renderer.begin_frame(Some(&target), [4, 4], BACKGROUND);
+        frame.draw(&mesh, &Material::opaque([1.; 4]), None, Mat4::IDENTITY);
+        expect(&frame, "body shade is reset on ordinary draws", [1.; 4])?;
+        cases += 1;
+    }
     renderer.check_error()?;
     Ok(format!(
         "{{\"passed\":true,\"pixel_cases\":{cases},\"depth_comparisons\":8,\"blend_transitions\":81}}"
