@@ -30,30 +30,35 @@ Deliverables and fixed acceptance boundaries: [milestones](rust-milestones.md).
 
 Updated: **2026-11-17**. Read this together with `git status`.
 
-- **M1-M4 accepted within their fixed scopes; verified code: `3416518`.** The
-  Rust/Wasm driving scene has authored parts/animated tracks, ground/body shade,
-  original near/far/cockpit views and look-back, four instanced aerial segments
-  and the authored BLOB normal layer. Its additive RGB is fused with base
-  fragments, retaining their depth/cutout and adding no draws. Drawing remains
-  read-only; this increment leaves game/physics/input/camera/RNG source unchanged.
-  See [M4 evidence](rust-m4-vehicle.md). M2 remains the ENGLAND static scope;
-  M4 is the existing driving scene, not a complete race. [M3 acceptance](rust-m3-acceptance.md)
-  preserves the moving-proxy qualification (baseline `686cb74`).
+- **M1-M4 accepted within their fixed scopes; pre-M5 structure cleanup accepted.**
+  Verified code: `072470a`. Rust/Wasm still delivers the existing driving scene,
+  not a complete race. Authored vehicle parts/tracks, shadows, original cameras,
+  instanced aerial and fused BLOB layer remain accepted; see
+  [M4 evidence](rust-m4-vehicle.md). M2 remains ENGLAND static scope;
+  [M3 acceptance](rust-m3-acceptance.md) retains its original moving-proxy boundary.
+- **Ownership is now shared:** native/browser use one existing session update
+  order and resource preparation; inspection cannot publish simulation cameras.
+  Configuration is protected, geometry changes use revisions, generic mesh
+  preparation has no vehicle rules, materials/GPU cache reuse have shared owners.
+  [Structure contracts/evidence](rust-structure.md) records the boundaries.
+  No countdown, pause, plugin lifecycle or later-stage feature was added.
   Arrows drive; A handbrakes; C cycles views; V holds rear view; F toggles free
-  inspection; `/?inspect` stays static.
-- **Focused M4.3c checks passed:** 13 regular scene tests; C layer/aerial oracle
-  1,440 gates / 36 projections / 72 aerial branches (2,772 fields); original x86
-  track oracle 90 cases / 11,880 GPU corners. Six view/rear framebuffer isolation
-  and screenshots pass, including zero additions in cockpit views. Existing
-  native/Wasm driving/camera/RNG sequences, track cadence, scenery, reload and
-  zero-idle uploads pass; **187 GPU cases**, native/Wasm lints and production build
-  pass. C/reference preservation passes; unrelated C suites were not repeated.
-  Production Wasm: **760,475 B**, with no test inspection exports.
-- **Next runnable increment: M5.1 race ownership.** Start with required complete
-  world/Player startup and allocation/shared-RNG order, using a real race owner
-  and short C/native/Wasm comparisons. Then connect countdown, checkpoint/lap/
-  timer, finish/restart/exit. Preserve the accepted driving scene and physics;
-  do not count existing kernels as integrated race behavior.
+  inspection; `/?inspect` stays static. A keeps its keydown ownership across F.
+- **Verification passed:** four pre-refactor native checkpoints; 96 manual-order
+  comparisons; 24 running-inspection updates with identical simulation state and
+  an active BIO Mover. C references cover 2,880 vehicle / 348 scenery updates,
+  60 vehicle initializations, 192 camera updates and 2,772 layer/aerial fields;
+  original x86 tracks cover 90 cases / 11,880 GPU corners. Workspace tests:
+  **105 passed**, 65 external references explicitly ignored by the ordinary entry;
+  selected references above were run separately. Input ownership, native/Wasm
+  browser sequences, six views, **191 GPU cases**, both production/test-feature
+  lints, production build and C source preservation pass. Production Wasm:
+  **759,135 B**, with no test-only probes. Use the selective runner for references.
+- **Next: M5.1 race ownership.** Start with required complete world/Player startup
+  and allocation/shared-RNG order, extending the actual session owner and using
+  short C/native/Wasm comparisons. Then connect countdown, checkpoint/lap/timer,
+  finish/restart/exit. Preserve the accepted driving scene and physics; do not
+  count existing kernels as integrated race behavior.
 - **Later owners:** M5.2 pickups/weapons/damage/effects/HUD, forced effect material
   styles, starting-camera/environment shifts and camera impulses; M6 configurable
   scenery; M7
@@ -65,9 +70,9 @@ Updated: **2026-11-17**. Read this together with `git status`.
   The 120-update ENGLAND view measures **386 draws / 10,169 triangles / 29 pipeline
   changes**. Aerial costs one draw and at most 256 B of changed instance matrices;
   the normal layer adds no draws/per-pose vertex uploads. Vehicle caches:
-  **58,273 B**, separately counted; ordinary vertex layout remains 44 B.
-  Current extra resident map probes: ENGLAND **771,333 B** (789,517 B shattering
-  peak), SWAMP **882,242 B**, BIO **945,844 B**; all below 1 MB. These are measured
+  **49,251 B**, separately counted; ordinary vertex layout remains 44 B.
+  Current extra resident map probes: ENGLAND **769,493 B** (785,837 B shattering
+  peak), SWAMP **881,042 B**, BIO **944,684 B**; all below 1 MB. These are measured
   views, not all-camera/all-map peak qualification. Transparent batching/culling
   remain pending. Keep resources, GPU and dynamic game memory separate.
 - Rust output: `build/rust/site`; preserve the C/browser reference. Local
