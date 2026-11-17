@@ -326,6 +326,60 @@ impl App {
         })
     }
 
+    /// Complete cold construction probe; it never changes the driving session.
+    #[cfg(feature = "gpu-tests")]
+    #[allow(clippy::too_many_arguments)] // Mirrors the immutable archive/selection boundary.
+    pub fn complete_startup(
+        &self,
+        data: &[u8],
+        vehicles: &[u8],
+        shared: &[u8],
+        level: &[u8],
+        map: usize,
+        cup: usize,
+        car: u32,
+    ) -> Result<Vec<i64>, JsValue> {
+        use tankracer_game::{
+            session::loading::{Files, Selection},
+            world_startup::Constructed,
+        };
+        let constructed = Constructed::load(
+            Files {
+                data,
+                vehicles: &[vehicles],
+                shared,
+                level,
+            },
+            Selection {
+                map,
+                cup,
+                vehicle: car,
+            },
+        )
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let world = constructed.world();
+        let p = world.vehicles.entries[world.player.0]
+            .as_ref()
+            .ok_or("Missing Player")?;
+        Ok(vec![
+            i64::from(world.shared.random),
+            i64::from(p.physics.entity.0),
+            i64::from(constructed.camera.entity.0),
+            i64::from(constructed.finish.entity.0),
+            constructed.scenery().construction.len() as i64,
+            constructed.scenery().actors.entries.len() as i64,
+            i64::from(constructed.camera.variant),
+            i64::from(constructed.camera.pose.position[0]),
+            i64::from(constructed.camera.pose.position[1]),
+            i64::from(constructed.camera.pose.position[2]),
+            i64::from(p.route.checkpoint.map_or(0, |e| e.0)),
+            i64::from(p.route.passed),
+            world.identity.ticks.order.len() as i64,
+            world.identity.queues.notifications.len() as i64,
+            i64::from(world.frame),
+        ])
+    }
+
     /// Initial Player route binding for native/Wasm startup checks.
     #[cfg(feature = "gpu-tests")]
     pub fn player_route(&self) -> Vec<u32> {

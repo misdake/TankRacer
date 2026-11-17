@@ -16,6 +16,9 @@ pub enum Space {
 }
 pub trait ShapeSource {
     fn shape(&self, space: Space, name: &str) -> Option<&[u8]>;
+    fn file(&self, _space: Space, _name: &str) -> Option<&[u8]> {
+        None
+    }
 }
 pub struct Bundles<'a> {
     pub vehicle: Vec<ShapeArchive<'a>>,

@@ -60,6 +60,7 @@ const CONSTRUCT_CLOSER: MethodId = MethodId(81);
 const CONSTRUCT_SPIN: MethodId = MethodId(85);
 const CONSTRUCT_MOVER: MethodId = MethodId(89);
 const CONSTRUCT_WAYPOINT: MethodId = MethodId(94);
+mod actors;
 
 pub struct Registry {
     pub classes: Vec<Arc<Class>>,
@@ -76,6 +77,7 @@ pub struct Registry {
     pub mover: ClassId,
     pub explosion: ClassId,
     pub waypoint: ClassId,
+    actor_classes: Vec<(crate::actor_startup::Kind, ClassId)>,
 }
 impl Default for Registry {
     fn default() -> Self {
@@ -216,10 +218,16 @@ impl Default for Registry {
             mover: ClassId(10),
             explosion: ClassId(11),
             waypoint: ClassId(12),
+            actor_classes: vec![],
         }
     }
 }
 impl Registry {
+    pub(crate) fn enable_actor_construction(&mut self) {
+        if self.actor_classes.is_empty() {
+            actors::register(self);
+        }
+    }
     pub fn scenery_class(&self, name: &str) -> Option<ClassId> {
         if name.eq_ignore_ascii_case("WayPoint") {
             Some(self.waypoint)
@@ -324,6 +332,7 @@ pub struct Loader<'a, S> {
     pub bounce_environment: crate::bounce::Environment,
     record: Option<level::Object<'a>>,
     failure: Option<scene_startup::Error>,
+    pub(crate) actors: Option<&'a mut crate::actor_startup::Store>,
 }
 impl<'a, S: ShapeSource> Loader<'a, S> {
     pub fn new(scene: &'a mut Scene, resources: Resources<'a, S>, registry: &'a Registry) -> Self {
@@ -346,6 +355,7 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             bounce_environment,
             record: None,
             failure: None,
+            actors: None,
         }
     }
     /// Load a supported authored class. Unsupported subclasses are explicit
@@ -359,6 +369,32 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .registry
             .scenery_class(record.class)
             .ok_or_else(|| Error::UnsupportedClass(record.class.into()))?;
+        self.load_class(state, record, class)
+    }
+    pub(crate) fn load_complete(
+        &mut self,
+        state: &mut factory::State<Handle>,
+        record: level::Object<'a>,
+    ) -> Result<EntityId, Error> {
+        let class = self
+            .registry
+            .scenery_class(record.class)
+            .or_else(|| {
+                self.registry
+                    .actor_classes
+                    .iter()
+                    .find(|(kind, _)| kind.name().eq_ignore_ascii_case(record.class))
+                    .map(|(_, id)| *id)
+            })
+            .ok_or_else(|| Error::UnsupportedClass(record.class.into()))?;
+        self.load_class(state, record, class)
+    }
+    fn load_class(
+        &mut self,
+        state: &mut factory::State<Handle>,
+        record: level::Object<'a>,
+        class: ClassId,
+    ) -> Result<EntityId, Error> {
         self.record = Some(record);
         self.failure = None;
         let registry = self.registry;
@@ -437,7 +473,15 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             let loaded = self
                 .resources
                 .models
-                .load_optional(self.resources.source, Space::Level, record.shape)
+                .load_optional(
+                    self.resources.source,
+                    if record.class.eq_ignore_ascii_case("Powerup") {
+                        Space::Shared
+                    } else {
+                        Space::Level
+                    },
+                    record.shape,
+                )
                 .map_err(scene_startup::Error::Shape);
             self.resource(loaded)?
         };
@@ -483,6 +527,10 @@ impl<'a, S: ShapeSource> Loader<'a, S> {
             .map_err(factory_code)?;
         spatial::remove_first(&mut self.scene.components.ordinary, &id, env.work_limit)
             .map_err(spatial_code)?;
+        if record.class.eq_ignore_ascii_case("Powerup") {
+            *call.result = 0;
+            return Ok(());
+        }
         let p = Parameters::new(record.parameters).map_err(|_| -1)?;
         let visibility = scene_startup::visibility(p, self.resources.random);
         let visibility = self.resource(visibility)?;
@@ -978,6 +1026,8 @@ impl<S: ShapeSource> Methods<Handle> for Loader<'_, S> {
             return Err(-1);
         }
         match method {
+            MethodId(100..=108) => self.construct_actor(method, call, env),
+            MethodId(112 | 113) => self.actor_membership(method, call, env),
             ALLOCATE_OBJECT => self.allocate(call),
             READ_OBJECT => self.read(call, env),
             CONSTRUCT_BASE => {

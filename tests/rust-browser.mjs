@@ -157,6 +157,19 @@ try{
  })`);
  report.vehicle=driven;
  const native=path.join(root,'target/release/examples/drive'+(process.platform==='win32'?'.exe':''));
+ const startup=path.join(root,'target/release/examples/startup'+(process.platform==='win32'?'.exe':''));
+ const startupChecks=[];
+ for(const [map,cup,name] of [[0,0,'ENGLAND'],[2,0,'SWAMP'],[5,1,'BIO']]){
+  const actual=await evaluate(`import('/main.js').then(async m=>{
+   const files=await Promise.all(['DATA','BRONZE','INGAME',${JSON.stringify(name)}].map(async name=>new Uint8Array(await (await fetch('./assets/'+name+'.DAT')).arrayBuffer())));
+   return Array.from(m.app.complete_startup(...files,${map},${cup},1),Number);
+  })`);
+  const expected=JSON.parse(execFileSync(startup,[path.join(root,'assets/game'),String(map),'1',String(cup)],{encoding:'utf8',windowsHide:true}));
+  assert.deepEqual(actual,expected,`complete native/Wasm startup ${name}`);
+  assert.equal(actual.at(-1),0,'construction performs no world updates');
+  startupChecks.push({map:name,constructors:actual[4],actors:actual[5],rng:actual[0]});
+ }
+ report.completeStartup=startupChecks;
  assert.ok(existsSync(native),'Build the native Rust drive example for Wasm comparison');
  const nativeOutput=execFileSync(native,[path.join(root,'assets/game'),'0','1','120','--scenery','--chase','--route'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']});
  const nativeState=/end=(\[[^\]]+\]) velocity=(\[[^\]]+\]).*rng=(\d+)/.exec(nativeOutput);

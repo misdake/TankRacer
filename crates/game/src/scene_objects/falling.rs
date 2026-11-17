@@ -61,6 +61,7 @@ impl View<'_> {
                     .and_then(|r| r.object)
                     .ok_or(-1)?;
                 match peer {
+                    Handle::Session(_) => return Err(-5),
                     Handle::Obstacle(id) => self.world.colliders.get(id.0).ok_or(-1)?.pose.matrix,
                     Handle::Vehicle(id) => {
                         self.vehicles

@@ -72,6 +72,22 @@ impl Prepared {
         selection: Selection,
         with_scenery: bool,
     ) -> Result<Self, Box<dyn Error>> {
+        Self::load_with(terrain, files, selection, with_scenery, false)
+    }
+    pub(crate) fn load_complete(
+        terrain: Arc<TerrainData>,
+        files: Files<'_>,
+        selection: Selection,
+    ) -> Result<Self, Box<dyn Error>> {
+        Self::load_with(terrain, files, selection, true, true)
+    }
+    fn load_with(
+        terrain: Arc<TerrainData>,
+        files: Files<'_>,
+        selection: Selection,
+        with_scenery: bool,
+        complete: bool,
+    ) -> Result<Self, Box<dyn Error>> {
         let Selection { map, cup, vehicle } = selection;
         if map >= MAPS.len() || cup >= 3 {
             return Err("Invalid level selection".into());
@@ -111,7 +127,12 @@ impl Prepared {
         .map_err(|e| format!("World startup: {e:?}"))?;
         let scenery = with_scenery
             .then(|| {
-                scenery::load(
+                let load = if complete {
+                    scenery::construct_all
+                } else {
+                    scenery::load
+                };
+                load(
                     &mut startup,
                     files.data,
                     files.level,
@@ -141,6 +162,12 @@ impl Prepared {
         })
     }
     pub fn finish(self) -> Result<Loaded, Box<dyn Error>> {
+        self.finish_with_route(true)
+    }
+    pub(crate) fn finish_unrouted(self) -> Result<Loaded, Box<dyn Error>> {
+        self.finish_with_route(false)
+    }
+    fn finish_with_route(self, bind_route: bool) -> Result<Loaded, Box<dyn Error>> {
         let mut world = self
             .startup
             .finish(
@@ -160,7 +187,7 @@ impl Prepared {
             .map_err(|e| format!("Player startup: {e:?}"))?;
         // Route links and the actual Player must both exist before this query.
         // The camera-free physics fixture with no authored scenery has no route.
-        if self.scenery.is_some() {
+        if bind_route && self.scenery.is_some() {
             world
                 .initialize_player_route(100000)
                 .map_err(|e| format!("Player route startup: {e:?}"))?;

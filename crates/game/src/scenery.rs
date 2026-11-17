@@ -17,6 +17,31 @@ pub struct Loaded {
     pub deferred: BTreeMap<String, usize>,
     pub models: ModelBank,
     pub materials: Vec<(String, u32)>,
+    pub actors: crate::actor_startup::Store,
+    pub construction: Vec<Construction>,
+}
+#[derive(Debug)]
+pub struct Construction {
+    pub entity: EntityId,
+    pub random_before: u32,
+    pub random_after: u32,
+}
+struct Mounted<'a> {
+    shapes: Bundles<'a>,
+    level: Archive<'a>,
+    shared: Archive<'a>,
+}
+impl crate::vehicle_model::ShapeSource for Mounted<'_> {
+    fn shape(&self, space: Space, name: &str) -> Option<&[u8]> {
+        self.shapes.shape(space, name)
+    }
+    fn file(&self, space: Space, name: &str) -> Option<&[u8]> {
+        let archive = match space {
+            Space::Shared => &self.shared,
+            _ => &self.level,
+        };
+        archive.get(name)
+    }
 }
 struct MaterialFiles<'a> {
     level: Archive<'a>,
@@ -66,6 +91,29 @@ pub fn load(
     map: &str,
     cup: usize,
 ) -> Result<Loaded, Box<dyn Error>> {
+    load_mode(startup, data, level_archive, shared, map, cup, false)
+}
+/// Construct the complete authored actor set. The returned construction state
+/// is separate from the accepted driving runtime until those actor ticks exist.
+pub fn construct_all(
+    startup: &mut Startup,
+    data: &[u8],
+    level: &[u8],
+    shared: &[u8],
+    map: &str,
+    cup: usize,
+) -> Result<Loaded, Box<dyn Error>> {
+    load_mode(startup, data, level, shared, map, cup, true)
+}
+fn load_mode(
+    startup: &mut Startup,
+    data: &[u8],
+    level_archive: &[u8],
+    shared: &[u8],
+    map: &str,
+    cup: usize,
+    complete: bool,
+) -> Result<Loaded, Box<dyn Error>> {
     if !map.is_ascii() || map.len() < 3 || cup >= 3 {
         return Err("invalid scenery selection".into());
     }
@@ -76,6 +124,10 @@ pub fn load(
         .ok_or("unknown scenery map")?;
     if startup.map() != map_index as u32 {
         return Err("scenery map differs from runtime selection".into());
+    }
+    if complete {
+        startup.registry.enable_actor_construction();
+        startup.objects.world.classes = startup.registry.classes.clone();
     }
     let data = Archive::parse(data)?;
     let archive = Archive::parse(level_archive)?;
@@ -91,10 +143,14 @@ pub fn load(
         shared: Archive::parse(shared)?,
         bindings: vec![],
     };
-    let source = Bundles {
-        vehicle: vec![],
-        shared: vec![shapes(shared)?],
-        level: vec![shapes(level_archive)?],
+    let source = Mounted {
+        shapes: Bundles {
+            vehicle: vec![],
+            shared: vec![shapes(shared)?],
+            level: vec![shapes(level_archive)?],
+        },
+        level: Archive::parse(level_archive)?,
+        shared: Archive::parse(shared)?,
     };
     let mut loaded = Loaded {
         entities: Vec::new(),
@@ -102,13 +158,20 @@ pub fn load(
         deferred: BTreeMap::new(),
         models: ModelBank::default(),
         materials: vec![],
+        actors: Default::default(),
+        construction: vec![],
     };
+    loaded.actors.pickup.map = map_index;
+    loaded.actors.pickup.cup = cup;
+    loaded.actors.pickup.config = catalog.pickup;
     for record in &level.objects {
         if startup.registry.scenery_class(record.class).is_none() {
             if !deferred(record.class) {
                 return Err(format!("unknown scenery class: {}", record.class).into());
             }
-            *loaded.deferred.entry(record.class.into()).or_default() += 1;
+            if !complete {
+                *loaded.deferred.entry(record.class.into()).or_default() += 1;
+            }
         }
     }
     let low_gravity = startup.low_gravity();
@@ -133,6 +196,9 @@ pub fn load(
         },
         &startup.registry,
     );
+    if complete {
+        loader.actors = Some(&mut loaded.actors);
+    }
     loader
         .prepare_sign(map_index as u32)
         .map_err(|e| format!("scenery sign: {e:?}"))?;
@@ -140,16 +206,27 @@ pub fn load(
         .prepare_bounce(map_index as u32, low_gravity)
         .map_err(|e| format!("scenery bounce: {e:?}"))?;
     for record in level.objects {
-        if loader.registry.scenery_class(record.class).is_none() {
+        if !complete && loader.registry.scenery_class(record.class).is_none() {
             continue;
         }
-        let entity = loader
-            .load(&mut startup.identity, record)
-            .map_err(|e| format!("{} {}: {e:?}", record.class, record.name))?;
+        let before = *loader.resources.random;
+        let entity = (if complete {
+            loader.load_complete(&mut startup.identity, record)
+        } else {
+            loader.load(&mut startup.identity, record)
+        })
+        .map_err(|e| format!("{} {}: {e:?}", record.class, record.name))?;
         loaded.entities.push(entity);
+        if complete {
+            loaded.construction.push(Construction {
+                entity,
+                random_before: before,
+                random_after: *loader.resources.random,
+            });
+        }
         *loaded.classes.entry(record.class.into()).or_default() += 1;
     }
-    if !startup.objects.components.waypoints.order.is_empty() {
+    if complete || !startup.objects.components.waypoints.order.is_empty() {
         startup
             .objects
             .components
@@ -161,6 +238,9 @@ pub fn load(
                 100000,
             )
             .map_err(|e| format!("waypoint linkage: {e}"))?;
+    }
+    if complete {
+        loaded.actors.link_backgrounds(startup)?;
     }
     startup
         .identity

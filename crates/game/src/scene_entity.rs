@@ -5,6 +5,12 @@ use crate::object_query::{ObstacleId, TankId};
 pub enum Handle {
     Obstacle(ObstacleId),
     Vehicle(TankId),
+    Session(SessionObject),
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionObject {
+    Camera,
+    FinishOwner,
 }
 impl Handle {
     pub fn obstacle(self) -> Option<ObstacleId> {

@@ -1,5 +1,6 @@
 //! Authoritative fixed-step game logic. No renderer or browser dependencies.
 
+pub mod actor_startup;
 pub mod attitude;
 pub mod blast;
 pub mod body;
@@ -69,3 +70,4 @@ pub mod vehicle_scene;
 pub mod vehicle_startup;
 pub mod velocity;
 pub mod waypoint;
+pub mod world_startup;

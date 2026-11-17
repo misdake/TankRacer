@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const out=path.join(root,'build/rust/tests');
 const references={
+  'world-startup':['reference_world_startup.c','tankracer-game','world_startup_reference','TANKRACER_WORLD_STARTUP_REFERENCE',['-Wl,--wrap=frame_native_dispatch']],
   'race-startup':['reference_race_startup.c','tankracer-game','race_startup_reference','TANKRACER_RACE_STARTUP_REFERENCE'],
   camera:['reference_chase_camera.c','tankracer-game','chase_camera_reference','TANKRACER_CHASE_CAMERA_REFERENCE'],
   'vehicle-layers':['reference_vehicle_layers.c','tankracer-scene','vehicle_layers','TANKRACER_VEHICLE_LAYERS_REFERENCE'],
@@ -50,7 +51,7 @@ async function reference(names){
   const report={requested:names,executed:[],not_selected:Object.keys(references).filter(n=>!names.includes(n)),passed:false};
   try{
     for(const name of names){
-      const [source,pkg,test,variable]=references[name];
+      const [source,pkg,test,variable,flags=[]]=references[name];
       console.log(`REFERENCE RUN: ${name}`);
       const env={...process.env};let evidence;
       if(source){
@@ -60,9 +61,9 @@ async function reference(names){
         if(available.error||available.status!==0)throw Error('Set CC to an available GCC-compatible C compiler');
         const libs=await nativeLibraries(cc);
         const executable=path.join(root,'build/native',`rust-${name}${process.platform==='win32'?'.exe':''}`);
-        run(cc,['-std=c11','-O2','-Wall','-Wextra','-Werror','-Isrc','-Ihost',file,...libs,'-lm','-o',executable]);
+        run(cc,['-std=c11','-O2','-Wall','-Wextra','-Werror','-Isrc','-Ihost',file,...libs,...flags,'-lm','-o',executable]);
         await requireFile(executable);env[variable]=executable;
-        evidence={source:await hash(file),libraries:await Promise.all(libs.map(hash))};
+        evidence={source:await hash(file),libraries:await Promise.all(libs.map(hash)),flags};
       }else{
         if(!env[variable])throw Error(`tracks requires ${variable}; no original executable is bundled`);
         await requireFile(env[variable]);evidence={original:await hash(env[variable])};
@@ -86,6 +87,7 @@ function lint(){
 }
 function web(){
   run('cargo',['build','-p','tankracer-game','--example','drive','--release','--locked']);
+  run('cargo',['build','-p','tankracer-game','--example','startup','--release','--locked']);
   run(process.execPath,['tools/build_rust.mjs','--test']);
   run(process.execPath,['tests/rust-browser.mjs']);
 }

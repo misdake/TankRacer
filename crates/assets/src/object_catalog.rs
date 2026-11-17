@@ -36,6 +36,20 @@ pub struct Catalog {
     pub fall: Fall,
     pub moon: Moon,
     pub camera: Camera,
+    pub pickup: Pickup,
+}
+#[derive(Debug, Clone, Copy)]
+pub struct Pickup {
+    pub extra_range: [i32; 3],
+    pub circuit_extra: i32,
+}
+impl Default for Pickup {
+    fn default() -> Self {
+        Self {
+            extra_range: [0; 3],
+            circuit_extra: 50,
+        }
+    }
 }
 
 /// Single-player chase presets: immutable PE defaults plus OBPARAMS overrides.
@@ -198,6 +212,17 @@ impl Catalog {
                                     u32::from(values[0] as u16)
                                         | (u32::from(values[1] as u8) << 16)
                                         | (u32::from(values[2] as u8) << 24);
+                            }
+                            _ => (),
+                        }
+                    } else if name.eq_ignore_ascii_case("powerup") {
+                        match key.to_ascii_lowercase().as_str() {
+                            ":fall_range_xtra" => {
+                                result.pickup.extra_range =
+                                    [tokens.integer()?, tokens.integer()?, tokens.integer()?]
+                            }
+                            ":circuit_fall_xtra" => {
+                                result.pickup.circuit_extra = tokens.integer()?
                             }
                             _ => (),
                         }

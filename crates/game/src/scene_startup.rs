@@ -31,6 +31,7 @@ pub struct Resources<'a, S: ShapeSource> {
 }
 #[derive(Debug)]
 pub enum Error {
+    Actor(String),
     Parameters,
     MissingValue,
     Shape(crate::vehicle_model::Error),
