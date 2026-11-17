@@ -31,14 +31,15 @@ Deliverables and fixed acceptance boundaries: [milestones](rust-milestones.md).
 Updated: **2026-11-17**. Read this together with `git status`.
 
 - **M1-M4 accepted within their fixed scopes; pre-M5 structure cleanup accepted.**
-  Verified code: `072470a`. Rust/Wasm still delivers the existing driving scene,
+  Verified code: `a150546`. Rust/Wasm still delivers the existing driving scene,
   not a complete race. Authored vehicle parts/tracks, shadows, original cameras,
   instanced aerial and fused BLOB layer remain accepted; see
   [M4 evidence](rust-m4-vehicle.md). M2 remains ENGLAND static scope;
   [M3 acceptance](rust-m3-acceptance.md) retains its original moving-proxy boundary.
 - **Ownership is now shared:** native/browser use one existing session update
   order and resource preparation; inspection cannot publish simulation cameras.
-  Configuration is protected, geometry changes use revisions, generic mesh
+  Configuration/terrain/surfaces are read-only; mesh caches retain instance
+  identity as well as revisions. Generic mesh
   preparation has no vehicle rules, materials/GPU cache reuse have shared owners.
   [Structure contracts/evidence](rust-structure.md) records the boundaries.
   No countdown, pause, plugin lifecycle or later-stage feature was added.
@@ -49,15 +50,18 @@ Updated: **2026-11-17**. Read this together with `git status`.
   an active BIO Mover. C references cover 2,880 vehicle / 348 scenery updates,
   60 vehicle initializations, 192 camera updates and 2,772 layer/aerial fields;
   original x86 tracks cover 90 cases / 11,880 GPU corners. Workspace tests:
-  **105 passed**, 65 external references explicitly ignored by the ordinary entry;
+  **108 passed**, 65 external references explicitly ignored by the ordinary entry;
   selected references above were run separately. Input ownership, native/Wasm
   browser sequences, six views, **191 GPU cases**, both production/test-feature
   lints, production build and C source preservation pass. Production Wasm:
-  **759,135 B**, with no test-only probes. Use the selective runner for references.
-- **Next: M5.1 race ownership.** Start with required complete world/Player startup
-  and allocation/shared-RNG order, extending the actual session owner and using
-  short C/native/Wasm comparisons. Then connect countdown, checkpoint/lap/timer,
-  finish/restart/exit. Preserve the accepted driving scene and physics; do not
+  **759,915 B**, with no test-only probes. Use the selective runner for references.
+- **Current increment: M5.1a Player route startup.** Bind the real resource-built
+  Player to its initial checkpoint after scene route linkage, using the original
+  nearest-route query; compare startup fields with the complete C startup. Audit
+  remaining allocation/shared-RNG differences explicitly. This is a startup slice,
+  not complete world bootstrap. Then finish required world/Player startup and
+  allocation/shared-RNG order before countdown, checkpoint/lap/timer and
+  finish/restart/exit. [M5 plan/evidence](rust-m5-race.md). Preserve the accepted driving scene and physics; do not
   count existing kernels as integrated race behavior.
 - **Later owners:** M5.2 pickups/weapons/damage/effects/HUD, forced effect material
   styles, starting-camera/environment shifts and camera impulses; M6 configurable
