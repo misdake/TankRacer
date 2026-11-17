@@ -17,7 +17,6 @@ pub struct Loaded {
     pub deferred: BTreeMap<String, usize>,
     pub models: ModelBank,
     pub materials: Vec<(String, u32)>,
-    pub actors: crate::actor_startup::Store,
     pub construction: Vec<Construction>,
 }
 #[derive(Debug)]
@@ -158,12 +157,12 @@ fn load_mode(
         deferred: BTreeMap::new(),
         models: ModelBank::default(),
         materials: vec![],
-        actors: Default::default(),
         construction: vec![],
     };
-    loaded.actors.pickup.map = map_index;
-    loaded.actors.pickup.cup = cup;
-    loaded.actors.pickup.config = catalog.pickup;
+    let mut actors = crate::actor_startup::Store::default();
+    actors.pickup.map = map_index;
+    actors.pickup.cup = cup;
+    actors.pickup.config = catalog.pickup;
     for record in &level.objects {
         if startup.registry.scenery_class(record.class).is_none() {
             if !deferred(record.class) {
@@ -197,7 +196,7 @@ fn load_mode(
         &startup.registry,
     );
     if complete {
-        loader.actors = Some(&mut loaded.actors);
+        loader.actors = Some(&mut actors);
     }
     loader
         .prepare_sign(map_index as u32)
@@ -240,7 +239,7 @@ fn load_mode(
             .map_err(|e| format!("waypoint linkage: {e}"))?;
     }
     if complete {
-        loaded.actors.link_backgrounds(startup)?;
+        actors.link_backgrounds(startup)?;
     }
     startup
         .identity
@@ -262,5 +261,6 @@ fn load_mode(
         }
     }
     loaded.materials = materials.bindings;
+    startup.objects.components.actors = actors;
     Ok(loaded)
 }

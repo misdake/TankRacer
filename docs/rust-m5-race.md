@@ -206,8 +206,19 @@ test probes. Logs: `build/rust/tests/m5-2-turret-*`; select `reference turret
 race-clock vehicle-runtime` and use `drive ... --scenery --chase --turret`.
 
 Next integrate real inventory/fire/projectile/pickup ownership; M5.2 as a whole
-remains open. The cold actor data must move to the authoritative scene before
-its first mutable gameplay consumer; assets cannot own live pickup updates.
+remains open.
+
+The actor ownership prerequisite is now complete: constructor-produced state
+is moved once into `Scene.components.actors`, alongside its actual colliders and
+memberships. `scenery::Loaded` retains decoded resources and construction evidence,
+not live actor state. Background linkage still runs at its original position,
+before publishing the store and returning startup. No actor tick/no-op, RNG draw,
+copy of live state, or extra query cache was added. The complete construction
+oracle still passes 25 starts / 4,743 constructions / 111,065 fields. Workspace
+115 passed / 70 external ignored, native/all-feature Wasm lint and production
+compilation pass; Wasm is 837,641 B. Browser behavior was qualified at the preceding
+turret checkpoint; this ownership-only step used focused constructor/compile
+checks. Evidence: `m5-2-owners-*`. Actual pickup updates/collection remain next.
 
 `tests/reference_world_startup.c` links unchanged native C libraries and observes
 real dispatch through a linker wrapper. No constructor is stubbed or replaced.

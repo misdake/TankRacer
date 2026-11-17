@@ -208,8 +208,9 @@ fn snapshot(w: &Constructed) -> (Vec<u32>, Vec<(usize, u32, u32)>) {
             .unwrap()
             .obstacle()
             .unwrap();
-        let a = w
-            .scenery()
+        let a = world
+            .objects
+            .components
             .actors
             .entries
             .iter()
@@ -253,7 +254,7 @@ fn snapshot(w: &Constructed) -> (Vec<u32>, Vec<(usize, u32, u32)>) {
     append(&mut out, w.finish.bounds.min);
     append(&mut out, w.finish.bounds.max);
     out.push(p.brake.saved_turn as u16 as u32);
-    let g = w.scenery().actors.pickup_geometry();
+    let g = world.objects.components.actors.pickup_geometry();
     out.extend([g.separation as u32, g.diameter]);
     fn list(out: &mut Vec<u32>, values: impl IntoIterator<Item = u32>) {
         let at = out.len();
@@ -392,7 +393,7 @@ fn complete_construction_has_real_owners_and_no_updates() {
         let p = world.vehicles.entries[world.player.0].as_ref().unwrap();
         assert!(w.scenery().deferred.is_empty());
         assert_eq!(w.scenery().construction.len(), w.scenery().entities.len());
-        assert!(!w.scenery().actors.entries.is_empty());
+        assert!(!world.objects.components.actors.entries.is_empty());
         assert_eq!(w.camera.entity.0, p.physics.entity.0 + 1);
         assert_eq!(w.finish.entity.0, w.camera.entity.0 + 1);
         assert_eq!(w.finish.source, p.physics.entity);

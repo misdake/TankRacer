@@ -122,6 +122,8 @@ pub struct View<'a> {
     pub vehicles: Option<&'a crate::vehicle_loading::Store>,
 }
 pub struct Components {
+    /// Authoritative constructed actor state; resources never own live updates.
+    pub actors: crate::actor_startup::Store,
     pub surfaces: Surfaces,
     pub objects: Vec<Option<Object>>,
     pub ordinary: Vec<ObstacleId>,
@@ -166,6 +168,7 @@ impl Scene {
         Self {
             world,
             components: Components {
+                actors: Default::default(),
                 surfaces,
                 objects: Vec::new(),
                 ordinary: Vec::new(),
