@@ -31,7 +31,7 @@ Deliverables and fixed acceptance boundaries: [milestones](rust-milestones.md).
 Updated: **2026-11-17**. Read this together with `git status`.
 
 - **M1-M4 accepted within their fixed scopes; pre-M5 structure cleanup accepted.**
-  Verified code: `7c93bbc` (review fixes: `a150546`). Rust/Wasm still delivers
+  Accepted foundation: `7c93bbc` (review fixes: `a150546`). Rust/Wasm still delivers
   the existing driving scene,
   not a complete race. Authored vehicle parts/tracks, shadows, original cameras,
   instanced aerial and fused BLOB layer remain accepted; see
@@ -46,31 +46,42 @@ Updated: **2026-11-17**. Read this together with `git status`.
   No countdown, pause, plugin lifecycle or later-stage feature was added.
   Arrows drive; A handbrakes; C cycles views; V holds rear view; F toggles free
   inspection; `/?inspect` stays static. A keeps its keydown ownership across F.
-- **Verification passed:** four pre-refactor native checkpoints; 96 manual-order
+- **Retained foundation verification:** four pre-refactor native checkpoints; 96 manual-order
   comparisons; 24 running-inspection updates with identical simulation state and
   an active BIO Mover. C references cover 2,880 vehicle / 348 scenery updates,
   60 vehicle initializations, 192 camera updates and 2,772 layer/aerial fields;
-  original x86 tracks cover 90 cases / 11,880 GPU corners. Workspace tests:
-  **109 passed**, 66 external references explicitly ignored by the ordinary entry;
-  selected references above were run separately. Input ownership, native/Wasm
-  browser sequences, six views, **191 GPU cases**, both production/test-feature
-  lints, production build and C source preservation pass. Production Wasm:
-  **761,096 B**, with no test-only probes. Use the selective runner for references.
+  original x86 tracks cover 90 cases / 11,880 GPU corners. See specialist docs
+  for these accepted suites; current increment results are below. Use the
+  selective runner for external references.
 - **M5.1a Player route startup accepted.** Shared native/browser loading binds
   the real Player after route linkage. Complete C startup agrees on all eight
   default selections / 72 semantic fields; browser/native route state agrees.
   The added query leaves physics, scheduler, RNG and all four saved native
   checkpoints unchanged. No checkpoint advancement or countdown was added.
   [M5 plan/evidence](rust-m5-race.md) fixes the next slices and records limits.
-- **Next: M5.1b ordered startup.** Trace and reconcile authored Player/fallback,
-  camera/finish-owner creation, allocation and shared-RNG order. Full startup
-  seeds currently differ on seven maps (MEXICO matches); omitted Flock/Train,
-  random lap-visibility and starting-camera construction are real consumption
-  sites, not permission to skip random draws. Inspect per-constructor boundaries
-  before assigning later-stage dependencies; do not prebuild optional behavior.
-  Then connect countdown, checkpoint/lap/timer and finish/restart/exit through
-  real owners, with short C/native/Wasm comparisons. Preserve the accepted
-  driving scene. Initial route binding does not complete M5 or full world startup.
+- **M5.1b ordered construction accepted at `8612f7c`.**
+  Standalone Rust `startup` constructs every authored record in order, links
+  routes/backgrounds, drains startup queues, and owns the fallback Player,
+  starting camera and finish entity. All 22 usable CUP files use the fallback;
+  other authored Player/AI inputs remain explicit unsupported classes. Real
+  Flock/Train/emitter/lap/camera initial state supplies the RNG consumption;
+  there are no RNG skips or identity padding. Full seeds now match C on all maps.
+  C checks pass for **25 selections / 4,743 constructors / 111,065 fields**,
+  including per-record RNG, actor state, IDs, poses and startup list order.
+  Native/Wasm construction agrees on ENGLAND/SWAMP/BIO; CIRCUIT's unused cups
+  fail explicitly. Workspace **111 passed / 67 external ignored**; selected
+  C startup/scenery/model references, old four native checkpoints, browser/191
+  GPU cases, lints and production build pass. Production Wasm **818,231 B**;
+  no test probes leak. Original C/host/browser/assets are unchanged.
+  Construction is a read-only cold boundary, not a complete race tick. Actor
+  ticks fail explicitly until M6; accepted browser driving keeps its previous
+  subset/seed and unchanged physics/update order. No map precomputation added.
+- **Next increment: M5.1c race clock.** Introduce the real race/session owner,
+  countdown/release/driving gates and elapsed time at original update positions,
+  with branch and short C/native/Wasm sequences. Audit pre-entity race timing,
+  post-entity camera, queue drain and session action phases. Then M5.1d handles
+  progression/finish/restart/exit. Do not tick the complete construction using
+  unsupported optional actors or claim full race/frame parity.
 - **Later owners:** M5.2 pickups/weapons/damage/effects/HUD, forced effect material
   styles, starting-camera/environment shifts and camera impulses; M6 configurable
   scenery; M7
